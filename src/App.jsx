@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Navbar from './components/Navbar';
+import SuperAdminNavbar from './components/Super Admin/Navbar';
 import Home from './components/View/Home';
 import Login from './components/Login';
 import SignIn from './components/SignIn';
@@ -7,6 +8,12 @@ import ResetPassword from './components/ResetPassword';
 
 import SuperAdminDashboard from './components/Super Admin/Dashbord';
 import Hospital from './components/Super Admin/Hospital';
+import Hospital_Details from './components/Super Admin/Hospital_Details';
+import Hospital_Admins from './components/Super Admin/Hospital_Admins';
+import Doctors_Management from './components/Super Admin/Doctors_Management';
+import Nurses from './components/Super Admin/Nurses';
+import Receptionist_Management from './components/Super Admin/Receptionist';
+import Patients_Management from './components/Super Admin/Patients';
 import AdminDashboard from './components/Admin/Dashbord';
 import DoctorDashboard from './components/Doctor/Dashbord';
 import NurseDashboard from './components/Nurse/Dashbord';
@@ -33,6 +40,8 @@ const App = () => {
       return null;
     }
   });
+
+  const [selectedHospital, setSelectedHospital] = useState(null);
 
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return localStorage.getItem('isLoggedIn') === 'true';
@@ -70,16 +79,28 @@ const App = () => {
     setCurrentPage('login');
   };
 
+  const isSuperAdmin = (currentUser?.role || '').toString().toUpperCase().includes('SUPER');
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans antialiased">
       {isLoggedIn && (
-        <Navbar
-          currentPage={currentPage}
-          setCurrentPage={setCurrentPage}
-          isLoggedIn={isLoggedIn}
-          onLogout={handleLogout}
-          currentUser={currentUser}
-        />
+        isSuperAdmin ? (
+          <SuperAdminNavbar
+            currentPage={currentPage}
+            setCurrentPage={setCurrentPage}
+            isLoggedIn={isLoggedIn}
+            onLogout={handleLogout}
+            currentUser={currentUser}
+          />
+        ) : (
+          <Navbar
+            currentPage={currentPage}
+            setCurrentPage={setCurrentPage}
+            isLoggedIn={isLoggedIn}
+            onLogout={handleLogout}
+            currentUser={currentUser}
+          />
+        )
       )}
 
       <main className="flex-1">
@@ -102,13 +123,63 @@ const App = () => {
         ) : (
           <>
             {currentPage === 'super_admin_dashboard' && (
-              <SuperAdminDashboard currentUser={currentUser} />
+              <SuperAdminDashboard
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedHospital={setSelectedHospital}
+              />
             )}
             {currentPage === 'super_admin_hospitals' && (
-              <Hospital currentUser={currentUser} />
+              <Hospital
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedHospital={setSelectedHospital}
+              />
+            )}
+            {currentPage === 'super_admin_admins' && (
+              <Hospital_Admins
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+              />
+            )}
+            {currentPage === 'super_admin_doctors' && (
+              <Doctors_Management
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+              />
+            )}
+            {currentPage === 'super_admin_nurses' && (
+              <Nurses
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+              />
+            )}
+            {currentPage === 'super_admin_receptionists' && (
+              <Receptionist_Management
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+              />
+            )}
+            {currentPage === 'super_admin_patients' && (
+              <Patients_Management
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+              />
+            )}
+            {currentPage === 'hospital_details' && (
+              <Hospital_Details
+                currentUser={currentUser}
+                selectedHospital={selectedHospital}
+                setSelectedHospital={setSelectedHospital}
+                setCurrentPage={setCurrentPage}
+              />
             )}
             {currentPage === 'admin_dashboard' && (
-              <AdminDashboard currentUser={currentUser} />
+              <AdminDashboard
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedHospital={setSelectedHospital}
+              />
             )}
             {currentPage === 'doctor_dashboard' && (
               <DoctorDashboard currentUser={currentUser} />

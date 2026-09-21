@@ -1,21 +1,26 @@
 import React, { useState } from 'react';
 import Hospital from './Hospital';
+import Hospital_Admins from './Hospital_Admins';
+import Doctors_Management from './Doctors_Management';
+import Nurses from './Nurses';
+import Receptionist_Management from './Receptionist';
+import Patients_Management from './Patients';
 
-const SuperAdminDashboard = ({ currentUser }) => {
+const SuperAdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) => {
   const [activeTab, setActiveTab] = useState('overview');
 
   const systemStats = [
-    { title: 'Total Hospital Branches', value: '6 Locations', sub: 'Delhi, Mumbai, Bengaluru, Pune...', color: 'bg-purple-100 text-purple-700 border-purple-200' },
-    { title: 'Registered Doctors', value: '148 Active', sub: 'Across 16 Specializations', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-    { title: 'Hospital Admins', value: '12 Managers', sub: 'All branches configured', color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
-    { title: 'System Health & Security', value: '99.9% Uptime', sub: 'Database SSL Active', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+    { id: 'branches', title: 'Total Hospital Branches', value: '6 Locations', sub: 'Delhi, Mumbai, Bengaluru, Pune...', color: 'bg-purple-100 text-purple-700 border-purple-200', tab: 'hospitals' },
+    { id: 'doctors', title: 'Registered Doctors', value: '148 Active', sub: 'Across 16 Specializations', color: 'bg-teal-100 text-teal-700 border-teal-200', tab: 'doctors' },
+    { id: 'patients', title: "Patients & Today's Inflow", value: '1,420 Patients', sub: 'Live incoming applications & appointments', color: 'bg-sky-100 text-sky-700 border-sky-200', tab: 'patients' },
+    { id: 'nurses', title: 'Nursing Staff & Wards', value: '280 On Duty', sub: 'ICU, OT, General & Emergency', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', tab: 'nurses' },
   ];
 
   const branches = [
-    { name: 'Apex Central Hospital - Main Campus', city: 'New Delhi', head: 'Dr. S. K. Verma', doctors: 45, occupancy: '88%', status: 'Operational' },
-    { name: 'Apex Care City Clinic', city: 'Mumbai', head: 'Dr. Meera Nambiar', doctors: 32, occupancy: '92%', status: 'Operational' },
-    { name: 'Apex Multi-Specialty Centre', city: 'Bengaluru', head: 'Dr. Anand Joshi', doctors: 40, occupancy: '76%', status: 'Operational' },
-    { name: 'Apex Child & Maternity Hospital', city: 'Pune', head: 'Dr. Shalini Rao', doctors: 31, occupancy: '84%', status: 'Maintenance' },
+    { name: 'Apex Central Hospital - Main Campus', city: 'New Delhi', head: 'S. K. Verma (Admin)', doctors: 45, occupancy: '88%', status: 'Operational' },
+    { name: 'Apex Care City Clinic', city: 'Mumbai', head: 'Meera Nambiar (Admin)', doctors: 32, occupancy: '92%', status: 'Operational' },
+    { name: 'Apex Multi-Specialty Centre', city: 'Bengaluru', head: 'Anand Joshi (Admin)', doctors: 40, occupancy: '76%', status: 'Operational' },
+    { name: 'Apex Child & Maternity Hospital', city: 'Pune', head: 'Shalini Rao (Admin)', doctors: 31, occupancy: '84%', status: 'Maintenance' },
   ];
 
   const recentAudits = [
@@ -44,17 +49,52 @@ const SuperAdminDashboard = ({ currentUser }) => {
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
             <button
               type="button"
+              onClick={() => setActiveTab('patients')}
+              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shadow-sm transition cursor-pointer text-center"
+            >
+              Patients
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('doctors')}
+              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold shadow-sm transition cursor-pointer text-center"
+            >
+              Doctors
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('nurses')}
+              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition cursor-pointer text-center"
+            >
+              Nurses
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('receptionists')}
+              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-sm transition cursor-pointer text-center"
+            >
+              Receptionists
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('admins')}
+              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition cursor-pointer text-center"
+            >
+              Admins
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab('hospitals')}
               className="w-full sm:w-auto px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-sm transition cursor-pointer text-center"
             >
-              Manage Hospitals Hub
+              Hospital Branches
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('overview')}
               className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold border border-slate-600 transition cursor-pointer text-center"
             >
-              System Overview
+              Overview
             </button>
           </div>
         </div>
@@ -69,7 +109,7 @@ const SuperAdminDashboard = ({ currentUser }) => {
                 : 'text-slate-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            📊 System Overview & Logs
+            Overview
           </button>
           <button
             type="button"
@@ -80,20 +120,105 @@ const SuperAdminDashboard = ({ currentUser }) => {
                 : 'text-slate-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            🏥 Hospital Management ({branches.length} Branches)
+            Hospital Branches ({branches.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('admins')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'admins'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            Admins
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('patients')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'patients'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            Patients
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('doctors')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'doctors'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            Doctors
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('nurses')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'nurses'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            Nurses
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('receptionists')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'receptionists'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            Receptionists
           </button>
         </div>
       </div>
 
-      {activeTab === 'hospitals' ? (
-        <Hospital />
+      {activeTab === 'patients' ? (
+        <Patients_Management
+          currentUser={currentUser}
+          setCurrentPage={setCurrentPage}
+        />
+      ) : activeTab === 'receptionists' ? (
+        <Receptionist_Management
+          currentUser={currentUser}
+          setCurrentPage={setCurrentPage}
+        />
+      ) : activeTab === 'nurses' ? (
+        <Nurses
+          currentUser={currentUser}
+          setCurrentPage={setCurrentPage}
+        />
+      ) : activeTab === 'doctors' ? (
+        <Doctors_Management
+          currentUser={currentUser}
+          setCurrentPage={setCurrentPage}
+        />
+      ) : activeTab === 'admins' ? (
+        <Hospital_Admins
+          currentUser={currentUser}
+          setCurrentPage={setCurrentPage}
+        />
+      ) : activeTab === 'hospitals' ? (
+        <Hospital
+          currentUser={currentUser}
+          setCurrentPage={setCurrentPage}
+          setSelectedHospital={setSelectedHospital}
+        />
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {systemStats.map((item, idx) => (
               <div
                 key={idx}
-                className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-purple-300 transition"
+                onClick={() => item.tab && setActiveTab(item.tab)}
+                className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-purple-300 transition cursor-pointer"
               >
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{item.title}</p>
@@ -128,7 +253,7 @@ const SuperAdminDashboard = ({ currentUser }) => {
                     <tr>
                       <th className="py-3 px-3 text-center">Branch Name</th>
                       <th className="py-3 px-3 text-center">City</th>
-                      <th className="py-3 px-3 text-center">Branch Head</th>
+                      <th className="py-3 px-3 text-center">Branch Administrator</th>
                       <th className="py-3 px-3 text-center">Doctors</th>
                       <th className="py-3 px-3 text-center">Bed Occupancy</th>
                       <th className="py-3 px-3 text-center">Status</th>

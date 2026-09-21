@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const Hospital = () => {
+const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelectedHospitalProp }) => {
   const [hospitals, setHospitals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -13,6 +13,17 @@ const Hospital = () => {
   const [selectedHospital, setSelectedHospital] = useState(null);
   const [detailHospital, setDetailHospital] = useState(null);
   const [deleteHospitalTarget, setDeleteHospitalTarget] = useState(null);
+
+  const handleViewFullDetails = (hosp) => {
+    if (setSelectedHospitalProp) {
+      setSelectedHospitalProp(hosp);
+    }
+    if (setCurrentPage) {
+      setCurrentPage('hospital_details');
+    } else {
+      setDetailHospital(hosp);
+    }
+  };
 
   const [formData, setFormData] = useState({
     Name: '',
@@ -215,16 +226,24 @@ const Hospital = () => {
             Hospital Branches & Network Management
           </h1>
         </div>
-        <button
-          type="button"
-          onClick={handleOpenAddModal}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md transition duration-150 cursor-pointer w-full sm:w-auto shrink-0"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-          </svg>
-          Add New Hospital Branch
-        </button>
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+          {setCurrentPage && (
+            <button
+              type="button"
+              onClick={() => setCurrentPage('super_admin_admins')}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md transition duration-150 cursor-pointer w-full sm:w-auto shrink-0"
+            >
+              Hospital Admins &rarr;
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleOpenAddModal}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md transition duration-150 cursor-pointer w-full sm:w-auto shrink-0"
+          >
+            + Add New Hospital Branch
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -250,12 +269,9 @@ const Hospital = () => {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search Hear"
-            className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-300 bg-slate-50/50 text-xs text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white transition"
+            placeholder="Search Hospital..."
+            className="w-full pl-3 pr-4 py-2 rounded-xl border border-slate-300 bg-slate-50/50 text-xs text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white transition"
           />
-          <svg className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -320,17 +336,17 @@ const Hospital = () => {
                             : 'bg-slate-100 text-slate-600 border-slate-200'
                         }`}
                       >
-                        {hosp.is_active ? '● Active' : '○ Inactive'}
+                        {hosp.is_active ? 'Active' : 'Inactive'}
                       </button>
                     </td>
                     <td className="py-3 px-3 sm:px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5 sm:gap-2">
                         <button
                           type="button"
-                          onClick={() => setDetailHospital(hosp)}
+                          onClick={() => handleViewFullDetails(hosp)}
                           className="px-2 sm:px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white font-semibold text-[10px] sm:text-[11px] transition cursor-pointer"
                         >
-                          Details
+                          Details &rarr;
                         </button>
                         <button
                           type="button"
@@ -623,11 +639,11 @@ const Hospital = () => {
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       : 'bg-slate-100 text-slate-600 border-slate-200'
                   }`}>
-                    {detailHospital.is_active ? '● Operational' : '○ Inactive'}
+                    {detailHospital.is_active ? 'Operational' : 'Inactive'}
                   </span>
                 </div>
                 <h2 className="text-lg sm:text-xl font-bold text-slate-800 mt-2">{detailHospital.Name}</h2>
-                <p className="text-xs text-slate-500 mt-0.5">📍 {detailHospital.address}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{detailHospital.address}</p>
               </div>
               <button
                 type="button"
@@ -659,11 +675,22 @@ const Hospital = () => {
                 onClick={() => {
                   const target = detailHospital;
                   setDetailHospital(null);
+                  handleViewFullDetails(target);
+                }}
+                className="px-4 py-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 font-semibold cursor-pointer text-center shadow-xs"
+              >
+                View Full Hospital Details &rarr;
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = detailHospital;
+                  setDetailHospital(null);
                   handleOpenEditModal(target);
                 }}
                 className="px-4 py-2 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold cursor-pointer border border-blue-200 text-center"
               >
-                Edit Hospital Information
+                Edit Hospital
               </button>
               <button
                 type="button"
@@ -680,9 +707,6 @@ const Hospital = () => {
       {deleteHospitalTarget && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-4 sm:p-6 space-y-4 my-auto">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center text-xl mx-auto border border-rose-200">
-              ⚠️
-            </div>
             <div className="text-center">
               <h3 className="text-base font-bold text-slate-800">Delete Hospital Branch?</h3>
               <p className="text-xs text-slate-500 mt-1">

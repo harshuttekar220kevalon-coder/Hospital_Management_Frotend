@@ -1,6 +1,6 @@
 import React from 'react';
 
-const AdminDashboard = ({ currentUser }) => {
+const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) => {
   const adminStats = [
     { title: 'Total Staff on Duty', value: '74 Members', change: '8 on planned leave', icon: '👥', color: 'bg-blue-50 text-blue-700 border-blue-200' },
     { title: 'OPD Registrations Today', value: '234 Patients', change: '+18% vs yesterday', icon: '📋', color: 'bg-teal-50 text-teal-700 border-teal-200' },
@@ -33,11 +33,15 @@ const AdminDashboard = ({ currentUser }) => {
             </p>
           </div>
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => setCurrentPage && setCurrentPage('hospital_details')}
+              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition cursor-pointer text-center flex items-center justify-center gap-1.5"
+            >
+              <span>🏥</span> View Hospital Details
+            </button>
             <button className="w-full sm:w-auto px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition cursor-pointer text-center">
               + Generate Daily Report
-            </button>
-            <button className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold border border-slate-600 transition cursor-pointer text-center">
-              Duty Roster
             </button>
           </div>
         </div>
@@ -93,7 +97,11 @@ const AdminDashboard = ({ currentUser }) => {
                     </span>
                   </td>
                   <td className="py-3 px-3 text-right">
-                    <button className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage && setCurrentPage('hospital_details')}
+                      className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+                    >
                       Details &rarr;
                     </button>
                   </td>

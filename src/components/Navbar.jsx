@@ -89,19 +89,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                   My Dashboard
                 </button>
 
-                {(currentUser?.role || '').toString().toUpperCase().includes('SUPER') && (
-                  <button
-                    type="button"
-                    onClick={() => handleNavClick('super_admin_hospitals')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
-                      currentPage === 'super_admin_hospitals'
-                        ? 'bg-purple-900/90 text-purple-200 border border-purple-400/40 shadow-xs'
-                        : 'text-purple-300 hover:text-white hover:bg-slate-800/80'
-                    }`}
-                  >
-                    🏥 Hospital Branches
-                  </button>
-                )}
+
 
                 <button
                   type="button"
@@ -191,17 +179,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
             My Dashboard
           </button>
 
-          {(currentUser?.role || '').toString().toUpperCase().includes('SUPER') && (
-            <button
-              type="button"
-              onClick={() => handleNavClick('super_admin_hospitals')}
-              className={`w-full text-left px-4 py-2 rounded-lg text-xs font-semibold ${
-                currentPage === 'super_admin_hospitals' ? 'bg-purple-900/80 text-purple-200' : 'text-purple-300 hover:bg-slate-800'
-              }`}
-            >
-              🏥 Hospital Branches
-            </button>
-          )}
+
 
           <button
             type="button"
