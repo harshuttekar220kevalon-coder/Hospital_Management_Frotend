@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const Hospital_Admins = ({ currentUser, setCurrentPage }) => {
+const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSelectedAdminProp }) => {
   const [admins, setAdmins] = useState([]);
   const [hospitalsList, setHospitalsList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,21 +12,26 @@ const Hospital_Admins = ({ currentUser, setCurrentPage }) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState(null);
-  const [detailAdmin, setDetailAdmin] = useState(null);
   const [deleteAdminTarget, setDeleteAdminTarget] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleViewAdminDetails = (admin) => {
+    if (setSelectedAdminProp) {
+      setSelectedAdminProp(admin);
+    }
+    if (setCurrentPage) {
+      setCurrentPage('admin_details');
+    }
+  };
 
   const initialFormState = {
     name: '',
     email: '',
     contact: '',
-    emergency_contact: '',
+    password: '', // Added password field for admin login
     designation: 'Hospital Administrator',
-    qualification: '',
-    experience: '',
-    office: '',
     hospital: '',
-    is_active: true,
-    responsibilities: ''
+    is_active: true
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -100,6 +105,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage }) => {
 
   const handleOpenAddModal = () => {
     setFormData(initialFormState);
+    setShowPassword(false);
     setIsAddModalOpen(true);
   };
 
@@ -147,14 +153,10 @@ const Hospital_Admins = ({ currentUser, setCurrentPage }) => {
       name: admin.name || '',
       email: admin.email || '',
       contact: admin.contact || '',
-      emergency_contact: admin.emergency_contact || '',
+      password: admin.password || '', // Include existing or blank password on edit
       designation: admin.designation || '',
-      qualification: admin.qualification || '',
-      experience: admin.experience || '',
-      office: admin.office || '',
       hospital: admin.hospital || '',
-      is_active: admin.is_active,
-      responsibilities: admin.responsibilities || ''
+      is_active: admin.is_active
     });
     setIsEditModalOpen(true);
   };
@@ -270,7 +272,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage }) => {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
-                Hospital Administration Management (Backend Synced)
+                Hospital Administration Management
               </span>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
                 {activeAdminsCount} Active Admins
@@ -280,7 +282,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage }) => {
               Hospital Administrators Hub
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Create, configure, assign hospital branches, and manage administrative credentials via PostgreSQL.
+              Create, configure, assign hospital branches, and manage administrative credentials.
             </p>
           </div>
         </div>
@@ -300,7 +302,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage }) => {
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Administrators</p>
           <h3 className="text-2xl font-bold text-slate-800 mt-1">{totalAdminsCount}</h3>
-          <p className="text-xs text-slate-500 mt-1">Stored in PostgreSQL DB</p>
+          <p className="text-xs text-slate-500 mt-1">Registered Administrators</p>
         </div>
 
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
@@ -379,10 +381,10 @@ const Hospital_Admins = ({ currentUser, setCurrentPage }) => {
             <table className="w-full text-left text-xs text-slate-600 min-w-[760px]">
               <thead className="bg-slate-100/80 text-slate-700 uppercase font-semibold text-[11px] tracking-wider">
                 <tr>
-                  <th className="py-3.5 px-4">Admin Name & ID</th>
+                  <th className="py-3.5 px-4">Admin ID</th>
                   <th className="py-3.5 px-4">Designation</th>
                   <th className="py-3.5 px-4">Assigned Hospital</th>
-                  <th className="py-3.5 px-4">Contact Info</th>
+                  <th className="py-3.5 px-4">Contact Phone</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4 text-center">Actions</th>
                 </tr>
@@ -393,23 +395,18 @@ const Hospital_Admins = ({ currentUser, setCurrentPage }) => {
                   return (
                     <tr key={admin.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4">
-                        <p className="font-bold text-slate-800 text-sm">{admin.name}</p>
-                        <span className="font-mono text-[10px] text-purple-700 font-semibold bg-purple-50 px-2 py-0.5 rounded border border-purple-200 mt-0.5 inline-block">
+                        <span className="font-mono text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 inline-block">
                           {admin.employee_id || 'ADM-N/A'}
                         </span>
                       </td>
                       <td className="py-3.5 px-4">
                         <p className="font-semibold text-slate-800">{admin.designation}</p>
-                        <p className="text-slate-400 text-[10px]">{admin.qualification || admin.experience || '-'}</p>
                       </td>
                       <td className="py-3.5 px-4">
                         {assignedHosp ? (
-                          <div>
-                            <p className="font-bold text-indigo-700">{assignedHosp.Name}</p>
-                            <p className="text-slate-400 text-[10px]">
-                              {assignedHosp.Branch_Code ? `${assignedHosp.Branch_Code} • ` : ''}{assignedHosp.city || ''}
-                            </p>
-                          </div>
+                          <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200 inline-block">
+                            {assignedHosp.Branch_Code || `HOSP-${assignedHosp.id}`}
+                          </span>
                         ) : (
                           <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
                             Unassigned
@@ -417,8 +414,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage }) => {
                         )}
                       </td>
                       <td className="py-3.5 px-4">
-                        <p className="font-medium text-slate-700">{admin.contact}</p>
-                        <p className="text-slate-400 text-[10px]">{admin.email}</p>
+                        <p className="font-semibold text-slate-700">{admin.contact || '-'}</p>
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <button
@@ -435,36 +431,13 @@ const Hospital_Admins = ({ currentUser, setCurrentPage }) => {
                         </button>
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenAssignModal(admin)}
-                            className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white font-semibold text-[11px] transition cursor-pointer border border-indigo-200"
-                          >
-                            Assign Branch
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditModal(admin)}
-                            className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white font-semibold text-[11px] transition cursor-pointer border border-blue-200"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDetailAdmin(admin)}
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold text-[11px] transition cursor-pointer border border-slate-200"
-                          >
-                            Details
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteAdminTarget(admin)}
-                            className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-600 hover:text-white font-semibold text-[11px] transition cursor-pointer border border-rose-200"
-                          >
-                            Delete
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleViewAdminDetails(admin)}
+                          className="px-3.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white font-bold text-xs transition cursor-pointer border border-indigo-200"
+                        >
+                          Details
+                        </button>
                       </td>
                     </tr>
                   );
@@ -528,6 +501,39 @@ const Hospital_Admins = ({ currentUser, setCurrentPage }) => {
                   />
                 </div>
                 <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Signin Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="Enter login password"
+                      className="w-full pl-3 pr-10 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Designation</label>
                   <input
                     type="text"
@@ -536,22 +542,21 @@ const Hospital_Admins = ({ currentUser, setCurrentPage }) => {
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch</label>
-                <select
-                  value={formData.hospital}
-                  onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 font-medium cursor-pointer"
-                >
-                  <option value="">Leave Unassigned</option>
-                  {hospitalsList.map((h) => (
-                    <option key={h.id} value={h.id}>
-                      {h.Name} ({h.city}) - {h.Branch_Code}
-                    </option>
-                  ))}
-                </select>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch</label>
+                  <select
+                    value={formData.hospital}
+                    onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 font-medium cursor-pointer"
+                  >
+                    <option value="">Leave Unassigned</option>
+                    {hospitalsList.map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.Name} ({h.city}) - {h.Branch_Code}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="flex items-center gap-2 pt-1">
@@ -587,245 +592,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage }) => {
         </div>
       )}
 
-      {isEditModalOpen && selectedAdmin && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4 my-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h2 className="text-base sm:text-lg font-bold text-slate-800">Edit Hospital Administrator</h2>
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 text-2xl font-bold cursor-pointer"
-              >
-                &times;
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdateAdmin} className="space-y-3 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Full Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Official Email *</label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.contact}
-                    onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Designation</label>
-                  <input
-                    type="text"
-                    value={formData.designation}
-                    onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch</label>
-                <select
-                  value={formData.hospital}
-                  onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 font-medium cursor-pointer"
-                >
-                  <option value="">Leave Unassigned</option>
-                  {hospitalsList.map((h) => (
-                    <option key={h.id} value={h.id}>
-                      {h.Name} ({h.city}) - {h.Branch_Code}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="editAdminActive"
-                  checked={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  className="w-4 h-4 text-purple-600 rounded cursor-pointer"
-                />
-                <label htmlFor="editAdminActive" className="font-semibold text-slate-700 cursor-pointer">
-                  Account Active & Operational
-                </label>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-md cursor-pointer"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isAssignModalOpen && selectedAdmin && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-4 sm:p-6 space-y-4 my-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h2 className="text-base font-bold text-slate-800">Assign Admin &rarr; Hospital</h2>
-              <button
-                type="button"
-                onClick={() => setIsAssignModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 text-2xl font-bold cursor-pointer"
-              >
-                &times;
-              </button>
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 text-xs uppercase mb-1">
-                Select Destination Hospital Branch:
-              </label>
-              <select
-                value={assignHospitalId}
-                onChange={(e) => setAssignHospitalId(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 font-medium focus:outline-none focus:border-purple-600 cursor-pointer"
-              >
-                <option value="">Unassign / No Hospital Assigned</option>
-                {hospitalsList.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.Name} ({h.city}) - {h.Branch_Code}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 text-xs">
-              <button
-                type="button"
-                onClick={() => setIsAssignModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveHospitalAssignment}
-                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md cursor-pointer"
-              >
-                Confirm Assignment
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {detailAdmin && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-4 sm:p-6 space-y-4 my-auto">
-            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
-              <div>
-                <span className="font-mono text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded border border-purple-200">
-                  {detailAdmin.employee_id}
-                </span>
-                <h2 className="text-lg font-bold text-slate-800 mt-2">{detailAdmin.name}</h2>
-                <p className="text-xs text-indigo-700 font-semibold">{detailAdmin.designation}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDetailAdmin(null)}
-                className="text-slate-400 hover:text-slate-700 text-2xl font-bold cursor-pointer"
-              >
-                &times;
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-[10px] text-slate-400 uppercase font-semibold">Assigned Hospital</p>
-                <p className="font-bold text-slate-800 mt-0.5">
-                  {hospitalsList.find(h => h.id === detailAdmin.hospital)?.Name || 'Unassigned'}
-                </p>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-[10px] text-slate-400 uppercase font-semibold">Contact Phone</p>
-                <p className="font-bold text-slate-800 mt-0.5">{detailAdmin.contact}</p>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 sm:col-span-2">
-                <p className="text-[10px] text-slate-400 uppercase font-semibold">Email</p>
-                <p className="font-bold text-slate-800 mt-0.5 break-all">{detailAdmin.email}</p>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setDetailAdmin(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 text-white font-semibold text-xs cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {deleteAdminTarget && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-4 sm:p-6 space-y-4 my-auto">
-            <div className="text-center">
-              <h3 className="text-base font-bold text-slate-800">Delete Administrator Account?</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Are you sure you want to delete <span className="font-bold text-slate-700">{deleteAdminTarget.name}</span> from the database?
-              </p>
-            </div>
-            <div className="flex items-center justify-center gap-3 pt-2 text-xs">
-              <button
-                type="button"
-                onClick={() => setDeleteAdminTarget(null)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDeleteAdmin(deleteAdminTarget.id)}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md cursor-pointer"
-              >
-                Yes, Delete Admin
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Only Create Admin Modal remains in list page */}
     </div>
   );
 };

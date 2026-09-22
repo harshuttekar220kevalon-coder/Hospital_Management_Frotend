@@ -18,6 +18,7 @@ const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser }
     {
       id: 'super_admin_admins',
       label: 'Admins',
+      matchPages: ['super_admin_admins', 'admin_details'],
       activeClass: 'bg-indigo-500/20 text-indigo-300 border-indigo-400/40 font-bold shadow-xs'
     },
     {

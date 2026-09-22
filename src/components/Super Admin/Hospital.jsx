@@ -14,6 +14,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
   const [detailHospital, setDetailHospital] = useState(null);
   const [deleteHospitalTarget, setDeleteHospitalTarget] = useState(null);
 
+
   const handleViewFullDetails = (hosp) => {
     if (setSelectedHospitalProp) {
       setSelectedHospitalProp(hosp);
@@ -79,8 +80,8 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
       statusFilter === 'ALL'
         ? true
         : statusFilter === 'Active'
-        ? h.is_active === true
-        : h.is_active === false;
+          ? h.is_active === true
+          : h.is_active === false;
 
     const matchesCity = cityFilter === 'ALL' ? true : h.city === cityFilter;
 
@@ -330,39 +331,22 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                       <button
                         type="button"
                         onClick={() => handleToggleStatus(hosp)}
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition cursor-pointer ${
-                          hosp.is_active
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition cursor-pointer ${hosp.is_active
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : 'bg-slate-100 text-slate-600 border-slate-200'
-                        }`}
+                          }`}
                       >
                         {hosp.is_active ? 'Active' : 'Inactive'}
                       </button>
                     </td>
                     <td className="py-3 px-3 sm:px-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5 sm:gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleViewFullDetails(hosp)}
-                          className="px-2 sm:px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white font-semibold text-[10px] sm:text-[11px] transition cursor-pointer"
-                        >
-                          Details &rarr;
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditModal(hosp)}
-                          className="px-2 sm:px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white font-semibold text-[10px] sm:text-[11px] transition cursor-pointer"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteHospitalTarget(hosp)}
-                          className="px-2 sm:px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-600 hover:text-white font-semibold text-[10px] sm:text-[11px] transition cursor-pointer"
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleViewFullDetails(hosp)}
+                        className="px-3.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white font-bold text-xs transition cursor-pointer border border-indigo-200"
+                      >
+                        Details &rarr;
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -634,11 +618,10 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                   <span className="font-mono text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-md border border-purple-200">
                     {detailHospital.Branch_Code}
                   </span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                    detailHospital.is_active
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${detailHospital.is_active
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       : 'bg-slate-100 text-slate-600 border-slate-200'
-                  }`}>
+                    }`}>
                     {detailHospital.is_active ? 'Operational' : 'Inactive'}
                   </span>
                 </div>

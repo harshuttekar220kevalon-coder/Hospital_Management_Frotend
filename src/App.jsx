@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import SuperAdminNavbar from './components/Super Admin/Navbar';
 import Home from './components/View/Home';
@@ -10,6 +10,7 @@ import SuperAdminDashboard from './components/Super Admin/Dashbord';
 import Hospital from './components/Super Admin/Hospital';
 import Hospital_Details from './components/Super Admin/Hospital_Details';
 import Hospital_Admins from './components/Super Admin/Hospital_Admins';
+import Admin_Details from './components/Super Admin/Admin_Details';
 import Doctors_Management from './components/Super Admin/Doctors_Management';
 import Nurses from './components/Super Admin/Nurses';
 import Receptionist_Management from './components/Super Admin/Receptionist';
@@ -41,7 +42,23 @@ const App = () => {
     }
   });
 
-  const [selectedHospital, setSelectedHospital] = useState(null);
+  const [selectedHospital, setSelectedHospital] = useState(() => {
+    try {
+      const saved = localStorage.getItem('selectedHospital');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [selectedAdmin, setSelectedAdmin] = useState(() => {
+    try {
+      const saved = localStorage.getItem('selectedAdmin');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return localStorage.getItem('isLoggedIn') === 'true';
@@ -49,7 +66,17 @@ const App = () => {
 
   const [currentPage, setCurrentPage] = useState(() => {
     const isLogged = localStorage.getItem('isLoggedIn') === 'true';
-    if (!isLogged) return 'login';
+    if (!isLogged) {
+      const savedPage = localStorage.getItem('currentPage');
+      if (savedPage === 'signin' || savedPage === 'reset_password') {
+        return savedPage;
+      }
+      return 'login';
+    }
+    const savedPage = localStorage.getItem('currentPage');
+    if (savedPage && savedPage !== 'login' && savedPage !== 'signin' && savedPage !== 'reset_password') {
+      return savedPage;
+    }
     try {
       const savedUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
       return getDashboardByRole(savedUser?.role);
@@ -57,6 +84,32 @@ const App = () => {
       return 'home';
     }
   });
+
+  // Scroll to top and persist current page whenever currentPage changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    if (currentPage) {
+      localStorage.setItem('currentPage', currentPage);
+    }
+  }, [currentPage]);
+
+  // Persist selectedHospital in localStorage for reload persistence
+  useEffect(() => {
+    if (selectedHospital) {
+      localStorage.setItem('selectedHospital', JSON.stringify(selectedHospital));
+    } else {
+      localStorage.removeItem('selectedHospital');
+    }
+  }, [selectedHospital]);
+
+  // Persist selectedAdmin in localStorage for reload persistence
+  useEffect(() => {
+    if (selectedAdmin) {
+      localStorage.setItem('selectedAdmin', JSON.stringify(selectedAdmin));
+    } else {
+      localStorage.removeItem('selectedAdmin');
+    }
+  }, [selectedAdmin]);
 
   const handleLoginSuccess = (userData) => {
     setIsLoggedIn(true);
@@ -69,13 +122,19 @@ const App = () => {
 
     const targetDashboard = getDashboardByRole(userData?.role);
     setCurrentPage(targetDashboard);
+    localStorage.setItem('currentPage', targetDashboard);
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
     setCurrentUser(null);
+    setSelectedHospital(null);
+    setSelectedAdmin(null);
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('currentPage');
+    localStorage.removeItem('selectedHospital');
+    localStorage.removeItem('selectedAdmin');
     setCurrentPage('login');
   };
 
@@ -139,6 +198,15 @@ const App = () => {
             {currentPage === 'super_admin_admins' && (
               <Hospital_Admins
                 currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedAdmin={setSelectedAdmin}
+              />
+            )}
+            {currentPage === 'admin_details' && (
+              <Admin_Details
+                currentUser={currentUser}
+                selectedAdmin={selectedAdmin}
+                setSelectedAdmin={setSelectedAdmin}
                 setCurrentPage={setCurrentPage}
               />
             )}
