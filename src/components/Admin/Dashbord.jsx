@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) => {
+  const [visibleCount, setVisibleCount] = useState(6);
+
   const adminStats = [
     { title: 'Total Staff on Duty', value: '74 Members', change: '8 on planned leave', icon: '👥', color: 'bg-blue-50 text-blue-700 border-blue-200' },
     { title: 'OPD Registrations Today', value: '234 Patients', change: '+18% vs yesterday', icon: '📋', color: 'bg-teal-50 text-teal-700 border-teal-200' },
@@ -86,7 +88,7 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) =>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {departmentStatus.map((d, i) => (
+              {departmentStatus.slice(0, visibleCount).map((d, i) => (
                 <tr key={i} className="hover:bg-slate-50/60 transition">
                   <td className="py-3 px-3 font-semibold text-slate-800">{d.dept}</td>
                   <td className="py-3 px-3">{d.head}</td>
@@ -110,6 +112,18 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) =>
             </tbody>
           </table>
         </div>
+
+        {visibleCount < departmentStatus.length && (
+          <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((prev) => prev + 6)}
+              className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+            >
+              Show More
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

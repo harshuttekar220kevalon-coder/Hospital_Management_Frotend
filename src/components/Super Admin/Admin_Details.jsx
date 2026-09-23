@@ -372,124 +372,100 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+      {/* TOP NAVIGATION & BACK BUTTON */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <button
           type="button"
           onClick={handleBackClick}
-          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shrink-0"
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 shadow-2xs transition cursor-pointer"
         >
-          &larr; Back to Admins List
+          &larr; Back to Admins
         </button>
+
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <span>Super Admin</span>
+          <span>/</span>
+          <span>Hospital Admins</span>
+          <span>/</span>
+          <span className="font-semibold text-slate-700 font-mono">
+            {admin.employee_id || `ADM-${admin.id}`}
+          </span>
+        </div>
+      </div>
+
+      {/* HEADER HERO CARD */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center gap-4">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-sky-600 to-teal-400 flex items-center justify-center text-white font-black text-xl sm:text-2xl shadow-md shrink-0">
+            {(admin.name || 'A').charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-xs font-bold text-sky-800 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
+                {admin.employee_id || `ADM-${admin.id}`}
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                {admin.designation || 'Hospital Administrator'}
+              </span>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                admin.is_active !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
+              }`}>
+                {admin.is_active !== false ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 tracking-tight mt-1">
+              {admin.name || 'Administrator'}
+            </h1>
+          </div>
+        </div>
 
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={handleOpenEdit}
-            className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
-          >
-            Edit Admin
-          </button>
-
-          <button
-            type="button"
             onClick={handleOpenResetPassword}
-            className="px-3.5 py-2 rounded-xl bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 text-xs font-bold shadow-xs transition cursor-pointer"
+            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 transition cursor-pointer flex items-center gap-1.5"
           >
             Reset Password
           </button>
 
           <button
             type="button"
-            onClick={() => setIsDeleteModalOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100 text-xs font-bold shadow-xs transition cursor-pointer"
+            onClick={handleOpenEdit}
+            className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
           >
-            Delete Admin
+            Edit Admin
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsDeleteModalOpen(true)}
+            className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition cursor-pointer"
+          >
+            Delete
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-bold text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
-                Hospital Administrator
-              </span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                admin.is_active !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
-              }`}>
-                {admin.is_active !== false ? 'Active & Operational' : 'Deactivated'}
-              </span>
-              {admin.employee_id && (
-                <span className="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 text-[10px]">
-                  {admin.employee_id}
-                </span>
-              )}
-            </div>
-
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 mt-2">{admin.name || 'Administrator'}</h1>
-            <p className="text-xs text-indigo-700 font-semibold mt-0.5">{admin.designation || 'Hospital Administrator'}</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2.5 border-t border-slate-100 text-xs text-slate-600">
-            <div>
-              <p className="text-[10px] uppercase font-bold text-slate-400">Contact Phone</p>
-              <p className="font-semibold text-slate-800 mt-0.5">{admin.contact || '-'}</p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase font-bold text-slate-400">Official Email</p>
-              <p className="font-semibold text-blue-700 mt-0.5 truncate">{admin.email || '-'}</p>
-            </div>
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Branch Doctors</p>
+          <h3 className="text-xl sm:text-2xl font-extrabold text-teal-700 mt-1">{doctorsList.length}</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Assigned specialists</p>
         </div>
-
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-                Assigned Branch Information
-              </span>
-              {activeHospital ? (
-                <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 text-[10px]">
-                  {activeHospital.Branch_Code}
-                </span>
-              ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">
-                  Unassigned
-                </span>
-              )}
-            </div>
-
-            {activeHospital ? (
-              <>
-                <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mt-2">{activeHospital.Name}</h2>
-                <p className="text-xs text-slate-600 mt-1">{activeHospital.address || activeHospital.city}</p>
-              </>
-            ) : (
-              <div className="mt-4 p-4 text-center bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-xs font-semibold text-slate-600">No Hospital Branch currently assigned.</p>
-              </div>
-            )}
-          </div>
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Nursing Staff</p>
+          <h3 className="text-xl sm:text-2xl font-extrabold text-emerald-700 mt-1">{nursesList.length}</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Clinical care staff</p>
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-xs font-semibold text-slate-500 uppercase">Branch Doctors</p>
-          <h3 className="text-2xl font-bold text-teal-700 mt-1">{doctorsList.length}</h3>
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Receptionists</p>
+          <h3 className="text-xl sm:text-2xl font-extrabold text-amber-700 mt-1">{receptionistsList.length}</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Front desk team</p>
         </div>
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-xs font-semibold text-slate-500 uppercase">Nursing Staff</p>
-          <h3 className="text-2xl font-bold text-emerald-700 mt-1">{nursesList.length}</h3>
-        </div>
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-xs font-semibold text-slate-500 uppercase">Receptionists</p>
-          <h3 className="text-2xl font-bold text-amber-700 mt-1">{receptionistsList.length}</h3>
-        </div>
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-xs font-semibold text-slate-500 uppercase">Patients</p>
-          <h3 className="text-2xl font-bold text-indigo-700 mt-1">{patientsList.length}</h3>
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Patients</p>
+          <h3 className="text-xl sm:text-2xl font-extrabold text-indigo-700 mt-1">{patientsList.length}</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Branch registrations</p>
         </div>
       </div>
 
@@ -507,7 +483,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
             type="button"
             onClick={() => setActiveTab(tab.id)}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeTab === tab.id ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+              activeTab === tab.id ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
             {tab.label}
@@ -665,7 +641,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                   value={editFormData.name}
                   onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
                   placeholder="Full Name"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
@@ -677,19 +653,22 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                   value={editFormData.email}
                   onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
                   placeholder="admin@hospital.com"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone (Numbers only) *</label>
                 <input
-                  type="text"
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={10}
                   required
                   value={editFormData.contact}
-                  onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })}
-                  placeholder="+91..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                  onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '') })}
+                  placeholder="10-digit mobile number"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
@@ -740,7 +719,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                   type="text"
                   value={editFormData.designation}
                   onChange={(e) => setEditFormData({ ...editFormData, designation: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
@@ -749,9 +728,9 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                 <select
                   value={editFormData.hospital}
                   onChange={(e) => setEditFormData({ ...editFormData, hospital: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 font-medium cursor-pointer"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                 >
-                  <option value="">Leave Unassigned</option>
+                  <option value="">Select Hospital Branch *</option>
                   {hospitalsList.map((h) => (
                     <option key={h.id} value={h.id}>{h.Name} ({h.city}) - {h.Branch_Code}</option>
                   ))}
@@ -764,10 +743,10 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                   id="adminActiveEditModal"
                   checked={editFormData.is_active}
                   onChange={(e) => setEditFormData({ ...editFormData, is_active: e.target.checked })}
-                  className="w-4 h-4 text-purple-600 rounded cursor-pointer"
+                  className="w-4 h-4 text-sky-600 rounded cursor-pointer"
                 />
                 <label htmlFor="adminActiveEditModal" className="font-semibold text-slate-700 cursor-pointer">
-                  Account Active & Operational
+                  Active Status
                 </label>
               </div>
 
@@ -781,7 +760,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-md cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold shadow-md cursor-pointer"
                 >
                   Save Changes
                 </button>

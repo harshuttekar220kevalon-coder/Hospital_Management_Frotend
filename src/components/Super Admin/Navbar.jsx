@@ -7,38 +7,42 @@ const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser }
     {
       id: 'super_admin_dashboard',
       label: 'Dashboard',
-      activeClass: 'bg-teal-500/20 text-teal-300 border-teal-400/40 font-bold shadow-xs'
+      activeClass: 'bg-sky-500/20 text-sky-300 border-sky-400/40 font-bold shadow-xs'
     },
     {
       id: 'super_admin_hospitals',
       label: 'Hospital Branches',
       matchPages: ['super_admin_hospitals', 'hospital_details'],
-      activeClass: 'bg-purple-500/20 text-purple-300 border-purple-400/40 font-bold shadow-xs'
+      activeClass: 'bg-sky-500/20 text-sky-300 border-sky-400/40 font-bold shadow-xs'
     },
     {
       id: 'super_admin_admins',
       label: 'Admins',
       matchPages: ['super_admin_admins', 'admin_details'],
-      activeClass: 'bg-indigo-500/20 text-indigo-300 border-indigo-400/40 font-bold shadow-xs'
+      activeClass: 'bg-sky-500/20 text-sky-300 border-sky-400/40 font-bold shadow-xs'
     },
     {
       id: 'super_admin_doctors',
       label: 'Doctors',
-      activeClass: 'bg-teal-500/20 text-teal-300 border-teal-400/40 font-bold shadow-xs'
+      matchPages: ['super_admin_doctors', 'doctor_details'],
+      activeClass: 'bg-sky-500/20 text-sky-300 border-sky-400/40 font-bold shadow-xs'
     },
     {
       id: 'super_admin_nurses',
       label: 'Nurses',
-      activeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40 font-bold shadow-xs'
+      matchPages: ['super_admin_nurses', 'nurse_details'],
+      activeClass: 'bg-sky-500/20 text-sky-300 border-sky-400/40 font-bold shadow-xs'
     },
     {
       id: 'super_admin_receptionists',
       label: 'Receptionists',
-      activeClass: 'bg-amber-500/20 text-amber-300 border-amber-400/40 font-bold shadow-xs'
+      matchPages: ['super_admin_receptionists', 'receptionist_details'],
+      activeClass: 'bg-sky-500/20 text-sky-300 border-sky-400/40 font-bold shadow-xs'
     },
     {
       id: 'super_admin_patients',
       label: 'Patients',
+      matchPages: ['super_admin_patients', 'patient_details'],
       activeClass: 'bg-sky-500/20 text-sky-300 border-sky-400/40 font-bold shadow-xs'
     }
   ];

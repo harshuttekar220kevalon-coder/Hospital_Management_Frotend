@@ -12,9 +12,13 @@ import Hospital_Details from './components/Super Admin/Hospital_Details';
 import Hospital_Admins from './components/Super Admin/Hospital_Admins';
 import Admin_Details from './components/Super Admin/Admin_Details';
 import Doctors_Management from './components/Super Admin/Doctors_Management';
+import Doctor_Details from './components/Super Admin/Doctor_Details';
 import Nurses from './components/Super Admin/Nurses';
+import Nurse_Details from './components/Super Admin/Nurse_Details';
 import Receptionist_Management from './components/Super Admin/Receptionist';
+import Receptionist_Details from './components/Super Admin/Receptionist_Details';
 import Patients_Management from './components/Super Admin/Patients';
+import Patient_Details from './components/Super Admin/Patient_Details';
 import AdminDashboard from './components/Admin/Dashbord';
 import DoctorDashboard from './components/Doctor/Dashbord';
 import NurseDashboard from './components/Nurse/Dashbord';
@@ -54,6 +58,42 @@ const App = () => {
   const [selectedAdmin, setSelectedAdmin] = useState(() => {
     try {
       const saved = localStorage.getItem('selectedAdmin');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [selectedDoctor, setSelectedDoctor] = useState(() => {
+    try {
+      const saved = localStorage.getItem('selectedDoctor');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [selectedNurse, setSelectedNurse] = useState(() => {
+    try {
+      const saved = localStorage.getItem('selectedNurse');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [selectedReceptionist, setSelectedReceptionist] = useState(() => {
+    try {
+      const saved = localStorage.getItem('selectedReceptionist');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [selectedPatient, setSelectedPatient] = useState(() => {
+    try {
+      const saved = localStorage.getItem('selectedPatient');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -111,6 +151,42 @@ const App = () => {
     }
   }, [selectedAdmin]);
 
+  // Persist selectedDoctor in localStorage for reload persistence
+  useEffect(() => {
+    if (selectedDoctor) {
+      localStorage.setItem('selectedDoctor', JSON.stringify(selectedDoctor));
+    } else {
+      localStorage.removeItem('selectedDoctor');
+    }
+  }, [selectedDoctor]);
+
+  // Persist selectedNurse in localStorage for reload persistence
+  useEffect(() => {
+    if (selectedNurse) {
+      localStorage.setItem('selectedNurse', JSON.stringify(selectedNurse));
+    } else {
+      localStorage.removeItem('selectedNurse');
+    }
+  }, [selectedNurse]);
+
+  // Persist selectedReceptionist in localStorage for reload persistence
+  useEffect(() => {
+    if (selectedReceptionist) {
+      localStorage.setItem('selectedReceptionist', JSON.stringify(selectedReceptionist));
+    } else {
+      localStorage.removeItem('selectedReceptionist');
+    }
+  }, [selectedReceptionist]);
+
+  // Persist selectedPatient in localStorage for reload persistence
+  useEffect(() => {
+    if (selectedPatient) {
+      localStorage.setItem('selectedPatient', JSON.stringify(selectedPatient));
+    } else {
+      localStorage.removeItem('selectedPatient');
+    }
+  }, [selectedPatient]);
+
   const handleLoginSuccess = (userData) => {
     setIsLoggedIn(true);
     localStorage.setItem('isLoggedIn', 'true');
@@ -130,11 +206,19 @@ const App = () => {
     setCurrentUser(null);
     setSelectedHospital(null);
     setSelectedAdmin(null);
+    setSelectedDoctor(null);
+    setSelectedNurse(null);
+    setSelectedReceptionist(null);
+    setSelectedPatient(null);
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('currentUser');
     localStorage.removeItem('currentPage');
     localStorage.removeItem('selectedHospital');
     localStorage.removeItem('selectedAdmin');
+    localStorage.removeItem('selectedDoctor');
+    localStorage.removeItem('selectedNurse');
+    localStorage.removeItem('selectedReceptionist');
+    localStorage.removeItem('selectedPatient');
     setCurrentPage('login');
   };
 
@@ -186,6 +270,10 @@ const App = () => {
                 currentUser={currentUser}
                 setCurrentPage={setCurrentPage}
                 setSelectedHospital={setSelectedHospital}
+                setSelectedDoctor={setSelectedDoctor}
+                setSelectedNurse={setSelectedNurse}
+                setSelectedReceptionist={setSelectedReceptionist}
+                setSelectedPatient={setSelectedPatient}
               />
             )}
             {currentPage === 'super_admin_hospitals' && (
@@ -214,11 +302,29 @@ const App = () => {
               <Doctors_Management
                 currentUser={currentUser}
                 setCurrentPage={setCurrentPage}
+                setSelectedDoctor={setSelectedDoctor}
+              />
+            )}
+            {currentPage === 'doctor_details' && (
+              <Doctor_Details
+                currentUser={currentUser}
+                selectedDoctor={selectedDoctor}
+                setSelectedDoctor={setSelectedDoctor}
+                setCurrentPage={setCurrentPage}
               />
             )}
             {currentPage === 'super_admin_nurses' && (
               <Nurses
                 currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedNurse={setSelectedNurse}
+              />
+            )}
+            {currentPage === 'nurse_details' && (
+              <Nurse_Details
+                currentUser={currentUser}
+                selectedNurse={selectedNurse}
+                setSelectedNurse={setSelectedNurse}
                 setCurrentPage={setCurrentPage}
               />
             )}
@@ -226,11 +332,29 @@ const App = () => {
               <Receptionist_Management
                 currentUser={currentUser}
                 setCurrentPage={setCurrentPage}
+                setSelectedReceptionist={setSelectedReceptionist}
+              />
+            )}
+            {currentPage === 'receptionist_details' && (
+              <Receptionist_Details
+                currentUser={currentUser}
+                selectedReceptionist={selectedReceptionist}
+                setSelectedReceptionist={setSelectedReceptionist}
+                setCurrentPage={setCurrentPage}
               />
             )}
             {currentPage === 'super_admin_patients' && (
               <Patients_Management
                 currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedPatient={setSelectedPatient}
+              />
+            )}
+            {currentPage === 'patient_details' && (
+              <Patient_Details
+                currentUser={currentUser}
+                selectedPatient={selectedPatient}
+                setSelectedPatient={setSelectedPatient}
                 setCurrentPage={setCurrentPage}
               />
             )}

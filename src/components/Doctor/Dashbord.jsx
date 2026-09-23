@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const DoctorDashboard = ({ currentUser }) => {
+  const [visibleCount, setVisibleCount] = useState(6);
+
   const doctorStats = [
     { title: "Today's Patient Queue", value: '28 Patients', change: '11 Completed • 17 Pending', icon: '🩺', color: 'bg-teal-50 text-teal-700 border-teal-200' },
     { title: 'Emergency Calls', value: '2 Active', change: 'ICU Ward 3 & Trauma Unit', icon: '🚨', color: 'bg-rose-50 text-rose-700 border-rose-200' },
@@ -82,7 +84,7 @@ const DoctorDashboard = ({ currentUser }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {patientsInQueue.map((p, i) => (
+              {patientsInQueue.slice(0, visibleCount).map((p, i) => (
                 <tr key={i} className="hover:bg-slate-50/60 transition">
                   <td className="py-3 px-3 font-mono font-bold text-teal-700">{p.token}</td>
                   <td className="py-3 px-3 font-semibold text-slate-800">{p.name}</td>
@@ -103,6 +105,18 @@ const DoctorDashboard = ({ currentUser }) => {
             </tbody>
           </table>
         </div>
+
+        {visibleCount < patientsInQueue.length && (
+          <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((prev) => prev + 6)}
+              className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+            >
+              Show More
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

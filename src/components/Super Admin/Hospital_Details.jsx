@@ -298,6 +298,19 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
   const [patientSearch, setPatientSearch] = useState('');
   const [deptSearch, setDeptSearch] = useState('');
 
+  const [visibleDoctorsCount, setVisibleDoctorsCount] = useState(6);
+  const [visibleNursesCount, setVisibleNursesCount] = useState(6);
+  const [visibleReceptionistsCount, setVisibleReceptionistsCount] = useState(6);
+  const [visiblePatientsCount, setVisiblePatientsCount] = useState(6);
+
+  useEffect(() => {
+    setVisibleDoctorsCount(6);
+  }, [doctorSearch]);
+
+  useEffect(() => {
+    setVisiblePatientsCount(6);
+  }, [patientSearch]);
+
   const filteredDoctors = doctorsList.filter(doc => {
     return (doc.name || '').toLowerCase().includes(doctorSearch.toLowerCase()) ||
       (doc.specialization || '').toLowerCase().includes(doctorSearch.toLowerCase());
@@ -332,36 +345,36 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-5">
-      {/* Top Header Bar with Back & Action Buttons */}
+      {/* Top Navigation & Actions Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-        <button
-          type="button"
-          onClick={handleBackClick}
-          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shrink-0"
-        >
-          &larr; Back to Hospitals List
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleBackClick}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 shadow-2xs transition cursor-pointer"
+          >
+            <span>&larr;</span> Back to Hospitals
+          </button>
+          <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-semibold">
+            <span>/</span>
+            <span className="text-slate-800 font-bold">Hospital Details</span>
+          </div>
+        </div>
 
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={handleOpenEditHospital}
-            className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
+            className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
             Edit Hospital
           </button>
 
           <button
             type="button"
             onClick={() => setIsDeleteHospitalModalOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100 text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition cursor-pointer"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
             Delete Hospital
           </button>
         </div>
@@ -372,7 +385,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+              <span className="text-[11px] font-bold text-sky-800 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
                 Hospital Branch Profile
               </span>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
@@ -383,7 +396,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                 {activeBranch.is_active !== false ? 'Operational' : 'Inactive'}
               </span>
               {activeBranch.Branch_Code && (
-                <span className="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 text-[10px]">
+                <span className="font-mono font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 text-[10px]">
                   {activeBranch.Branch_Code}
                 </span>
               )}
@@ -409,7 +422,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
             </div>
             <div>
               <p className="text-[10px] uppercase font-bold text-slate-400">Official Email</p>
-              <p className="font-semibold text-blue-700 mt-0.5 truncate">{activeBranch.email || '-'}</p>
+              <p className="font-semibold text-sky-700 mt-0.5 truncate">{activeBranch.email || '-'}</p>
             </div>
             <div>
               <p className="text-[10px] uppercase font-bold text-slate-400">Total Beds</p>
@@ -422,7 +435,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
           <div>
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-bold text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
+                <span className="text-[11px] font-bold text-sky-800 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
                   Assigned Administrator
                 </span>
                 {hospitalAdminInfo && (
@@ -431,7 +444,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       : 'bg-rose-50 text-rose-700 border-rose-200'
                   }`}>
-                    {hospitalAdminInfo.is_active ? 'Active' : 'Deactivated'}
+                    {hospitalAdminInfo.is_active ? 'Active' : 'Inactive'}
                   </span>
                 )}
               </div>
@@ -440,7 +453,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                 <button
                   type="button"
                   onClick={handleOpenAdminCreate}
-                  className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition cursor-pointer"
                 >
                   + Create Admin
                 </button>
@@ -455,11 +468,11 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   <h2 className="text-xl sm:text-2xl font-bold text-slate-800">
                     {hospitalAdminInfo.name}
                   </h2>
-                  <span className="font-mono text-[10px] text-purple-700 font-semibold bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                  <span className="font-mono text-[10px] text-sky-800 font-semibold bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
                     {hospitalAdminInfo.employee_id || 'ADM'}
                   </span>
                 </div>
-                <p className="text-xs text-indigo-700 font-semibold mt-0.5">
+                <p className="text-xs text-sky-700 font-semibold mt-0.5">
                   {hospitalAdminInfo.designation}
                 </p>
               </div>
@@ -502,7 +515,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
             onClick={() => setActiveTab(tab.id)}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
               activeTab === tab.id
-                ? 'bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-sm'
+                ? 'bg-sky-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
@@ -573,7 +586,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
               value={doctorSearch}
               onChange={(e) => setDoctorSearch(e.target.value)}
               placeholder="Filter doctors..."
-              className="px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs focus:outline-none focus:border-blue-600"
+              className="px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs focus:outline-none focus:border-sky-600 focus:bg-white"
             />
           </div>
           {subLoading ? (
@@ -582,8 +595,8 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
             <p className="text-xs text-slate-500 py-4 text-center">No doctors assigned to this branch.</p>
           ) : (
             <div className="overflow-x-auto w-full">
-              <table className="w-full text-left text-xs text-slate-600 min-w-[700px]">
-                <thead className="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px]">
+              <table className="w-full text-left text-xs text-slate-600 min-w-[760px]">
+                <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                   <tr>
                     <th className="py-3 px-3">Doctor Name & ID</th>
                     <th className="py-3 px-3">Specialization</th>
@@ -593,14 +606,14 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredDoctors.map((doc, idx) => (
+                  {filteredDoctors.slice(0, visibleDoctorsCount).map((doc, idx) => (
                     <tr key={doc.id || idx} className="hover:bg-slate-50">
                       <td className="py-3 px-3">
                         <p className="font-bold text-slate-800">{doc.name}</p>
-                        <span className="font-mono text-[10px] text-teal-700">{doc.doctor_id || 'DOC'}</span>
+                        <span className="font-mono text-[10px] text-sky-800 font-semibold">{doc.doctor_id || 'DOC'}</span>
                       </td>
                       <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
                           {doc.specialization}
                         </span>
                       </td>
@@ -622,6 +635,18 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
               </table>
             </div>
           )}
+
+          {visibleDoctorsCount < filteredDoctors.length && (
+            <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
+              <button
+                type="button"
+                onClick={() => setVisibleDoctorsCount((prev) => prev + 6)}
+                className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+              >
+                Show More
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -635,8 +660,8 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
             <p className="text-xs text-slate-500 py-4 text-center">No nurses assigned to this branch.</p>
           ) : (
             <div className="overflow-x-auto w-full">
-              <table className="w-full text-left text-xs text-slate-600 min-w-[700px]">
-                <thead className="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px]">
+              <table className="w-full text-left text-xs text-slate-600 min-w-[760px]">
+                <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                   <tr>
                     <th className="py-3 px-3">Nurse Name & ID</th>
                     <th className="py-3 px-3">Role & Ward</th>
@@ -646,14 +671,14 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredNurses.map((nur, idx) => (
+                  {filteredNurses.slice(0, visibleNursesCount).map((nur, idx) => (
                     <tr key={nur.id || idx} className="hover:bg-slate-50">
                       <td className="py-3 px-3">
                         <p className="font-bold text-slate-800">{nur.name}</p>
-                        <span className="font-mono text-[10px] text-indigo-700">{nur.nurse_id || 'NUR'}</span>
+                        <span className="font-mono text-[10px] text-sky-800 font-semibold">{nur.nurse_id || 'NUR'}</span>
                       </td>
                       <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
                           {nur.role}
                         </span>
                         <p className="font-semibold text-slate-800 mt-0.5">Ward: {nur.ward}</p>
@@ -676,6 +701,18 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
               </table>
             </div>
           )}
+
+          {visibleNursesCount < filteredNurses.length && (
+            <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
+              <button
+                type="button"
+                onClick={() => setVisibleNursesCount((prev) => prev + 6)}
+                className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+              >
+                Show More
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -689,8 +726,8 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
             <p className="text-xs text-slate-500 py-4 text-center">No receptionists assigned to this branch.</p>
           ) : (
             <div className="overflow-x-auto w-full">
-              <table className="w-full text-left text-xs text-slate-600 min-w-[700px]">
-                <thead className="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px]">
+              <table className="w-full text-left text-xs text-slate-600 min-w-[760px]">
+                <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                   <tr>
                     <th className="py-3 px-3">Name & ID</th>
                     <th className="py-3 px-3">Role & Shift</th>
@@ -700,15 +737,15 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredReceptionists.map((rec, idx) => (
+                  {filteredReceptionists.slice(0, visibleReceptionistsCount).map((rec, idx) => (
                     <tr key={rec.id || idx} className="hover:bg-slate-50">
                       <td className="py-3 px-3">
                         <p className="font-bold text-slate-800">{rec.name}</p>
-                        <span className="font-mono text-[10px] text-amber-800">{rec.receptionist_id || 'REC'}</span>
+                        <span className="font-mono text-[10px] text-sky-800 font-semibold">{rec.receptionist_id || 'REC'}</span>
                       </td>
                       <td className="py-3 px-3">
                         <p className="font-bold text-slate-800">{rec.role}</p>
-                        <p className="text-[10px] text-teal-800">{rec.shift}</p>
+                        <p className="text-[10px] text-sky-700">{rec.shift}</p>
                       </td>
                       <td className="py-3 px-3 font-medium text-slate-700">{rec.languages}</td>
                       <td className="py-3 px-3">
@@ -728,6 +765,18 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
               </table>
             </div>
           )}
+
+          {visibleReceptionistsCount < filteredReceptionists.length && (
+            <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
+              <button
+                type="button"
+                onClick={() => setVisibleReceptionistsCount((prev) => prev + 6)}
+                className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+              >
+                Show More
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -741,15 +790,15 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
               value={patientSearch}
               onChange={(e) => setPatientSearch(e.target.value)}
               placeholder="Search patients..."
-              className="px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs focus:outline-none focus:border-blue-600"
+              className="px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs focus:outline-none focus:border-sky-600 focus:bg-white"
             />
           </div>
           {filteredPatients.length === 0 ? (
             <p className="text-xs text-slate-500 py-4 text-center">No patient records registered for this branch.</p>
           ) : (
             <div className="overflow-x-auto w-full">
-              <table className="w-full text-left text-xs text-slate-600 min-w-[700px]">
-                <thead className="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px]">
+              <table className="w-full text-left text-xs text-slate-600 min-w-[760px]">
+                <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                   <tr>
                     <th className="py-3 px-3">Patient Name & UHID</th>
                     <th className="py-3 px-3">Contact</th>
@@ -757,11 +806,11 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredPatients.map((pat, idx) => (
+                  {filteredPatients.slice(0, visiblePatientsCount).map((pat, idx) => (
                     <tr key={pat.id || idx} className="hover:bg-slate-50">
                       <td className="py-3 px-3">
                         <p className="font-bold text-slate-800">{pat.name}</p>
-                        <span className="font-mono text-[10px] text-sky-800">{pat.patient_id || pat.uhid || 'PAT'}</span>
+                        <span className="font-mono text-[10px] text-sky-800 font-semibold">{pat.patient_id || pat.uhid || 'PAT'}</span>
                       </td>
                       <td className="py-3 px-3 font-medium text-slate-700">{pat.contact || pat.phone}</td>
                       <td className="py-3 px-3 text-center">
@@ -773,6 +822,18 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {visiblePatientsCount < filteredPatients.length && (
+            <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
+              <button
+                type="button"
+                onClick={() => setVisiblePatientsCount((prev) => prev + 6)}
+                className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+              >
+                Show More
+              </button>
             </div>
           )}
         </div>
@@ -834,7 +895,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   value={adminFormData.name}
                   onChange={(e) => setAdminFormData({ ...adminFormData, name: e.target.value })}
                   placeholder="e.g. Vikram Malhotra"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
@@ -846,20 +907,23 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   value={adminFormData.email}
                   onChange={(e) => setAdminFormData({ ...adminFormData, email: e.target.value })}
                   placeholder="admin@hospital.com"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone (Numbers only) *</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={10}
                     required
                     value={adminFormData.contact}
-                    onChange={(e) => setAdminFormData({ ...adminFormData, contact: e.target.value })}
-                    placeholder="+91..."
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                    onChange={(e) => setAdminFormData({ ...adminFormData, contact: e.target.value.replace(/\D/g, '') })}
+                    placeholder="10-digit mobile number"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
                 <div>
@@ -871,7 +935,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                       value={adminFormData.password}
                       onChange={(e) => setAdminFormData({ ...adminFormData, password: e.target.value })}
                       placeholder="Enter password"
-                      className="w-full pl-3 pr-10 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white font-mono"
+                      className="w-full pl-3 pr-10 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                     />
                     <button
                       type="button"
@@ -890,7 +954,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   type="text"
                   value={adminFormData.designation}
                   onChange={(e) => setAdminFormData({ ...adminFormData, designation: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
@@ -900,7 +964,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   id="adminActiveCreate"
                   checked={adminFormData.is_active}
                   onChange={(e) => setAdminFormData({ ...adminFormData, is_active: e.target.checked })}
-                  className="w-4 h-4 text-purple-600 rounded cursor-pointer"
+                  className="w-4 h-4 text-sky-600 rounded cursor-pointer"
                 />
                 <label htmlFor="adminActiveCreate" className="font-semibold text-slate-700 cursor-pointer">
                   Activate Administrator Account Immediately
@@ -917,7 +981,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-md cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold shadow-md cursor-pointer"
                 >
                   Save Administrator
                 </button>
@@ -954,17 +1018,17 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     required
                     value={editHospitalFormData.Name}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, Name: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Branch Code *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Branch Code (Permanent)</label>
                   <input
                     type="text"
-                    required
-                    value={editHospitalFormData.Branch_Code}
-                    onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, Branch_Code: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white font-mono"
+                    readOnly
+                    tabIndex={-1}
+                    value={editHospitalFormData.Branch_Code || (activeBranch && activeBranch.Branch_Code) || `HOSP-${activeBranch?.id}`}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono text-xs cursor-not-allowed select-none focus:outline-none uppercase"
                   />
                 </div>
               </div>
@@ -977,7 +1041,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     required
                     value={editHospitalFormData.city}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, city: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
                 <div>
@@ -987,7 +1051,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     required
                     value={editHospitalFormData.area}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, area: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
               </div>
@@ -999,19 +1063,23 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   required
                   value={editHospitalFormData.address}
                   onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, address: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone (Numbers only) *</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={10}
                     required
                     value={editHospitalFormData.contact}
-                    onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, contact: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                    onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, contact: e.target.value.replace(/\D/g, '') })}
+                    placeholder="10-digit phone number"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
                 <div>
@@ -1021,7 +1089,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     required
                     value={editHospitalFormData.email}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, email: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
               </div>
@@ -1033,7 +1101,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     type="number"
                     value={editHospitalFormData.total_beds}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, total_beds: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                   />
                 </div>
                 <div>
@@ -1042,7 +1110,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     type="number"
                     value={editHospitalFormData.icu_beds}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, icu_beds: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                   />
                 </div>
                 <div>
@@ -1051,7 +1119,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     type="number"
                     value={editHospitalFormData.nicu_beds}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, nicu_beds: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                   />
                 </div>
                 <div>
@@ -1060,7 +1128,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     type="number"
                     value={editHospitalFormData.operation_theatres}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, operation_theatres: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                   />
                 </div>
                 <div>
@@ -1069,7 +1137,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     type="number"
                     value={editHospitalFormData.restroom_for_relatives}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, restroom_for_relatives: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                   />
                 </div>
                 <div>
@@ -1078,7 +1146,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     type="number"
                     value={editHospitalFormData.ambulances_count}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, ambulances_count: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                   />
                 </div>
               </div>
@@ -1090,7 +1158,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   value={editHospitalFormData.departments}
                   onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, departments: e.target.value })}
                   placeholder="Cardiology, Neurology, Orthopedics..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-purple-600 focus:bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
@@ -1100,7 +1168,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   id="hospitalActiveEdit"
                   checked={editHospitalFormData.is_active}
                   onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, is_active: e.target.checked })}
-                  className="w-4 h-4 text-purple-600 rounded cursor-pointer"
+                  className="w-4 h-4 text-sky-600 rounded cursor-pointer"
                 />
                 <label htmlFor="hospitalActiveEdit" className="font-semibold text-slate-700 cursor-pointer">
                   Branch Operational & Active
@@ -1117,7 +1185,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-md cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold shadow-md cursor-pointer"
                 >
                   Save Hospital Changes
                 </button>
