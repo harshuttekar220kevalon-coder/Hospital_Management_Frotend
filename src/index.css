@@ -51,3 +51,12 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #0284c7;
 }
+
+/* Hide scrollbar for clean horizontal mobile navigation */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

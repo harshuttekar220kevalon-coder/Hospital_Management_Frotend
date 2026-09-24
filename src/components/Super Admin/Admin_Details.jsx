@@ -40,6 +40,12 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
   const [patientSearch, setPatientSearch] = useState('');
   const [deptSearch, setDeptSearch] = useState('');
 
+  const [visibleDoctorsCount, setVisibleDoctorsCount] = useState(10);
+  const [visibleNursesCount, setVisibleNursesCount] = useState(10);
+  const [visibleReceptionistsCount, setVisibleReceptionistsCount] = useState(10);
+  const [visiblePatientsCount, setVisiblePatientsCount] = useState(10);
+  const [visibleDeptsCount, setVisibleDeptsCount] = useState(10);
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -268,7 +274,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
   };
 
   const handleOpenResetPassword = () => {
-    setResetEmail(admin.email || '');
+    setResetEmail('');
     setNewPassword('');
     setShowNewPassword(false);
     setIsResetPasswordModalOpen(true);
@@ -525,16 +531,29 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
           {filteredDoctors.length === 0 ? (
             <p className="text-center py-8 text-xs text-slate-400">No doctors found.</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredDoctors.map((doc) => (
-                <div key={doc.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-                  <h3 className="font-bold text-slate-800 text-sm">{doc.name}</h3>
-                  <p className="text-teal-700 font-semibold">{doc.specialization}</p>
-                  <p className="text-slate-500">ID: {doc.doctor_id}</p>
-                  <p className="text-slate-500">Contact: {doc.phone}</p>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredDoctors.slice(0, visibleDoctorsCount).map((doc) => (
+                  <div key={doc.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                    <h3 className="font-bold text-slate-800 text-sm">{doc.name}</h3>
+                    <p className="text-teal-700 font-semibold">{doc.specialization}</p>
+                    <p className="text-slate-500">ID: {doc.doctor_id}</p>
+                    <p className="text-slate-500">Contact: {doc.phone}</p>
+                  </div>
+                ))}
+              </div>
+              {visibleDoctorsCount < filteredDoctors.length && (
+                <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50 mt-3 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleDoctorsCount((prev) => prev + 10)}
+                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+                  >
+                    Show More
+                  </button>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -545,15 +564,28 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
           {filteredNurses.length === 0 ? (
             <p className="text-center py-8 text-xs text-slate-400">No nurses found.</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredNurses.map((nurse) => (
-                <div key={nurse.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-                  <h3 className="font-bold text-slate-800 text-sm">{nurse.name}</h3>
-                  <p className="text-emerald-700 font-semibold">{nurse.role} - Ward: {nurse.ward}</p>
-                  <p className="text-slate-500">ID: {nurse.nurse_id}</p>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredNurses.slice(0, visibleNursesCount).map((nurse) => (
+                  <div key={nurse.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                    <h3 className="font-bold text-slate-800 text-sm">{nurse.name}</h3>
+                    <p className="text-emerald-700 font-semibold">{nurse.role} - Ward: {nurse.ward}</p>
+                    <p className="text-slate-500">ID: {nurse.nurse_id}</p>
+                  </div>
+                ))}
+              </div>
+              {visibleNursesCount < filteredNurses.length && (
+                <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50 mt-3 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleNursesCount((prev) => prev + 10)}
+                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+                  >
+                    Show More
+                  </button>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -564,15 +596,28 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
           {filteredReceptionists.length === 0 ? (
             <p className="text-center py-8 text-xs text-slate-400">No receptionists found.</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredReceptionists.map((rec) => (
-                <div key={rec.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-                  <h3 className="font-bold text-slate-800 text-sm">{rec.name}</h3>
-                  <p className="text-amber-700 font-semibold">{rec.role}</p>
-                  <p className="text-slate-500">ID: {rec.receptionist_id}</p>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredReceptionists.slice(0, visibleReceptionistsCount).map((rec) => (
+                  <div key={rec.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                    <h3 className="font-bold text-slate-800 text-sm">{rec.name}</h3>
+                    <p className="text-amber-700 font-semibold">{rec.role}</p>
+                    <p className="text-slate-500">ID: {rec.receptionist_id}</p>
+                  </div>
+                ))}
+              </div>
+              {visibleReceptionistsCount < filteredReceptionists.length && (
+                <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50 mt-3 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleReceptionistsCount((prev) => prev + 10)}
+                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+                  >
+                    Show More
+                  </button>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -583,15 +628,28 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
           {filteredPatients.length === 0 ? (
             <p className="text-center py-8 text-xs text-slate-400">No patients registered.</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredPatients.map((pat) => (
-                <div key={pat.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-                  <h3 className="font-bold text-slate-800 text-sm">{pat.name}</h3>
-                  <p className="text-indigo-700 font-semibold">{pat.symptoms_diagnosis || 'General Visit'}</p>
-                  <p className="text-slate-500">ID: {pat.patient_id}</p>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredPatients.slice(0, visiblePatientsCount).map((pat) => (
+                  <div key={pat.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                    <h3 className="font-bold text-slate-800 text-sm">{pat.name}</h3>
+                    <p className="text-indigo-700 font-semibold">{pat.symptoms_diagnosis || 'General Visit'}</p>
+                    <p className="text-slate-500">ID: {pat.patient_id}</p>
+                  </div>
+                ))}
+              </div>
+              {visiblePatientsCount < filteredPatients.length && (
+                <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50 mt-3 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setVisiblePatientsCount((prev) => prev + 10)}
+                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+                  >
+                    Show More
+                  </button>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -602,14 +660,27 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
           {filteredDepts.length === 0 ? (
             <p className="text-center py-8 text-xs text-slate-400">No departments configured.</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              {filteredDepts.map((dept) => (
-                <div key={dept.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-                  <h3 className="font-bold text-slate-800 text-sm">{dept.name}</h3>
-                  <p className="text-xs text-indigo-700 font-semibold">Active Department</p>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                {filteredDepts.slice(0, visibleDeptsCount).map((dept) => (
+                  <div key={dept.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                    <h3 className="font-bold text-slate-800 text-sm">{dept.name}</h3>
+                    <p className="text-xs text-indigo-700 font-semibold">Active Department</p>
+                  </div>
+                ))}
+              </div>
+              {visibleDeptsCount < filteredDepts.length && (
+                <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50 mt-3 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleDeptsCount((prev) => prev + 10)}
+                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+                  >
+                    Show More
+                  </button>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -796,9 +867,10 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                 <input
                   type="email"
                   required
+                  autoComplete="off"
                   value={resetEmail}
                   onChange={(e) => setResetEmail(e.target.value)}
-                  placeholder="admin@hospital.com"
+                  placeholder="Enter administrator email address"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white"
                 />
                 <p className="text-[10px] text-slate-400 mt-0.5">

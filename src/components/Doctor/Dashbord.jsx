@@ -69,7 +69,6 @@ const DoctorDashboard = ({ currentUser }) => {
             <h2 className="text-sm sm:text-base font-bold text-slate-800">OPD Patient Consultation Queue</h2>
             <p className="text-xs text-slate-500">Live list of scheduled patients waiting outside your cabin</p>
           </div>
-          <span className="text-xs font-semibold text-teal-700 hover:underline cursor-pointer">Refresh Queue</span>
         </div>
         <div className="overflow-x-auto w-full">
           <table className="w-full text-left text-xs text-slate-600 min-w-[550px]">

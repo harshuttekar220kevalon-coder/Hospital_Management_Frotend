@@ -23,7 +23,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
   const [statusUpdateValue, setStatusUpdateValue] = useState('');
   const [statusRemarks, setStatusRemarks] = useState('');
 
-  const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-', 'Not Known'];
+  const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
   const severityLevels = ['Normal', 'Moderate', 'Urgent', 'Emergency'];
   const statusOptions = ['Pending', 'Assigned', 'Admitted', 'Discharged', 'Cancelled'];
   const paymentStatuses = ['Paid', 'Partial', 'Pending', 'Failed'];
@@ -34,7 +34,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
     name: '',
     age: '',
     gender: 'Male',
-    blood_group: 'O+',
+    blood_group: '',
     contact: '',
     email: '',
     address: '',
@@ -44,13 +44,13 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
     doctor_specialization: '',
     consultation_fee: 0.00,
     amount_paid: 0.00,
-    payment_status: 'Pending',
-    payment_method: 'Cash',
+    payment_status: '',
+    payment_method: '',
     symptoms_diagnosis: '',
     reason_for_visit: '',
-    symptoms_severity: 'Normal',
+    symptoms_severity: '',
     visit_date_time: '',
-    status: 'Pending',
+    status: '',
     is_active: true,
     attached_document: '',
     attached_document_name: ''
@@ -478,7 +478,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Blood Group</span>
-                <p className="font-mono font-bold text-rose-700 mt-0.5">{activePatient.blood_group || 'O+'}</p>
+                <p className="font-mono font-bold text-rose-700 mt-0.5">{activePatient.Blood_Group || ''}</p>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
@@ -749,47 +749,74 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Target Hospital Branch</label>
-                  <select
-                    value={editFormData.hospital}
-                    onChange={(e) => setEditFormData({ ...editFormData, hospital: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
-                  >
-                    <option value="">Leave Unassigned</option>
-                    {hospitalsList.map((h) => (
-                      <option key={h.id} value={h.id}>
-                        {h.Name} ({h.city})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* TARGET HOSPITAL BRANCH & AFFILIATED DOCTOR SELECTION */}
+              {(() => {
+                const getHospDocs = (hospId) => {
+                  if (!hospId) return doctorsList;
+                  return doctorsList.filter(d => {
+                    const hospIds = Array.isArray(d.hospitals)
+                      ? d.hospitals.map(h => Number(typeof h === 'object' ? h.id : h))
+                      : (d.hospital ? [Number(typeof d.hospital === 'object' ? d.hospital.id : d.hospital)] : []);
+                    return hospIds.includes(Number(hospId));
+                  });
+                };
+                const availableDocs = getHospDocs(editFormData.hospital);
 
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Doctor</label>
-                  <select
-                    value={editFormData.doctor}
-                    onChange={(e) => {
-                      const docId = e.target.value;
-                      const selDoc = doctorsList.find(d => d.id === Number(docId));
-                      setEditFormData(prev => ({
-                        ...prev,
-                        doctor: docId,
-                        consultation_fee: selDoc ? (selDoc.consultation_fee ?? prev.consultation_fee) : prev.consultation_fee
-                      }));
-                    }}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
-                  >
-                    <option value="">Select Doctor</option>
-                    {doctorsList.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name} ({d.specialization || 'Doctor'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-slate-700 uppercase mb-1">Target Hospital Branch</label>
+                      <select
+                        value={editFormData.hospital}
+                        onChange={(e) => {
+                          const newHId = e.target.value;
+                          const docsInHosp = getHospDocs(newHId);
+                          const docStillValid = docsInHosp.some(d => d.id === Number(editFormData.doctor));
+                          setEditFormData(prev => ({
+                            ...prev,
+                            hospital: newHId,
+                            doctor: docStillValid ? prev.doctor : ''
+                          }));
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
+                      >
+                        <option value="">Leave Unassigned</option>
+                        {hospitalsList.map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.Name} ({h.city}) - {h.Branch_Code}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 uppercase mb-1">
+                        Assigned Doctor {editFormData.hospital ? `(${availableDocs.length} in this branch)` : ''}
+                      </label>
+                      <select
+                        value={editFormData.doctor}
+                        onChange={(e) => {
+                          const docId = e.target.value;
+                          const selDoc = doctorsList.find(d => d.id === Number(docId));
+                          setEditFormData(prev => ({
+                            ...prev,
+                            doctor: docId,
+                            consultation_fee: selDoc ? (selDoc.consultation_fee ?? prev.consultation_fee) : prev.consultation_fee
+                          }));
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
+                      >
+                        <option value="">Select Doctor</option>
+                        {availableDocs.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name} ({d.specialization || d.specialty || 'Doctor'}) [₹{d.consultation_fee ?? 0}]
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* PAYMENT SECTION IN EDIT MODAL */}
               <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200 space-y-3">

@@ -12,7 +12,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
   const [hospitalFilter, setHospitalFilter] = useState('ALL');
   const [specializationFilter, setSpecializationFilter] = useState('ALL');
   const [severityFilter, setSeverityFilter] = useState('ALL');
-  const [visibleCount, setVisibleCount] = useState(6);
+  const [visibleCount, setVisibleCount] = useState(10);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
@@ -20,14 +20,14 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
   const severityLevels = ['Normal', 'Moderate', 'Urgent', 'Emergency'];
   const statusOptions = ['Pending', 'Assigned', 'Admitted', 'Discharged', 'Cancelled'];
   const paymentStatuses = ['Paid', 'Partial', 'Pending', 'Failed'];
-  const paymentMethods = ['Cash', 'UPI', 'Credit Card', 'Debit Card', 'Net Banking'];
+  const paymentMethods = ['Cash', 'UPI', 'Credit Card', 'Net Banking'];
 
   const initialAddFormState = {
     patient_id: '',
     name: '',
     age: '',
     gender: 'Male',
-    blood_group: 'O+',
+    blood_group: '',
     contact: '',
     email: '',
     address: '',
@@ -36,11 +36,11 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     consultation_fee: 0.00,
     amount_paid: 0.00,
     payment_status: 'Pending',
-    payment_method: 'Cash',
+    payment_method: '',
     symptoms_diagnosis: '',
-    symptoms_severity: 'Normal',
+    symptoms_severity: '',
     visit_date_time: '',
-    status: 'Pending',
+    status: '',
     is_active: true,
     attached_document: '',
     attached_document_name: ''
@@ -50,7 +50,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
   const [addSelectedFile, setAddSelectedFile] = useState(null);
 
   useEffect(() => {
-    setVisibleCount(6);
+    setVisibleCount(10);
   }, [searchTerm, activeTab, hospitalFilter, specializationFilter, severityFilter]);
 
   const generatePatientId = () => {
@@ -58,10 +58,21 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     return `PAT-${randomNum}`;
   };
 
+  const getHospitalDoctorList = (hospitalId, docs) => {
+    if (!hospitalId) return [];
+    const targetHospId = Number(hospitalId);
+    return (docs || []).filter(d => {
+      const hospIds = Array.isArray(d.hospitals)
+        ? d.hospitals.map(h => Number(typeof h === 'object' ? h.id : h))
+        : (d.hospital ? [Number(typeof d.hospital === 'object' ? d.hospital.id : d.hospital)] : []);
+      return hospIds.includes(targetHospId);
+    });
+  };
+
   const fetchAllData = async () => {
     try {
       setLoading(true);
-      
+
       const hospRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/').catch(() => null);
       if (hospRes && hospRes.ok) {
         const hospData = await hospRes.json();
@@ -146,6 +157,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
       (patient.patient_id || patient.uhid || '').toLowerCase().includes(term) ||
       (patient.contact || patient.phone || '').toLowerCase().includes(term) ||
       (patient.email || '').toLowerCase().includes(term) ||
+      (patient.address || '').toLowerCase().includes(term) ||
       (patient.doctor_name || '').toLowerCase().includes(term) ||
       hospName.toLowerCase().includes(term) ||
       (patient.symptoms_diagnosis || patient.reason_for_visit || '').toLowerCase().includes(term);
@@ -172,7 +184,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     setAddSelectedFile(null);
     setAddFormData({
       ...initialAddFormState,
-      patient_id: generatePatientId()
+      patient_id: ''
     });
     setIsAddModalOpen(true);
   };
@@ -180,18 +192,19 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
   const handleCreatePatient = async (e) => {
     e.preventDefault();
     try {
+      const generatedDocPatId = generatePatientId();
       const selectedDocObj = doctorsList.find(d => d.id === Number(addFormData.doctor));
       let response;
 
       const payloadData = {
-        patient_id: addFormData.patient_id || generatePatientId(),
+        patient_id: generatedDocPatId,
         name: addFormData.name.trim(),
         contact: addFormData.contact.trim(),
         email: addFormData.email.trim(),
         age: addFormData.age ? Number(addFormData.age) : null,
         gender: addFormData.gender,
         blood_group: addFormData.blood_group,
-        address: addFormData.address,
+        address: (addFormData.address || '').trim(),
         hospital: addFormData.hospital ? Number(addFormData.hospital) : null,
         doctor: addFormData.doctor ? Number(addFormData.doctor) : null,
         doctor_name: selectedDocObj ? selectedDocObj.name : '',
@@ -229,7 +242,9 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
       }
 
       if (response && response.ok) {
-        alert('Patient registered successfully with payment details!');
+        const resData = await response.json().catch(() => ({}));
+        const createdId = resData.patient_id || generatedDocPatId;
+        alert(`Patient registered successfully with payment details!\nPatient ID: ${createdId}`);
         setAddSelectedFile(null);
         setIsAddModalOpen(false);
         fetchAllData();
@@ -282,13 +297,6 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={fetchAllData}
-            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
-          >
-            <span>🔄</span> Refresh Data
-          </button>
-          <button
-            type="button"
             onClick={handleOpenAddModal}
             className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
           >
@@ -301,9 +309,8 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         <div
           onClick={() => setActiveTab('TODAY')}
-          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${
-            activeTab === 'TODAY' ? 'bg-sky-50/90 border-sky-400 ring-2 ring-sky-300' : 'bg-white border-slate-200 hover:border-sky-300'
-          }`}
+          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${activeTab === 'TODAY' ? 'bg-sky-50/90 border-sky-400 ring-2 ring-sky-300' : 'bg-white border-slate-200 hover:border-sky-300'
+            }`}
         >
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Today's Inflow</p>
@@ -315,9 +322,8 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
 
         <div
           onClick={() => setActiveTab('ALL')}
-          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${
-            activeTab === 'ALL' ? 'bg-slate-100/90 border-slate-400 ring-2 ring-slate-300' : 'bg-white border-slate-200 hover:border-slate-400'
-          }`}
+          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${activeTab === 'ALL' ? 'bg-slate-100/90 border-slate-400 ring-2 ring-slate-300' : 'bg-white border-slate-200 hover:border-slate-400'
+            }`}
         >
           <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Patients</p>
           <h3 className="text-2xl font-bold text-slate-800 mt-1">{totalPatientsCount}</h3>
@@ -326,9 +332,8 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
 
         <div
           onClick={() => setActiveTab('PENDING')}
-          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${
-            activeTab === 'PENDING' ? 'bg-amber-50/90 border-amber-400 ring-2 ring-amber-300' : 'bg-white border-slate-200 hover:border-amber-300'
-          }`}
+          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${activeTab === 'PENDING' ? 'bg-amber-50/90 border-amber-400 ring-2 ring-amber-300' : 'bg-white border-slate-200 hover:border-amber-300'
+            }`}
         >
           <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pending</p>
           <h3 className="text-2xl font-bold text-amber-700 mt-1">{pendingCount}</h3>
@@ -337,9 +342,8 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
 
         <div
           onClick={() => setActiveTab('ADMITTED')}
-          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${
-            activeTab === 'ADMITTED' ? 'bg-purple-50/90 border-purple-400 ring-2 ring-purple-300' : 'bg-white border-slate-200 hover:border-purple-300'
-          }`}
+          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${activeTab === 'ADMITTED' ? 'bg-purple-50/90 border-purple-400 ring-2 ring-purple-300' : 'bg-white border-slate-200 hover:border-purple-300'
+            }`}
         >
           <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Admitted / In Care</p>
           <h3 className="text-2xl font-bold text-purple-700 mt-1">{admittedCount}</h3>
@@ -348,9 +352,8 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
 
         <div
           onClick={() => setActiveTab('DISCHARGED')}
-          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${
-            activeTab === 'DISCHARGED' ? 'bg-emerald-50/90 border-emerald-400 ring-2 ring-emerald-300' : 'bg-white border-slate-200 hover:border-emerald-300'
-          }`}
+          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${activeTab === 'DISCHARGED' ? 'bg-emerald-50/90 border-emerald-400 ring-2 ring-emerald-300' : 'bg-white border-slate-200 hover:border-emerald-300'
+            }`}
         >
           <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Discharged</p>
           <h3 className="text-2xl font-bold text-emerald-700 mt-1">{dischargedCount}</h3>
@@ -359,67 +362,60 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
       </div>
 
       {/* FILTER TABS */}
-      <div className="flex flex-wrap items-center gap-2 bg-slate-200/70 p-1.5 rounded-xl border border-slate-300">
+      <div className="flex items-center gap-1.5 bg-slate-200/70 p-1.5 rounded-xl border border-slate-300 overflow-x-auto pb-1 no-scrollbar sm:flex-wrap">
         <button
           type="button"
           onClick={() => setActiveTab('TODAY')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-            activeTab === 'TODAY' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
-          }`}
+          className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${activeTab === 'TODAY' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
+            }`}
         >
           Today ({todayApplicationsCount})
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('ALL')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-            activeTab === 'ALL' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
-          }`}
+          className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${activeTab === 'ALL' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
+            }`}
         >
           All ({totalPatientsCount})
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('PENDING')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-            activeTab === 'PENDING' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
-          }`}
+          className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${activeTab === 'PENDING' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
+            }`}
         >
           Pending ({pendingCount})
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('ASSIGNED')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-            activeTab === 'ASSIGNED' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
-          }`}
+          className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${activeTab === 'ASSIGNED' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
+            }`}
         >
           Assigned ({assignedCount})
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('ADMITTED')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-            activeTab === 'ADMITTED' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
-          }`}
+          className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${activeTab === 'ADMITTED' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
+            }`}
         >
           Admitted ({admittedCount})
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('DISCHARGED')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-            activeTab === 'DISCHARGED' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
-          }`}
+          className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${activeTab === 'DISCHARGED' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
+            }`}
         >
           Discharged ({dischargedCount})
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('CANCELLED')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-            activeTab === 'CANCELLED' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
-          }`}
+          className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${activeTab === 'CANCELLED' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
+            }`}
         >
           Cancelled ({cancelledCount})
         </button>
@@ -496,17 +492,18 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                   <th className="py-3.5 px-4 text-center">Visit Time</th>
                   <th className="py-3.5 px-4 text-center">Doctor</th>
                   <th className="py-3.5 px-4 text-center">Target Hospital</th>
-                  <th className="py-3.5 px-4 text-center">Payment (₹)</th>
+                  <th className="py-3.5 px-4 text-center">Payment</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredPatients.slice(0, visibleCount).map((pat) => {
-                  const assignedHosp = hospitalsList.find(h => h.id === pat.hospital);
+                  const hospId = Number(typeof pat.hospital === 'object' ? pat.hospital?.id : pat.hospital);
+                  const assignedHosp = hospitalsList.find(h => h.id === hospId) || hospitalsList.find(h => h.id === Number(pat.hospital));
                   const displayId = pat.patient_id || pat.uhid || `PAT-${pat.id}`;
                   const displayDoctor = pat.doctor_name || (pat.doctor ? (typeof pat.doctor === 'object' ? pat.doctor.name : doctorsList.find(d => d.id === pat.doctor)?.name) : 'Assigned Doctor');
-                  const displayHospital = assignedHosp ? assignedHosp.Name : (pat.hospital_name || 'Branch Hospital');
+                  const displayHospital = assignedHosp ? assignedHosp.Name : (pat.hospital_name && !/^\d+$/.test(pat.hospital_name) ? pat.hospital_name : 'Unassigned');
                   const displayVisitTime = pat.visit_date_time ? new Date(pat.visit_date_time).toLocaleString() : (pat.appointment_time || 'Not Scheduled');
                   const appliedToday = isAppliedToday(pat);
 
@@ -538,36 +535,37 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        {assignedHosp ? (
-                          <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200 inline-block">
-                            {assignedHosp.Branch_Code || assignedHosp.Name}
+                        {assignedHosp || (pat.hospital_name && !/^\d+$/.test(pat.hospital_name)) ? (
+                          <span className="font-semibold text-slate-800">
+                            {assignedHosp ? assignedHosp.Name : pat.hospital_name}
                           </span>
                         ) : (
-                          <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                            {displayHospital}
+                          <span className="text-slate-400 font-medium text-xs">
+                            Unassigned
                           </span>
                         )}
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-mono font-bold text-emerald-800">
-                          ₹{pat.amount_paid ?? '0.00'} <span className="text-[10px] text-slate-500 font-normal">/ ₹{pat.consultation_fee ?? '0.00'}</span>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold mt-0.5 inline-block ${
-                          pat.payment_status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-block ${pat.payment_status === 'Paid'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : pat.payment_status === 'Failed'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : pat.payment_status === 'Partial'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}>
                           {pat.payment_status || 'Pending'}
                         </span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-block ${
-                          pat.status === 'Confirmed' || pat.status === 'Admitted' || pat.status === 'Discharged' || pat.status === 'Completed'
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-block ${pat.status === 'Confirmed' || pat.status === 'Admitted' || pat.status === 'Discharged' || pat.status === 'Completed'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : pat.status === 'Cancelled' || pat.status === 'Rejected'
-                            ? 'bg-rose-50 text-rose-700 border-rose-200'
-                            : 'bg-amber-50 text-amber-700 border-amber-200'
-                        }`}>
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}>
                           {pat.status || 'Confirmed'}
                         </span>
                       </td>
@@ -576,7 +574,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                         <button
                           type="button"
                           onClick={() => handleViewPatientDetails(pat)}
-                          className="px-3.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1"
+                          className="px-3.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1 whitespace-nowrap shrink-0"
                         >
                           Details &rarr;
                         </button>
@@ -593,7 +591,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
           <div className="p-4 text-center border-t border-slate-100 bg-slate-50/50">
             <button
               type="button"
-              onClick={() => setVisibleCount((prev) => prev + 6)}
+              onClick={() => setVisibleCount((prev) => prev + 10)}
               className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
             >
               Show More
@@ -625,15 +623,15 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                 <div className="flex items-center justify-between mb-1">
                   <label className="block font-semibold text-slate-700 uppercase">Patient ID / UHID</label>
                   <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
-                    Auto Generated
+                    Auto-Generated
                   </span>
                 </div>
                 <input
                   type="text"
                   readOnly
                   tabIndex={-1}
-                  value={addFormData.patient_id}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-sky-800 font-mono font-bold cursor-not-allowed select-none focus:outline-none"
+                  value="Auto-Generated upon creation"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-500 italic font-medium cursor-not-allowed select-none focus:outline-none"
                 />
               </div>
 
@@ -713,39 +711,92 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Target Hospital Branch</label>
-                  <select
-                    value={addFormData.hospital}
-                    onChange={(e) => setAddFormData({ ...addFormData, hospital: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
-                  >
-                    <option value="">Leave Unassigned</option>
-                    {hospitalsList.map((h) => (
-                      <option key={h.id} value={h.id}>
-                        {h.Name} ({h.city})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Doctor (Sets Fee)</label>
-                  <select
-                    value={addFormData.doctor}
-                    onChange={handleDoctorChange}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
-                  >
-                    <option value="">Select Doctor</option>
-                    {doctorsList.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name} ({d.specialization || d.specialty || 'Doctor'}) [₹{d.consultation_fee ?? 0}]
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Address</label>
+                <input
+                  type="text"
+                  placeholder="Enter patient full address..."
+                  value={addFormData.address}
+                  onChange={(e) => setAddFormData({ ...addFormData, address: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
+                />
               </div>
+
+              {/* TARGET HOSPITAL BRANCH & AFFILIATED DOCTOR SELECTION */}
+              {(() => {
+                const availableDoctorsForAdd = getHospitalDoctorList(addFormData.hospital, doctorsList);
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-slate-700 uppercase mb-1">Target Hospital Branch *</label>
+                      <select
+                        required
+                        value={addFormData.hospital}
+                        onChange={(e) => {
+                          const newHospId = e.target.value;
+                          const docsInNewHosp = getHospitalDoctorList(newHospId, doctorsList);
+                          const currentDocStillValid = docsInNewHosp.some(d => d.id === Number(addFormData.doctor));
+                          setAddFormData(prev => ({
+                            ...prev,
+                            hospital: newHospId,
+                            doctor: currentDocStillValid ? prev.doctor : '',
+                            consultation_fee: currentDocStillValid ? prev.consultation_fee : 0.00,
+                            amount_paid: currentDocStillValid ? prev.amount_paid : 0.00
+                          }));
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
+                      >
+                        <option value="">-- Select Target Hospital Branch --</option>
+                        {hospitalsList.map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.Name} ({h.city}) - {h.Branch_Code}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 uppercase mb-1">
+                        Assigned Doctor {addFormData.hospital ? `(${availableDoctorsForAdd.length} available in this branch)` : ''} *
+                      </label>
+                      <select
+                        required
+                        disabled={!addFormData.hospital}
+                        value={addFormData.doctor}
+                        onChange={handleDoctorChange}
+                        className={`w-full px-3 py-2 rounded-xl border border-slate-300 font-medium ${!addFormData.hospital
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            : 'bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 cursor-pointer'
+                          }`}
+                      >
+                        {!addFormData.hospital ? (
+                          <option value="">-- Select Target Hospital Branch First --</option>
+                        ) : availableDoctorsForAdd.length === 0 ? (
+                          <option value="">-- No Doctors in this Hospital Branch --</option>
+                        ) : (
+                          <>
+                            <option value="">-- Select Doctor ({availableDoctorsForAdd.length} Available) --</option>
+                            {availableDoctorsForAdd.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name} ({d.specialization || d.specialty || 'Doctor'}) [₹{d.consultation_fee ?? 0}]
+                              </option>
+                            ))}
+                          </>
+                        )}
+                      </select>
+                      {!addFormData.hospital ? (
+                        <p className="text-[10px] text-amber-600 mt-1 font-medium">
+                          Please select a hospital branch above to view its affiliated doctors.
+                        </p>
+                      ) : availableDoctorsForAdd.length === 0 ? (
+                        <p className="text-[10px] text-rose-600 mt-1 font-medium">
+                          No doctors are currently affiliated with this hospital branch.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* PAYMENT SECTION */}
               <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200 space-y-3">

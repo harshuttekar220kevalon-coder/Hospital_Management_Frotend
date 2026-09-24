@@ -17,7 +17,7 @@ const SuperAdminDashboard = ({
   setSelectedAdmin
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
-  const [visibleBranchesCount, setVisibleBranchesCount] = useState(4);
+  const [visibleBranchesCount, setVisibleBranchesCount] = useState(10);
   const [loading, setLoading] = useState(false);
 
   // Real Backend Data States
@@ -94,6 +94,11 @@ const SuperAdminDashboard = ({
     fetchDashboardData();
   }, []);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    setVisibleBranchesCount(10);
+  }, [activeTab]);
+
   // Calculate Real Dynamic Metrics
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -132,7 +137,7 @@ const SuperAdminDashboard = ({
       id: 'doctors',
       title: 'Registered Doctors',
       value: `${doctors.length} Doctor${doctors.length === 1 ? '' : 's'}`,
-      sub: `${activeDoctors.length} Active • Across ${uniqueSpecialties.length || 1} Specialization${uniqueSpecialties.length === 1 ? '' : 's'}`,
+      sub: `${activeDoctors.length} Active • Across ${uniqueSpecialties.length} Specialization${uniqueSpecialties.length === 1 ? '' : 's'}`,
       color: 'bg-sky-50 text-sky-800 border-sky-200',
       tab: 'doctors'
     },
@@ -188,9 +193,23 @@ const SuperAdminDashboard = ({
 
   // Real Hospital Branches Table Rows
   const dynamicBranches = hospitals.map((hosp) => {
-    const assignedAdmin = admins.find((a) => a.hospital === hosp.id);
-    const branchDoctors = doctors.filter((d) => d.hospital === hosp.id);
-    const branchPatients = patients.filter((p) => p.hospital === hosp.id);
+    const targetHospId = Number(hosp.id);
+    const assignedAdmin = admins.find((a) => {
+      const adminHospId = Number(typeof a.hospital === 'object' ? a.hospital?.id : a.hospital);
+      return adminHospId === targetHospId;
+    });
+
+    const branchDoctors = doctors.filter((d) => {
+      const hospIds = Array.isArray(d.hospitals)
+        ? d.hospitals.map((h) => Number(typeof h === 'object' ? h.id : h))
+        : (d.hospital ? [Number(typeof d.hospital === 'object' ? d.hospital.id : d.hospital)] : []);
+      return hospIds.includes(targetHospId);
+    });
+
+    const branchPatients = patients.filter((p) => {
+      const patHospId = Number(typeof p.hospital === 'object' ? p.hospital?.id : p.hospital);
+      return patHospId === targetHospId;
+    });
     const branchBeds = Number(hosp.total_beds) || 0;
 
     let occupancyStr = `${branchPatients.length} Patients`;
@@ -290,26 +309,14 @@ const SuperAdminDashboard = ({
               Master control panel for hospital infrastructure, role access, and multi-branch surveillance.
             </p>
           </div>
-
-          <div className="flex items-center gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={fetchDashboardData}
-              disabled={loading}
-              className="px-4 py-2 rounded-xl bg-slate-700/90 hover:bg-slate-700 text-slate-100 text-xs font-bold border border-slate-600 transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
-              title="Refresh all data from backend"
-            >
-              <span className={loading ? 'animate-spin' : ''}>🔄</span> {loading ? 'Syncing...' : 'Refresh Data'}
-            </button>
-          </div>
         </div>
 
         {/* NAVIGATION TABS WITH LIVE COUNTERS */}
-        <div className="flex flex-wrap items-center gap-2 mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-slate-700/80">
+        <div className="flex items-center gap-1.5 sm:gap-2 mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-slate-700/80 overflow-x-auto pb-1 no-scrollbar sm:flex-wrap">
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
               activeTab === 'overview'
                 ? 'bg-white text-slate-900 shadow-sm font-bold'
                 : 'text-slate-300 hover:text-white hover:bg-white/10'
@@ -320,7 +327,7 @@ const SuperAdminDashboard = ({
           <button
             type="button"
             onClick={() => setActiveTab('hospitals')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
               activeTab === 'hospitals'
                 ? 'bg-white text-slate-900 shadow-sm font-bold'
                 : 'text-slate-300 hover:text-white hover:bg-white/10'
@@ -331,7 +338,7 @@ const SuperAdminDashboard = ({
           <button
             type="button"
             onClick={() => setActiveTab('admins')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
               activeTab === 'admins'
                 ? 'bg-white text-slate-900 shadow-sm font-bold'
                 : 'text-slate-300 hover:text-white hover:bg-white/10'
@@ -342,7 +349,7 @@ const SuperAdminDashboard = ({
           <button
             type="button"
             onClick={() => setActiveTab('patients')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
               activeTab === 'patients'
                 ? 'bg-white text-slate-900 shadow-sm font-bold'
                 : 'text-slate-300 hover:text-white hover:bg-white/10'
@@ -353,7 +360,7 @@ const SuperAdminDashboard = ({
           <button
             type="button"
             onClick={() => setActiveTab('doctors')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
               activeTab === 'doctors'
                 ? 'bg-white text-slate-900 shadow-sm font-bold'
                 : 'text-slate-300 hover:text-white hover:bg-white/10'
@@ -364,7 +371,7 @@ const SuperAdminDashboard = ({
           <button
             type="button"
             onClick={() => setActiveTab('nurses')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
               activeTab === 'nurses'
                 ? 'bg-white text-slate-900 shadow-sm font-bold'
                 : 'text-slate-300 hover:text-white hover:bg-white/10'
@@ -375,7 +382,7 @@ const SuperAdminDashboard = ({
           <button
             type="button"
             onClick={() => setActiveTab('receptionists')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
               activeTab === 'receptionists'
                 ? 'bg-white text-slate-900 shadow-sm font-bold'
                 : 'text-slate-300 hover:text-white hover:bg-white/10'
@@ -518,7 +525,11 @@ const SuperAdminDashboard = ({
                             </td>
                             <td className="py-3 px-3 text-center">{b.city}</td>
                             <td className="py-3 px-3 text-center font-medium text-slate-700">{b.head}</td>
-                            <td className="py-3 px-3 font-bold text-sky-700 text-center">{b.doctorsCount}</td>
+                            <td className="py-3 px-3 text-center">
+                              <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200 inline-block">
+                                {b.doctorsCount}
+                              </span>
+                            </td>
                             <td className="py-3 px-3 text-center text-slate-600 font-medium">{b.occupancy}</td>
                             <td className="py-3 px-3 text-center">
                               <span
@@ -543,7 +554,7 @@ const SuperAdminDashboard = ({
                 <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50 mt-4 rounded-b-xl">
                   <button
                     type="button"
-                    onClick={() => setVisibleBranchesCount((prev) => prev + 4)}
+                    onClick={() => setVisibleBranchesCount((prev) => prev + 10)}
                     className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
                   >
                     Show More ({dynamicBranches.length - visibleBranchesCount} remaining)
@@ -603,16 +614,6 @@ const SuperAdminDashboard = ({
                     ))
                   )}
                 </div>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={fetchDashboardData}
-                  className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
-                >
-                  <span>⚡</span> Live Sync Dashboard
-                </button>
               </div>
             </div>
           </div>

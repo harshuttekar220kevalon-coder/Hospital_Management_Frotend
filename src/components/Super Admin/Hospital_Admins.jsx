@@ -7,10 +7,10 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [hospitalFilter, setHospitalFilter] = useState('ALL');
-  const [visibleCount, setVisibleCount] = useState(6);
+  const [visibleCount, setVisibleCount] = useState(10);
 
   useEffect(() => {
-    setVisibleCount(6);
+    setVisibleCount(10);
   }, [searchTerm, statusFilter, hospitalFilter]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -94,8 +94,8 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
       statusFilter === 'ALL'
         ? true
         : statusFilter === 'Active'
-        ? admin.is_active === true
-        : admin.is_active === false;
+          ? admin.is_active === true
+          : admin.is_active === false;
 
     const matchesHospital =
       hospitalFilter === 'ALL'
@@ -296,13 +296,6 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={fetchAdmins}
-            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
-          >
-            <span>🔄</span> Refresh Data
-          </button>
-          <button
-            type="button"
             onClick={handleOpenAddModal}
             className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
           >
@@ -397,16 +390,17 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
               <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4 text-center">Admin ID</th>
-                  <th className="py-3.5 px-4 text-center">Name & Designation</th>
+                  <th className="py-3.5 px-4 text-center">Designation</th>
                   <th className="py-3.5 px-4 text-center">Assigned Hospital</th>
-                  <th className="py-3.5 px-4 text-center">Contact Phone</th>
+                  <th className="py-3.5 px-4 text-center">Email</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredAdmins.slice(0, visibleCount).map((admin) => {
-                  const assignedHosp = hospitalsList.find(h => h.id === admin.hospital);
+                  const hospId = Number(typeof admin.hospital === 'object' ? admin.hospital?.id : admin.hospital);
+                  const assignedHosp = hospitalsList.find(h => h.id === hospId) || hospitalsList.find(h => h.id === Number(admin.hospital));
                   return (
                     <tr key={admin.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4 text-center">
@@ -415,28 +409,31 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <p className="font-semibold text-slate-800">{admin.name}</p>
-                        <p className="text-[11px] text-slate-400">{admin.designation}</p>
+                        <span className="font-semibold text-slate-800">{admin.designation || 'Hospital Administrator'}</span>
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200 inline-block">
-                          {assignedHosp ? (assignedHosp.Branch_Code || assignedHosp.Name) : (admin.hospital_name || 'Unassigned')}
-                        </span>
+                        {assignedHosp || (admin.hospital_name && !/^\d+$/.test(admin.hospital_name)) ? (
+                          <span className="font-semibold text-slate-800">
+                            {assignedHosp ? assignedHosp.Name : admin.hospital_name}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-medium text-xs">
+                            Unassigned
+                          </span>
+                        )}
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <p className="font-semibold text-slate-700">{admin.contact || '-'}</p>
-                        <p className="text-[10px] text-slate-400">{admin.email || ''}</p>
+                        <p className="font-medium text-sky-700 truncate max-w-[180px] mx-auto">{admin.email || '-'}</p>
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <button
                           type="button"
                           onClick={() => handleToggleStatus(admin)}
                           title="Click to toggle active/inactive status"
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${
-                            admin.is_active
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${admin.is_active
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                               : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
-                          }`}
+                            }`}
                         >
                           {admin.is_active ? 'Active' : 'Inactive'}
                         </button>
@@ -445,7 +442,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
                         <button
                           type="button"
                           onClick={() => handleViewAdminDetails(admin)}
-                          className="px-3.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1"
+                          className="px-3.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1 whitespace-nowrap shrink-0"
                         >
                           Details &rarr;
                         </button>
@@ -462,7 +459,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
           <div className="p-4 text-center border-t border-slate-100 bg-slate-50/50">
             <button
               type="button"
-              onClick={() => setVisibleCount((prev) => prev + 6)}
+              onClick={() => setVisibleCount((prev) => prev + 10)}
               className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
             >
               Show More

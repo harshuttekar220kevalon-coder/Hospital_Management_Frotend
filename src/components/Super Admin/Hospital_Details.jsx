@@ -298,17 +298,17 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
   const [patientSearch, setPatientSearch] = useState('');
   const [deptSearch, setDeptSearch] = useState('');
 
-  const [visibleDoctorsCount, setVisibleDoctorsCount] = useState(6);
-  const [visibleNursesCount, setVisibleNursesCount] = useState(6);
-  const [visibleReceptionistsCount, setVisibleReceptionistsCount] = useState(6);
-  const [visiblePatientsCount, setVisiblePatientsCount] = useState(6);
+  const [visibleDoctorsCount, setVisibleDoctorsCount] = useState(10);
+  const [visibleNursesCount, setVisibleNursesCount] = useState(10);
+  const [visibleReceptionistsCount, setVisibleReceptionistsCount] = useState(10);
+  const [visiblePatientsCount, setVisiblePatientsCount] = useState(10);
 
   useEffect(() => {
-    setVisibleDoctorsCount(6);
+    setVisibleDoctorsCount(10);
   }, [doctorSearch]);
 
   useEffect(() => {
-    setVisiblePatientsCount(6);
+    setVisiblePatientsCount(10);
   }, [patientSearch]);
 
   const filteredDoctors = doctorsList.filter(doc => {
@@ -640,7 +640,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
             <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
               <button
                 type="button"
-                onClick={() => setVisibleDoctorsCount((prev) => prev + 6)}
+                onClick={() => setVisibleDoctorsCount((prev) => prev + 10)}
                 className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
               >
                 Show More
@@ -706,7 +706,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
             <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
               <button
                 type="button"
-                onClick={() => setVisibleNursesCount((prev) => prev + 6)}
+                onClick={() => setVisibleNursesCount((prev) => prev + 10)}
                 className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
               >
                 Show More
@@ -770,7 +770,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
             <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
               <button
                 type="button"
-                onClick={() => setVisibleReceptionistsCount((prev) => prev + 6)}
+                onClick={() => setVisibleReceptionistsCount((prev) => prev + 10)}
                 className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
               >
                 Show More
@@ -829,7 +829,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
             <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
               <button
                 type="button"
-                onClick={() => setVisiblePatientsCount((prev) => prev + 6)}
+                onClick={() => setVisiblePatientsCount((prev) => prev + 10)}
                 className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
               >
                 Show More

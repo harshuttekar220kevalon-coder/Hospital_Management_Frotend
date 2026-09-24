@@ -89,7 +89,19 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                   My Dashboard
                 </button>
 
-
+                {((currentUser?.role || '').toString().toUpperCase().includes('ADMIN') && !(currentUser?.role || '').toString().toUpperCase().includes('SUPER')) && (
+                  <button
+                    type="button"
+                    onClick={() => handleNavClick('admin_hospital_management')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                      currentPage === 'admin_hospital_management'
+                        ? 'bg-slate-800 text-teal-300 border border-teal-500/30'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    Hospital Management
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -179,7 +191,17 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
             My Dashboard
           </button>
 
-
+          {((currentUser?.role || '').toString().toUpperCase().includes('ADMIN') && !(currentUser?.role || '').toString().toUpperCase().includes('SUPER')) && (
+            <button
+              type="button"
+              onClick={() => handleNavClick('admin_hospital_management')}
+              className={`w-full text-left px-4 py-2 rounded-lg text-xs font-semibold ${
+                currentPage === 'admin_hospital_management' ? 'bg-slate-800 text-teal-300' : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              Hospital Management
+            </button>
+          )}
 
           <button
             type="button"

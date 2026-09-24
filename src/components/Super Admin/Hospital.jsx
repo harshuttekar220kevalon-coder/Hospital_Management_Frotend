@@ -6,7 +6,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [cityFilter, setCityFilter] = useState('ALL');
-  const [visibleCount, setVisibleCount] = useState(4);
+  const [visibleCount, setVisibleCount] = useState(10);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -69,7 +69,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
   }, []);
 
   useEffect(() => {
-    setVisibleCount(4);
+    setVisibleCount(10);
   }, [searchTerm, statusFilter, cityFilter]);
 
   const citiesList = Array.from(new Set(hospitals.map(h => h.city)));
@@ -301,13 +301,6 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={fetchHospitals}
-            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
-          >
-            <span>🔄</span> Refresh Data
-          </button>
-          <button
-            type="button"
             onClick={handleOpenAddModal}
             className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
           >
@@ -442,7 +435,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
           <div className="p-4 text-center border-t border-slate-100 bg-slate-50/50">
             <button
               type="button"
-              onClick={() => setVisibleCount((prev) => prev + 4)}
+              onClick={() => setVisibleCount((prev) => prev + 10)}
               className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
             >
               Show More

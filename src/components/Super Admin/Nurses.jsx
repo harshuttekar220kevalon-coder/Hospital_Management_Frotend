@@ -8,10 +8,10 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
   const [shiftFilter, setShiftFilter] = useState('ALL');
   const [hospitalFilter, setHospitalFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [visibleCount, setVisibleCount] = useState(6);
+  const [visibleCount, setVisibleCount] = useState(10);
 
   useEffect(() => {
-    setVisibleCount(6);
+    setVisibleCount(10);
   }, [searchTerm, shiftFilter, hospitalFilter, statusFilter]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -29,7 +29,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
     experience: '',
     contact: '',
     email: '',
-    password: 'Nurse@123',
+    password: '',
     hospital: '',
     status: 'On Duty',
     is_active: true
@@ -118,7 +118,8 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
   const handleOpenAddModal = () => {
     setFormData({
       ...initialFormState,
-      nurse_id: generateNurseId()
+      nurse_id: '',
+      password: ''
     });
     setShowAddPassword(false);
     setIsAddModalOpen(true);
@@ -127,12 +128,13 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
   const handleCreateNurse = async (e) => {
     e.preventDefault();
     try {
+      const generatedNurseId = generateNurseId();
       const payload = {
         ...formData,
         name: formData.name.trim(),
-        nurse_id: formData.nurse_id ? formData.nurse_id.trim() : generateNurseId(),
+        nurse_id: generatedNurseId,
         contact: formData.contact.trim(),
-        password: formData.password || 'Nurse@123',
+        password: formData.password || '',
         hospital: formData.hospital ? Number(formData.hospital) : null
       };
 
@@ -145,7 +147,8 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
       const data = await response.json();
 
       if (response.ok) {
-        alert('Nurse registered successfully.');
+        const createdId = data.nurse_id || generatedNurseId;
+        alert(`Nurse registered successfully!\nNurse ID: ${createdId}`);
         setIsAddModalOpen(false);
         fetchNurses();
       } else {
@@ -198,13 +201,6 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={fetchNurses}
-            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
-          >
-            <span>🔄</span> Refresh Data
-          </button>
           <button
             type="button"
             onClick={handleOpenAddModal}
@@ -313,17 +309,18 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
               <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4 text-center">Nurse ID</th>
-                  <th className="py-3.5 px-4 text-center">Name & Role</th>
+                  <th className="py-3.5 px-4 text-center">Role</th>
                   <th className="py-3.5 px-4 text-center">Assigned Hospital</th>
-                  <th className="py-3.5 px-4 text-center">Shift & Ward</th>
-                  <th className="py-3.5 px-4 text-center">Contact</th>
+                  <th className="py-3.5 px-4 text-center">Ward</th>
+                  <th className="py-3.5 px-4 text-center">Email</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredNurses.slice(0, visibleCount).map((nurse) => {
-                  const assignedHosp = hospitalsList.find(h => h.id === nurse.hospital);
+                  const hospId = Number(typeof nurse.hospital === 'object' ? nurse.hospital?.id : nurse.hospital);
+                  const assignedHosp = hospitalsList.find(h => h.id === hospId) || hospitalsList.find(h => h.id === Number(nurse.hospital));
 
                   return (
                     <tr key={nurse.id} className="hover:bg-slate-50/70 transition">
@@ -333,37 +330,33 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <p className="font-semibold text-slate-800">{nurse.name || `${nurse.first_name || ''} ${nurse.last_name || ''}`.trim() || 'Nurse Staff'}</p>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 inline-block mt-0.5">
+                        <span className="font-semibold text-slate-800 text-xs">
                           {nurse.nurse_role || nurse.role || 'Staff Nurse'}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        {assignedHosp ? (
-                          <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200 inline-block">
-                            {assignedHosp.Branch_Code || assignedHosp.Name}
+                        {assignedHosp || (nurse.hospital_name && !/^\d+$/.test(nurse.hospital_name)) ? (
+                          <span className="font-semibold text-slate-800">
+                            {assignedHosp ? assignedHosp.Name : nurse.hospital_name}
                           </span>
                         ) : (
-                          <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          <span className="text-slate-400 font-medium text-xs">
                             Unassigned
                           </span>
                         )}
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <p className="font-semibold text-slate-800 text-xs">{nurse.shift || 'Morning'}</p>
-                        <p className="text-[11px] text-slate-400">{nurse.ward || 'General Ward'}</p>
+                        <span className="font-medium text-slate-700 text-xs">{nurse.ward || 'General Ward'}</span>
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <p className="font-semibold text-slate-700">{nurse.contact || nurse.phone_number || '-'}</p>
-                        <p className="text-[10px] text-slate-400">{nurse.email || ''}</p>
+                        <p className="font-medium text-sky-700 truncate max-w-[180px] mx-auto">{nurse.email || '-'}</p>
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-block ${
-                            nurse.is_active !== false
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-block ${nurse.is_active !== false
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : 'bg-rose-50 text-rose-700 border-rose-200'
-                          }`}
+                            }`}
                         >
                           {nurse.is_active !== false ? 'Active' : 'Inactive'}
                         </span>
@@ -389,7 +382,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
           <div className="p-4 text-center border-t border-slate-100 bg-slate-50/50">
             <button
               type="button"
-              onClick={() => setVisibleCount((prev) => prev + 6)}
+              onClick={() => setVisibleCount((prev) => prev + 10)}
               className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
             >
               Show More
@@ -413,22 +406,8 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
             </div>
 
             <form onSubmit={handleCreateNurse} className="space-y-3 text-xs">
+              {/* ROW 1: NURSE FULL NAME & OFFICIAL EMAIL */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-semibold text-slate-700 uppercase">Nurse ID</label>
-                    <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
-                      Auto-Generated
-                    </span>
-                  </div>
-                  <input
-                    type="text"
-                    readOnly
-                    tabIndex={-1}
-                    value={formData.nurse_id}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-sky-700 font-mono font-bold cursor-not-allowed select-none focus:outline-none"
-                  />
-                </div>
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Nurse Full Name *</label>
                   <input
@@ -440,36 +419,68 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
-              </div>
-
-              {/* UNCHANGEABLE & UNCLICKABLE PASSWORD FIELD */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block font-semibold text-slate-700 uppercase">
-                    Nurse Login Password
-                  </label>
-                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                    Unchangeable
-                  </span>
-                </div>
-                <div className="relative flex items-center">
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Official Email *</label>
                   <input
-                    type={showAddPassword ? 'text' : 'password'}
-                    readOnly
-                    tabIndex={-1}
-                    value={formData.password || 'Nurse@123'}
-                    className="w-full pl-3 pr-20 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono text-xs cursor-not-allowed select-none focus:outline-none tracking-wider"
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="nurse@hospital.com"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowAddPassword(!showAddPassword)}
-                    className="absolute right-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-bold text-[11px] border border-slate-300 shadow-2xs flex items-center gap-1 transition cursor-pointer"
-                  >
-                    {showAddPassword ? 'Hide' : 'Show'}
-                  </button>
                 </div>
               </div>
 
+              {/* ROW 2: CONTACT PHONE & SIGNIN PASSWORD */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone (Numbers only) *</label>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={10}
+                    required
+                    value={formData.contact}
+                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '') })}
+                    placeholder="e.g. 9876543210"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Signin Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showAddPassword ? 'text' : 'password'}
+                      required
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="Enter signin password"
+                      className="w-full pl-3 pr-10 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAddPassword(!showAddPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                      title={showAddPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showAddPassword ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* ROW 3: ROLE / DESIGNATION & NURSE ID */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Role / Designation *</label>
@@ -488,6 +499,25 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                   </select>
                 </div>
                 <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-semibold text-slate-700 uppercase">Nurse ID</label>
+                    <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                      Auto-Generated
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    readOnly
+                    tabIndex={-1}
+                    value="Auto-Generated upon creation"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-500 italic font-medium cursor-not-allowed select-none focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* ROW 4: ASSIGNED WARD & SHIFT TIMING */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Ward *</label>
                   <select
                     required
@@ -503,9 +533,6 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                     <option value="OPD">OPD</option>
                   </select>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Shift Timing *</label>
                   <select
@@ -520,34 +547,10 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                     <option value="Rotating">Rotating</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone (Numbers only) *</label>
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={10}
-                    required
-                    value={formData.contact}
-                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '') })}
-                    placeholder="e.g. 9876543210"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
-                  />
-                </div>
               </div>
 
+              {/* ROW 5: QUALIFICATIONS & EXPERIENCE */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Official Email *</label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="nurse@hospital.com"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
-                  />
-                </div>
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Qualifications</label>
                   <input
@@ -558,19 +561,19 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Experience</label>
+                  <input
+                    type="text"
+                    value={formData.experience}
+                    onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
+                    placeholder="e.g. 5 Years"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Experience</label>
-                <input
-                  type="text"
-                  value={formData.experience}
-                  onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
-                  placeholder="e.g. 5 Years"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
-                />
-              </div>
-
+              {/* ROW 6: ASSIGN HOSPITAL BRANCH */}
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch</label>
                 <select
@@ -587,6 +590,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                 </select>
               </div>
 
+              {/* ROW 7: ACTIVE CHECKBOX */}
               <div className="flex items-center gap-2 pt-1">
                 <input
                   type="checkbox"

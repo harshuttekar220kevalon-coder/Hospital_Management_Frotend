@@ -70,7 +70,7 @@ const ResetPassword = ({ setCurrentPage }) => {
           <p className="text-xs text-slate-500 mt-1 font-medium">Enter your registered email and new password</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
               Registered Email Address
@@ -78,6 +78,7 @@ const ResetPassword = ({ setCurrentPage }) => {
             <input
               type="email"
               name="email"
+              autoComplete="off"
               value={formData.email}
               onChange={handleChange}
               placeholder="name@hospital.com"

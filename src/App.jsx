@@ -20,6 +20,7 @@ import Receptionist_Details from './components/Super Admin/Receptionist_Details'
 import Patients_Management from './components/Super Admin/Patients';
 import Patient_Details from './components/Super Admin/Patient_Details';
 import AdminDashboard from './components/Admin/Dashbord';
+import HospitalManagement from './components/Admin/Hospital_Management';
 import DoctorDashboard from './components/Doctor/Dashbord';
 import NurseDashboard from './components/Nurse/Dashbord';
 import ReceptionistDashboard from './components/Receptionist/Dashbord';
@@ -371,6 +372,14 @@ const App = () => {
                 currentUser={currentUser}
                 setCurrentPage={setCurrentPage}
                 setSelectedHospital={setSelectedHospital}
+              />
+            )}
+            {currentPage === 'admin_hospital_management' && (
+              <HospitalManagement
+                currentUser={currentUser}
+                selectedHospital={selectedHospital}
+                setSelectedHospital={setSelectedHospital}
+                setCurrentPage={setCurrentPage}
               />
             )}
             {currentPage === 'doctor_dashboard' && (

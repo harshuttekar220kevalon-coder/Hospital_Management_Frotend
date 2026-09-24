@@ -33,18 +33,35 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
       if (response.ok) {
         alert('Login successful!');
         
-        const userObj = data.user || data.data || data;
-        const rawRole = (userObj.role || userObj.user_role || data.role || 'DOCTOR').toString().toUpperCase();
-        
-        const firstName = userObj.first_name || userObj.firstName || '';
-        const lastName = userObj.last_name || userObj.lastName || '';
-        const combinedName = `${firstName} ${lastName}`.trim();
-        const fallbackName = formData.email.split('@')[0];
-        
+        const userObj = data.user || data.data || data || {};
+        const rawRole = (userObj.role || data.role || 'Admin').toString();
+        const combinedName = userObj.name || (userObj.first_name ? `${userObj.first_name} ${userObj.last_name || ''}`.trim() : '');
+        const fallbackName = formData.email ? formData.email.split('@')[0] : 'Admin User';
+
+        let hospitalId = userObj.hospital || userObj.hospital_id || data.hospital || null;
+
+        if (!hospitalId && rawRole.toUpperCase().includes('ADMIN') && !rawRole.toUpperCase().includes('SUPER')) {
+          try {
+            const adminRes = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/');
+            if (adminRes.ok) {
+              const adminsList = await adminRes.json();
+              const matched = adminsList.find(a => (a.email || '').toLowerCase() === (formData.email || '').toLowerCase());
+              if (matched && matched.hospital) {
+                hospitalId = matched.hospital;
+              }
+            }
+          } catch (err) {
+            console.error('Error finding admin hospital:', err);
+          }
+        }
+
         const extractedUser = {
+          ...userObj,
+          id: userObj.id || data.id,
           name: userObj.name || combinedName || fallbackName,
           role: rawRole,
           email: userObj.email || formData.email,
+          hospital: hospitalId,
         };
 
         if (setIsLoggedIn) {
