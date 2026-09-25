@@ -24,6 +24,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
     if (setSelectedAdminProp) {
       setSelectedAdminProp(admin);
     }
+    localStorage.setItem('selectedAdmin', JSON.stringify(admin));
     if (setCurrentPage) {
       setCurrentPage('admin_details');
     }
@@ -113,12 +114,19 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
 
   const handleCreateAdmin = async (e) => {
     e.preventDefault();
+    if (!formData.hospital) {
+      alert('Please select an assigned hospital branch.');
+      return;
+    }
+
     try {
       const { employee_id, ...restFormData } = formData;
 
       const payload = {
         ...restFormData,
-        hospital: formData.hospital ? Number(formData.hospital) : null
+        role: formData.role || formData.designation || 'Hospital Admin',
+        designation: formData.designation || 'Hospital Administrator',
+        hospital: Number(formData.hospital)
       };
 
       const response = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/', {
@@ -166,11 +174,17 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
   const handleUpdateAdmin = async (e) => {
     e.preventDefault();
     if (!selectedAdmin) return;
+    if (!formData.hospital) {
+      alert('Please select an assigned hospital branch.');
+      return;
+    }
 
     try {
       const payload = {
         ...formData,
-        hospital: formData.hospital ? Number(formData.hospital) : null
+        role: formData.role || formData.designation || 'Hospital Admin',
+        designation: formData.designation || 'Hospital Administrator',
+        hospital: Number(formData.hospital)
       };
 
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${selectedAdmin.id}/`, {
@@ -205,12 +219,16 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
 
   const handleSaveHospitalAssignment = async () => {
     if (!selectedAdmin) return;
+    if (!assignHospitalId) {
+      alert('Please select an assigned hospital branch.');
+      return;
+    }
 
     try {
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${selectedAdmin.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hospital: assignHospitalId ? Number(assignHospitalId) : null })
+        body: JSON.stringify({ hospital: Number(assignHospitalId) })
       });
 
       if (response.ok) {
@@ -235,16 +253,15 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
       });
 
       if (response.ok) {
+        const data = await response.json().catch(() => null);
+        setAdmins(prev => prev.map(a => a.id === admin.id ? { ...a, is_active: updatedStatus, ...(data || {}) } : a));
         fetchAdmins();
-        if (detailAdmin && detailAdmin.id === admin.id) {
-          const fresh = await response.json();
-          setDetailAdmin(fresh);
-        }
       } else {
         alert('Failed to update status.');
       }
     } catch (error) {
       console.error('Error toggling status:', error);
+      alert('Error updating status.');
     }
   };
 
@@ -305,7 +322,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
       </div>
 
       {/* TOP SUMMARY METRICS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Administrators</p>
           <h3 className="text-xl sm:text-2xl font-extrabold text-slate-800 mt-1">{totalAdminsCount}</h3>
@@ -322,12 +339,6 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Assigned to Branches</p>
           <h3 className="text-xl sm:text-2xl font-extrabold text-indigo-700 mt-1">{assignedAdminsCount}</h3>
           <p className="text-xs text-slate-400 mt-0.5">Branch Leaders</p>
-        </div>
-
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Unassigned</p>
-          <h3 className="text-xl sm:text-2xl font-extrabold text-amber-700 mt-1">{totalAdminsCount - assignedAdminsCount}</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Available for Assignment</p>
         </div>
       </div>
 
@@ -389,10 +400,9 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
             <table className="w-full text-center text-xs text-slate-600 min-w-[760px]">
               <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                 <tr>
-                  <th className="py-3.5 px-4 text-center">Admin ID</th>
-                  <th className="py-3.5 px-4 text-center">Designation</th>
+                  <th className="py-3.5 px-4 text-center">Admin Name & ID</th>
                   <th className="py-3.5 px-4 text-center">Assigned Hospital</th>
-                  <th className="py-3.5 px-4 text-center">Email</th>
+                  <th className="py-3.5 px-4 text-center">CONTACT & EMAIL</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4 text-center">Actions</th>
                 </tr>
@@ -401,15 +411,14 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
                 {filteredAdmins.slice(0, visibleCount).map((admin) => {
                   const hospId = Number(typeof admin.hospital === 'object' ? admin.hospital?.id : admin.hospital);
                   const assignedHosp = hospitalsList.find(h => h.id === hospId) || hospitalsList.find(h => h.id === Number(admin.hospital));
+                  const emailLower = (admin.email || '').toLowerCase();
                   return (
                     <tr key={admin.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4 text-center">
-                        <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200 inline-block">
+                        <div className="font-bold text-slate-800 break-words">{admin.name || 'Admin'}</div>
+                        <span className="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block mt-0.5">
                           {admin.employee_id || `ADM-${admin.id}`}
                         </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <span className="font-semibold text-slate-800">{admin.designation || 'Hospital Administrator'}</span>
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         {assignedHosp || (admin.hospital_name && !/^\d+$/.test(admin.hospital_name)) ? (
@@ -423,7 +432,22 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
                         )}
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <p className="font-medium text-sky-700 truncate max-w-[180px] mx-auto">{admin.email || '-'}</p>
+                        <div className="flex flex-col items-center justify-center gap-0.5">
+                          <span className="font-bold text-slate-800 text-xs">
+                            {admin.contact || admin.phone || '-'}
+                          </span>
+                          {emailLower ? (
+                            <a
+                              href={`mailto:${emailLower}`}
+                              title={`Send email to ${emailLower}`}
+                              className="text-[11px] text-sky-700 hover:text-sky-900 hover:underline block lowercase transition truncate max-w-[180px]"
+                            >
+                              {emailLower}
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">-</span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <button
@@ -566,13 +590,14 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch *</label>
                   <select
+                    required
                     value={formData.hospital}
                     onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                   >
-                    <option value="">Select Hospital Branch *</option>
+                    <option value="" disabled>Select Hospital Branch *</option>
                     {hospitalsList.map((h) => (
                       <option key={h.id} value={h.id}>
                         {h.Name} ({h.city}) - {h.Branch_Code}

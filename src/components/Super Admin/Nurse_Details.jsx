@@ -22,12 +22,7 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
 
   const rolesList = [
     'Staff Nurse',
-    'Head Nurse',
-    'ICU Nurse',
-    'Emergency Nurse',
-    'OT Nurse',
-    'Ward Nurse',
-    'Pediatric Nurse'
+    'Head Nurse'
   ];
 
   const wardsList = [
@@ -52,14 +47,14 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
   const [editFormData, setEditFormData] = useState({
     nurse_id: '',
     name: '',
-    role: 'Staff Nurse',
+    role: '',
     ward: 'General Ward',
     shift: 'Morning (08:00 AM - 04:00 PM)',
     qualification: '',
     experience: '',
     contact: '',
     email: '',
-    password: 'Nurse@123',
+    password: '',
     hospital: '',
     status: 'On Duty',
     is_active: true
@@ -143,19 +138,24 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
   const handleSaveNurseEdit = async (e) => {
     e.preventDefault();
     if (!activeNurse || !activeNurse.id) return;
+    if (!editFormData.hospital) {
+      alert('Please select an assigned hospital branch.');
+      return;
+    }
 
     try {
       const nurseIdToSend = editFormData.nurse_id || activeNurse.nurse_id || `NUR-${activeNurse.id}`;
+      const nurseRole = editFormData.role || editFormData.nurse_role || activeNurse.role || 'Staff Nurse';
       const payload = {
         ...editFormData,
         nurse_id: nurseIdToSend,
-        role: editFormData.nurse_role,
-        nurse_role: editFormData.nurse_role,
-        designation: editFormData.nurse_role,
+        role: nurseRole,
+        nurse_role: nurseRole,
+        designation: nurseRole,
         name: editFormData.name.trim(),
         contact: editFormData.contact.trim(),
         password: activeNurse.password || editFormData.password || 'Nurse@123',
-        hospital: editFormData.hospital ? Number(editFormData.hospital) : null
+        hospital: Number(editFormData.hospital)
       };
 
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${activeNurse.id}/`, {
@@ -183,8 +183,17 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
 
   const handleToggleStatus = async () => {
     if (!activeNurse || !activeNurse.id) return;
+    const newStatus = !activeNurse.is_active;
+    const optimistic = {
+      ...activeNurse,
+      is_active: newStatus,
+      status: newStatus ? 'On Duty' : 'On Leave'
+    };
+    setNurseData(optimistic);
+    if (setSelectedNurse) setSelectedNurse(optimistic);
+    localStorage.setItem('selectedNurse', JSON.stringify(optimistic));
+
     try {
-      const newStatus = !activeNurse.is_active;
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${activeNurse.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -192,15 +201,24 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
       });
 
       if (response.ok) {
-        const updated = await response.json();
-        setNurseData(updated);
-        if (setSelectedNurse) setSelectedNurse(updated);
-        localStorage.setItem('selectedNurse', JSON.stringify(updated));
+        const updated = await response.json().catch(() => null);
+        if (updated) {
+          setNurseData(updated);
+          if (setSelectedNurse) setSelectedNurse(updated);
+          localStorage.setItem('selectedNurse', JSON.stringify(updated));
+        }
       } else {
+        // Revert on error
+        setNurseData(activeNurse);
+        if (setSelectedNurse) setSelectedNurse(activeNurse);
+        localStorage.setItem('selectedNurse', JSON.stringify(activeNurse));
         alert('Failed to toggle duty status.');
       }
     } catch (err) {
       console.error('Error toggling status:', err);
+      setNurseData(activeNurse);
+      if (setSelectedNurse) setSelectedNurse(activeNurse);
+      localStorage.setItem('selectedNurse', JSON.stringify(activeNurse));
     }
   };
 
@@ -232,9 +250,13 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
 
   const handleSaveHospitalAssignment = async () => {
     if (!activeNurse || !activeNurse.id) return;
+    if (!assignHospitalId) {
+      alert('Please select an assigned hospital branch.');
+      return;
+    }
 
     try {
-      const updatedHospitalId = assignHospitalId ? Number(assignHospitalId) : null;
+      const updatedHospitalId = Number(assignHospitalId);
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${activeNurse.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -390,53 +412,65 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-slate-400 uppercase font-bold">Nurse ID / Registration</span>
                   <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
                     Permanent
                   </span>
                 </div>
-                <p className="font-mono text-sm font-bold text-indigo-700 mt-0.5 select-none">{activeNurse.nurse_id || `NUR-${activeNurse.id}`}</p>
+                <p className="font-mono text-sm font-bold text-indigo-700 mt-0.5 select-none break-all">{activeNurse.nurse_id || `NUR-${activeNurse.id}`}</p>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Role / Designation</span>
                 <div className="mt-1">
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200 inline-block">
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200 inline-block break-words">
                     {displayRole}
                   </span>
                 </div>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Assigned Ward</span>
-                <p className="font-bold text-slate-800 text-sm mt-0.5">{activeNurse.ward || 'General Ward'}</p>
+                <p className="font-bold text-slate-800 text-sm mt-0.5 break-words break-all">{activeNurse.ward || 'General Ward'}</p>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Shift Schedule</span>
-                <p className="font-semibold text-indigo-700 mt-0.5">{activeNurse.shift || 'Morning'}</p>
+                <p className="font-semibold text-indigo-700 mt-0.5 break-words">{activeNurse.shift || 'Morning'}</p>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Qualifications</span>
-                <p className="font-semibold text-slate-800 mt-0.5">{activeNurse.qualification || 'GNM, B.Sc Nursing'}</p>
+                <p className="font-semibold text-slate-800 mt-0.5 break-words break-all">{activeNurse.qualification || 'GNM, B.Sc Nursing'}</p>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Years of Experience</span>
-                <p className="font-semibold text-slate-800 mt-0.5">{activeNurse.experience || 'Not specified'}</p>
+                <p className="font-semibold text-slate-800 mt-0.5 break-words">{activeNurse.experience || 'Not specified'}</p>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Official Email Address</span>
-                <p className="font-semibold text-blue-700 mt-0.5 break-all">{activeNurse.email || '-'}</p>
+                {activeNurse.email ? (
+                  <p className="mt-0.5 break-all">
+                    <a
+                      href={`mailto:${activeNurse.email.toLowerCase()}`}
+                      className="font-semibold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
+                      title="Send email"
+                    >
+                      {activeNurse.email.toLowerCase()}
+                    </a>
+                  </p>
+                ) : (
+                  <p className="font-semibold text-slate-400 mt-0.5">-</p>
+                )}
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Contact Phone</span>
-                <p className="font-semibold text-slate-800 mt-0.5">{displayPhone}</p>
+                <p className="font-semibold text-slate-800 mt-0.5 break-all">{displayPhone}</p>
               </div>
             </div>
           </div>
@@ -509,7 +543,20 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
               <div className="space-y-2 text-xs text-slate-600 pt-3 border-t border-slate-200/60">
                 <p className="text-xs"><span className="font-semibold text-slate-700">Address:</span> {assignedHospital.address || `${assignedHospital.area || ''}, ${assignedHospital.city || ''}`}</p>
                 <p className="text-xs"><span className="font-semibold text-slate-700">Contact Phone:</span> {assignedHospital.contact || '-'}</p>
-                <p className="text-xs"><span className="font-semibold text-slate-700">Official Email:</span> {assignedHospital.email || '-'}</p>
+                <p className="text-xs">
+                  <span className="font-semibold text-slate-700">Official Email:</span>{' '}
+                  {assignedHospital.email ? (
+                    <a
+                      href={`mailto:${assignedHospital.email.toLowerCase()}`}
+                      className="text-blue-600 hover:underline"
+                      title="Send email"
+                    >
+                      {assignedHospital.email.toLowerCase()}
+                    </a>
+                  ) : (
+                    '-'
+                  )}
+                </p>
               </div>
 
               <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-200/60 text-center">
@@ -710,13 +757,14 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch</label>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch *</label>
                 <select
+                  required
                   value={editFormData.hospital}
                   onChange={(e) => setEditFormData({ ...editFormData, hospital: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-indigo-600 font-medium cursor-pointer"
                 >
-                  <option value="">Leave Unassigned</option>
+                  <option value="" disabled>Select Hospital Branch *</option>
                   {hospitalsList.map((h) => (
                     <option key={h.id} value={h.id}>
                       {h.Name} ({h.city}) - {h.Branch_Code}
@@ -782,11 +830,12 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
                 Select the hospital branch where <span className="font-bold text-slate-800">{displayName}</span> will be deployed:
               </p>
               <select
+                required
                 value={assignHospitalId}
                 onChange={(e) => setAssignHospitalId(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
               >
-                <option value="">-- Remove / Leave Unassigned --</option>
+                <option value="" disabled>-- Select Hospital Branch * --</option>
                 {hospitalsList.map((h) => (
                   <option key={h.id} value={h.id}>
                     {h.Name} ({h.city}) - {h.Branch_Code}

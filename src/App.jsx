@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
+
+
+// Maain pages
 import Navbar from './components/Navbar';
 import SuperAdminNavbar from './components/Super Admin/Navbar';
+import AdminNavbar from './components/Admin/Navbar';
 import Home from './components/View/Home';
 import Login from './components/Login';
 import SignIn from './components/SignIn';
 import ResetPassword from './components/ResetPassword';
 
+
+
+// Super Admin Pages
 import SuperAdminDashboard from './components/Super Admin/Dashbord';
 import Hospital from './components/Super Admin/Hospital';
 import Hospital_Details from './components/Super Admin/Hospital_Details';
@@ -19,8 +26,21 @@ import Receptionist_Management from './components/Super Admin/Receptionist';
 import Receptionist_Details from './components/Super Admin/Receptionist_Details';
 import Patients_Management from './components/Super Admin/Patients';
 import Patient_Details from './components/Super Admin/Patient_Details';
+
+
+
+
+// Admin Pagies
 import AdminDashboard from './components/Admin/Dashbord';
 import HospitalManagement from './components/Admin/Hospital_Management';
+import AdminDoctors from './components/Admin/Doctor';
+import AdminDoctorDetails from './components/Admin/Doctor_Details';
+import AdminNurses from './components/Admin/Nurses';
+import AdminNurseDetails from './components/Admin/Nurses_Details';
+import AdminReceptionists from './components/Admin/Receptionists';
+import AdminReceptionistDetails from './components/Admin/Receptionists_Details';
+import AdminPatients from './components/Admin/Patients';
+import AdminPatientDetails from './components/Admin/Patients_Details';
 import DoctorDashboard from './components/Doctor/Dashbord';
 import NurseDashboard from './components/Nurse/Dashbord';
 import ReceptionistDashboard from './components/Receptionist/Dashbord';
@@ -224,12 +244,21 @@ const App = () => {
   };
 
   const isSuperAdmin = (currentUser?.role || '').toString().toUpperCase().includes('SUPER');
+  const isAdmin = (currentUser?.role || '').toString().toUpperCase().includes('ADMIN') && !isSuperAdmin;
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans antialiased">
       {isLoggedIn && (
         isSuperAdmin ? (
           <SuperAdminNavbar
+            currentPage={currentPage}
+            setCurrentPage={setCurrentPage}
+            isLoggedIn={isLoggedIn}
+            onLogout={handleLogout}
+            currentUser={currentUser}
+          />
+        ) : isAdmin ? (
+          <AdminNavbar
             currentPage={currentPage}
             setCurrentPage={setCurrentPage}
             isLoggedIn={isLoggedIn}
@@ -275,6 +304,7 @@ const App = () => {
                 setSelectedNurse={setSelectedNurse}
                 setSelectedReceptionist={setSelectedReceptionist}
                 setSelectedPatient={setSelectedPatient}
+                setSelectedAdmin={setSelectedAdmin}
               />
             )}
             {currentPage === 'super_admin_hospitals' && (
@@ -372,6 +402,8 @@ const App = () => {
                 currentUser={currentUser}
                 setCurrentPage={setCurrentPage}
                 setSelectedHospital={setSelectedHospital}
+                setSelectedDoctor={setSelectedDoctor}
+                setSelectedPatient={setSelectedPatient}
               />
             )}
             {currentPage === 'admin_hospital_management' && (
@@ -379,6 +411,70 @@ const App = () => {
                 currentUser={currentUser}
                 selectedHospital={selectedHospital}
                 setSelectedHospital={setSelectedHospital}
+                setCurrentPage={setCurrentPage}
+              />
+            )}
+            {currentPage === 'admin_doctors' && (
+              <AdminDoctors
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedDoctor={setSelectedDoctor}
+                setSelectedHospital={setSelectedHospital}
+              />
+            )}
+            {currentPage === 'admin_doctor_details' && (
+              <AdminDoctorDetails
+                currentUser={currentUser}
+                selectedDoctor={selectedDoctor}
+                setSelectedDoctor={setSelectedDoctor}
+                setCurrentPage={setCurrentPage}
+              />
+            )}
+            {currentPage === 'admin_nurses' && (
+              <AdminNurses
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedNurse={setSelectedNurse}
+                setSelectedHospital={setSelectedHospital}
+              />
+            )}
+            {currentPage === 'admin_nurse_details' && (
+              <AdminNurseDetails
+                currentUser={currentUser}
+                selectedNurse={selectedNurse}
+                setSelectedNurse={setSelectedNurse}
+                setCurrentPage={setCurrentPage}
+              />
+            )}
+            {currentPage === 'admin_receptionists' && (
+              <AdminReceptionists
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedReceptionist={setSelectedReceptionist}
+                setSelectedHospital={setSelectedHospital}
+              />
+            )}
+            {currentPage === 'admin_receptionist_details' && (
+              <AdminReceptionistDetails
+                currentUser={currentUser}
+                selectedReceptionist={selectedReceptionist}
+                setSelectedReceptionist={setSelectedReceptionist}
+                setCurrentPage={setCurrentPage}
+              />
+            )}
+            {currentPage === 'admin_patients' && (
+              <AdminPatients
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedPatient={setSelectedPatient}
+                setSelectedHospital={setSelectedHospital}
+              />
+            )}
+            {currentPage === 'admin_patient_details' && (
+              <AdminPatientDetails
+                currentUser={currentUser}
+                selectedPatient={selectedPatient}
+                setSelectedPatient={setSelectedPatient}
                 setCurrentPage={setCurrentPage}
               />
             )}

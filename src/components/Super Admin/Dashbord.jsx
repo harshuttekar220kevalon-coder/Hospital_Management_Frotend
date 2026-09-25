@@ -118,75 +118,139 @@ const SuperAdminDashboard = ({
   const dischargedPatients = patients.filter((p) => p.status === 'Discharged' || p.status === 'Completed');
 
   const uniqueSpecialties = Array.from(new Set(doctors.map((d) => d.specialization || d.specialty).filter(Boolean)));
-  const uniqueCities = Array.from(new Set(hospitals.map((h) => h.city).filter(Boolean)));
+  const uniqueCities = Array.from(
+    new Set(
+      hospitals
+        .map((h) => (h.city || '').trim())
+        .filter(Boolean)
+        .map((c) => c.toLowerCase())
+    )
+  );
 
-  const totalRevenue = patients.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0);
+  // STRICT RULE: Only calculate Doctor Fees, Hospital Revenue, and Collections when patient has PAID
+  const paidPatients = patients.filter((p) => (p.payment_status || '').toLowerCase() === 'paid' || (Number(p.amount_paid) > 0));
+
+  const totalDocFees = paidPatients.reduce((sum, p) => {
+    const isPaid = (p.payment_status || '').toLowerCase() === 'paid';
+    const paid = Number(p.amount_paid) || 0;
+    const docFee = Number(p.consultation_fee) || 0;
+    const hospCharge = Number(p.Hospitals_Chargies ?? p.hospital_charges) || 0;
+    const gross = docFee + hospCharge;
+    if (isPaid) return sum + docFee;
+    if (gross > 0 && paid > 0) return sum + ((docFee / gross) * paid);
+    return sum;
+  }, 0);
+
+  const totalHospRevenue = paidPatients.reduce((sum, p) => {
+    const isPaid = (p.payment_status || '').toLowerCase() === 'paid';
+    const paid = Number(p.amount_paid) || 0;
+    const docFee = Number(p.consultation_fee) || 0;
+    const hospCharge = Number(p.Hospitals_Chargies ?? p.hospital_charges) || 0;
+    const gross = docFee + hospCharge;
+    if (isPaid) return sum + hospCharge;
+    if (gross > 0 && paid > 0) return sum + ((hospCharge / gross) * paid);
+    return sum;
+  }, 0);
+
+  const totalRevenue = paidPatients.reduce((sum, p) => {
+    const isPaid = (p.payment_status || '').toLowerCase() === 'paid';
+    const paid = Number(p.amount_paid) || 0;
+    const docFee = Number(p.consultation_fee) || 0;
+    const hospCharge = Number(p.Hospitals_Chargies ?? p.hospital_charges) || 0;
+    if (paid > 0) return sum + paid;
+    if (isPaid) return sum + (docFee + hospCharge);
+    return sum;
+  }, 0);
+
   const totalBeds = hospitals.reduce((sum, h) => sum + (Number(h.total_beds) || 0), 0);
+  const totalIcuBeds = hospitals.reduce((sum, h) => sum + (Number(h.icu_beds) || 0), 0);
+  const totalNicuBeds = hospitals.reduce((sum, h) => sum + (Number(h.nicu_beds) || 0), 0);
+  const totalOTs = hospitals.reduce((sum, h) => sum + (Number(h.operation_theatres) || 0), 0);
+  const totalOccupiedBeds = admittedPatients.length > 0 
+    ? admittedPatients.length 
+    : hospitals.reduce((sum, h) => sum + (Number(h.occupied_beds) || 0), 0);
 
-  // Dynamic 4 Core Statistics Cards
+  // All 9 Core Dashboard Metric Cards in Exact Requested Sequence
   const systemStats = [
     {
       id: 'branches',
       title: 'Total Hospital Branches',
-      value: `${hospitals.length} Location${hospitals.length === 1 ? '' : 's'}`,
-      sub: uniqueCities.length > 0 ? uniqueCities.slice(0, 4).join(', ') + (uniqueCities.length > 4 ? '...' : '') : `${activeHospitals.length} Active Branches`,
+      value: `${hospitals.length} Branch${hospitals.length === 1 ? '' : 'es'}`,
+      sub: `${activeHospitals.length} Active • Across ${uniqueCities.length} Location${uniqueCities.length === 1 ? '' : 's'}`,
+      badge: `${activeHospitals.length} Active`,
       color: 'bg-sky-50 text-sky-800 border-sky-200',
       tab: 'hospitals'
+    },
+    {
+      id: 'admins',
+      title: 'Hospital Admins',
+      value: `${admins.length} Admin${admins.length === 1 ? '' : 's'}`,
+      sub: `${activeAdmins.length} Active Administrators`,
+      badge: `${activeAdmins.length} Active`,
+      color: 'bg-purple-50 text-purple-800 border-purple-200',
+      tab: 'admins'
     },
     {
       id: 'doctors',
       title: 'Registered Doctors',
       value: `${doctors.length} Doctor${doctors.length === 1 ? '' : 's'}`,
       sub: `${activeDoctors.length} Active • Across ${uniqueSpecialties.length} Specialization${uniqueSpecialties.length === 1 ? '' : 's'}`,
-      color: 'bg-sky-50 text-sky-800 border-sky-200',
+      badge: `${activeDoctors.length} Active`,
+      color: 'bg-indigo-50 text-indigo-800 border-indigo-200',
       tab: 'doctors'
-    },
-    {
-      id: 'patients',
-      title: "Patients & Inflow",
-      value: `${patients.length} Patient${patients.length === 1 ? '' : 's'}`,
-      sub: `${todayPatients.length} Today • ${admittedPatients.length} Admitted • ${pendingPatients.length} Pending`,
-      color: 'bg-sky-50 text-sky-800 border-sky-200',
-      tab: 'patients'
     },
     {
       id: 'nurses',
       title: 'Nursing Staff & Wards',
       value: `${nurses.length} Nurse${nurses.length === 1 ? '' : 's'}`,
       sub: `${activeNurses.length} Active on duty across branches`,
-      color: 'bg-sky-50 text-sky-800 border-sky-200',
+      badge: `${activeNurses.length} On Duty`,
+      color: 'bg-emerald-50 text-emerald-800 border-emerald-200',
       tab: 'nurses'
-    }
-  ];
-
-  // Secondary Quick Overview Metrics
-  const secondaryStats = [
-    {
-      title: 'Hospital Admins',
-      value: admins.length,
-      sub: `${activeAdmins.length} Active Administrators`,
-      badgeColor: 'bg-sky-50 text-sky-800 border-sky-200',
-      tab: 'admins'
     },
     {
+      id: 'receptionists',
       title: 'Front Desk Receptionists',
-      value: receptionists.length,
-      sub: `${activeReceptionists.length} Active Staff`,
-      badgeColor: 'bg-sky-50 text-sky-800 border-sky-200',
+      value: `${receptionists.length} Receptionist${receptionists.length === 1 ? '' : 's'}`,
+      sub: `${activeReceptionists.length} Active Staff on duty`,
+      badge: `${activeReceptionists.length} Active`,
+      color: 'bg-amber-50 text-amber-800 border-amber-200',
       tab: 'receptionists'
     },
     {
+      id: 'beds',
       title: 'Total Bed Capacity',
-      value: totalBeds > 0 ? totalBeds : `${hospitals.length * 50}+ Beds`,
-      sub: `${admittedPatients.length} Current Admitted`,
-      badgeColor: 'bg-sky-50 text-sky-800 border-sky-200',
+      value: totalBeds > 0 ? `${totalBeds.toLocaleString()} Beds` : `${hospitals.length * 50}+ Beds`,
+      sub: `OT: ${totalOTs} • ICU: ${totalIcuBeds} • NICU: ${totalNicuBeds} • Occupied: ${totalOccupiedBeds}`,
+      badge: `${totalOccupiedBeds} Occupied`,
+      color: 'bg-slate-100 text-slate-800 border-slate-200',
       tab: 'hospitals'
     },
     {
+      id: 'hospital_revenue',
+      title: 'Hospital Revenue',
+      value: `₹${totalHospRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      sub: 'Facility & hospital charges collected',
+      badge: 'Hospital Share',
+      color: 'bg-sky-50 text-sky-700 border-sky-200',
+      tab: 'patients'
+    },
+    {
+      id: 'doctor_fees',
+      title: 'Total Doctor Fees',
+      value: `₹${totalDocFees.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      sub: 'Doctor consultation share collected',
+      badge: 'Doctor Share',
+      color: 'bg-teal-50 text-teal-700 border-teal-200',
+      tab: 'patients'
+    },
+    {
+      id: 'total_revenue',
       title: 'Total Revenue Collected',
       value: `₹${totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       sub: `${patients.filter((p) => p.payment_status === 'Paid').length} Fully Paid Invoices`,
-      badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      badge: 'Gross Total',
+      color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       tab: 'patients'
     }
   ];
@@ -260,7 +324,7 @@ const SuperAdminDashboard = ({
       logs.push({
         action: `Admin Assigned: ${a.name || 'Administrator'}`,
         user: a.email || 'Hospital Admin',
-        time: 'Super Admin',
+        time: a.created_at ? new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Active',
         ip: a.hospital_name || 'Branch Admin',
         type: 'Admin'
       });
@@ -433,44 +497,47 @@ const SuperAdminDashboard = ({
       ) : (
         /* OVERVIEW DASHBOARD VIEW (ALL REAL BACKEND DATA) */
         <div className="space-y-6">
-          {/* TOP 4 CORE METRIC CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* ALL 9 CORE METRICS CARDS IN REQUESTED SEQUENCE (3x3 GRID) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {systemStats.map((item, idx) => (
               <div
                 key={idx}
                 onClick={() => item.tab && setActiveTab(item.tab)}
-                className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:border-sky-300 hover:shadow-md transition cursor-pointer group"
+                className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-md hover:border-slate-300 transition duration-150 cursor-pointer flex flex-col justify-between"
               >
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{item.title}</p>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${item.color}`}>
-                    Super Admin
-                  </span>
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">{item.title}</p>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border shrink-0 whitespace-nowrap ${item.color}`}>
+                      {item.badge || 'Live'}
+                    </span>
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-extrabold text-slate-800 mt-2">
+                    {loading ? '...' : item.value}
+                  </h3>
                 </div>
-                <h3 className="text-xl sm:text-2xl font-extrabold text-slate-800 mt-2 group-hover:text-sky-700 transition">
-                  {loading ? '...' : item.value}
-                </h3>
-                <p className="text-xs text-slate-500 mt-1 truncate">{item.sub}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* SECONDARY LIVE METRICS ROW */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            {secondaryStats.map((item, idx) => (
-              <div
-                key={idx}
-                onClick={() => item.tab && setActiveTab(item.tab)}
-                className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 shadow-2xs hover:bg-white hover:border-slate-300 transition cursor-pointer"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{item.title}</p>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${item.badgeColor}`}>
-                    Live
-                  </span>
-                </div>
-                <h4 className="text-lg font-bold text-slate-800 mt-1">{loading ? '...' : item.value}</h4>
-                <p className="text-[11px] text-slate-500 mt-0.5">{item.sub}</p>
+                {item.id === 'beds' ? (
+                  <div className="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-4 gap-1.5 text-center">
+                    <div className="bg-slate-50 py-1 px-1 rounded-lg border border-slate-200/70">
+                      <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-tight">OT</span>
+                      <span className="font-extrabold text-xs text-slate-800">{totalOTs}</span>
+                    </div>
+                    <div className="bg-rose-50/70 py-1 px-1 rounded-lg border border-rose-100">
+                      <span className="block text-[10px] font-bold text-rose-600 uppercase tracking-tight">ICU</span>
+                      <span className="font-extrabold text-xs text-rose-800">{totalIcuBeds}</span>
+                    </div>
+                    <div className="bg-sky-50/70 py-1 px-1 rounded-lg border border-sky-100">
+                      <span className="block text-[10px] font-bold text-sky-600 uppercase tracking-tight">NICU</span>
+                      <span className="font-extrabold text-xs text-sky-800">{totalNicuBeds}</span>
+                    </div>
+                    <div className="bg-amber-50/70 py-1 px-1 rounded-lg border border-amber-100">
+                      <span className="block text-[10px] font-bold text-amber-600 uppercase tracking-tight">Occupied</span>
+                      <span className="font-extrabold text-xs text-amber-800">{totalOccupiedBeds}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 mt-2 truncate">{item.sub}</p>
+                )}
               </div>
             ))}
           </div>
@@ -498,7 +565,7 @@ const SuperAdminDashboard = ({
                   <table className="w-full text-center text-xs text-slate-600 min-w-[580px]">
                     <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                       <tr>
-                        <th className="py-3 px-3 text-left">Branch Name</th>
+                        <th className="py-3 px-3 text-left">Branch Name & Code</th>
                         <th className="py-3 px-3 text-center">City</th>
                         <th className="py-3 px-3 text-center">Branch Administrator</th>
                         <th className="py-3 px-3 text-center">Doctors</th>
@@ -520,8 +587,13 @@ const SuperAdminDashboard = ({
                             onClick={() => handleBranchClick(b.raw)}
                             className="hover:bg-slate-50/80 transition cursor-pointer group"
                           >
-                            <td className="py-3 px-3 font-semibold text-slate-800 text-left group-hover:text-sky-700">
-                              {b.name}
+                            <td className="py-3 px-3 text-left">
+                              <p className="font-bold text-slate-800 group-hover:text-sky-700">{b.name}</p>
+                              {b.raw?.Branch_Code && (
+                                <span className="font-mono text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 inline-block mt-0.5">
+                                  {b.raw.Branch_Code}
+                                </span>
+                              )}
                             </td>
                             <td className="py-3 px-3 text-center">{b.city}</td>
                             <td className="py-3 px-3 text-center font-medium text-slate-700">{b.head}</td>

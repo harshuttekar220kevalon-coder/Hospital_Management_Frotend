@@ -1,23 +1,38 @@
 import React, { useState, useEffect } from 'react';
 
-const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
+const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelectedHospital }) => {
   const [nurses, setNurses] = useState([]);
-  const [hospitalsList, setHospitalsList] = useState([]);
+  const [hospitalData, setHospitalData] = useState(null);
   const [loading, setLoading] = useState(true);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [shiftFilter, setShiftFilter] = useState('ALL');
-  const [hospitalFilter, setHospitalFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [visibleCount, setVisibleCount] = useState(10);
-
-  useEffect(() => {
-    setVisibleCount(10);
-  }, [searchTerm, shiftFilter, hospitalFilter, statusFilter]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [showAddPassword, setShowAddPassword] = useState(false);
 
-  const generateNurseId = () => `NUR-${Math.floor(1000 + Math.random() * 9000)}`;
+  const rolesList = [
+    'Staff Nurse',
+    'Head Nurse'
+  ];
+
+  const wardsList = [
+    'General Ward',
+    'ICU',
+    'NICU',
+    'Emergency Ward',
+    'Operation Theatre',
+    'OPD'
+  ];
+
+  const shiftsList = [
+    'Morning',
+    'Evening',
+    'Night',
+    'Rotating'
+  ];
 
   const initialFormState = {
     nurse_id: '',
@@ -31,88 +46,90 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
     contact: '',
     email: '',
     password: '',
-    hospital: '',
     status: 'On Duty',
     is_active: true
   };
 
   const [formData, setFormData] = useState(initialFormState);
 
-  const fetchHospitals = async () => {
-    try {
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/');
-      if (response.ok) {
-        const data = await response.json();
-        setHospitalsList(data);
-      }
-    } catch (err) {
-      console.error('Error fetching hospitals list:', err);
-    }
-  };
+  const generateNurseId = () => `NUR-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  const fetchNurses = async () => {
+  const fetchAdminAndNurses = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Nurses/');
-      if (response.ok) {
-        const data = await response.json();
-        setNurses(data);
-      } else {
-        alert('Failed to fetch nurses from backend.');
+
+      let assignedHospitalId = currentUser?.hospital || null;
+
+      try {
+        const adminsRes = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/').catch(() => null);
+        if (adminsRes && adminsRes.ok) {
+          const adminsList = await adminsRes.json();
+          const currentEmail = (currentUser?.email || '').toLowerCase().trim();
+          const matchedAdmin = adminsList.find(a => (a.email || '').toLowerCase().trim() === currentEmail);
+          if (matchedAdmin && matchedAdmin.hospital) {
+            assignedHospitalId = Number(matchedAdmin.hospital);
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching admin record:', e);
+      }
+
+      if (!assignedHospitalId) {
+        try {
+          const saved = localStorage.getItem('selectedHospital');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed?.id) assignedHospitalId = parsed.id;
+          }
+        } catch {}
+      }
+
+      let hosp = null;
+      if (assignedHospitalId) {
+        const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${assignedHospitalId}/`).catch(() => null);
+        if (hospRes && hospRes.ok) {
+          hosp = await hospRes.json();
+        }
+      }
+
+      if (!hosp) {
+        const allHospRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/').catch(() => null);
+        if (allHospRes && allHospRes.ok) {
+          const allHosp = await allHospRes.json();
+          hosp = (assignedHospitalId ? allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) : null) || allHosp[0] || null;
+          if (hosp) assignedHospitalId = hosp.id;
+        }
+      }
+
+      if (hosp) {
+        setHospitalData(hosp);
+        if (setSelectedHospital) setSelectedHospital(hosp);
+      }
+
+      const nursesRes = await fetch('http://127.0.0.1:8000/api/super-admin/Nurses/').catch(() => null);
+      if (nursesRes && nursesRes.ok) {
+        const allNurses = await nursesRes.json();
+        if (assignedHospitalId) {
+          const branchNurses = allNurses.filter(n => Number(n.hospital) === Number(assignedHospitalId));
+          setNurses(branchNurses.length > 0 ? branchNurses : allNurses);
+        } else {
+          setNurses(allNurses);
+        }
       }
     } catch (err) {
-      console.error('Error fetching nurses:', err);
+      console.error('Error loading nurses data:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchHospitals();
-    fetchNurses();
-  }, []);
+    fetchAdminAndNurses();
+  }, [currentUser]);
 
-  const totalNursesCount = nurses.length;
-  const activeNursesCount = nurses.filter(n => n.is_active).length;
-  const inactiveNursesCount = totalNursesCount - activeNursesCount;
-  const assignedNursesCount = nurses.filter(n => n.hospital).length;
-
-  const filteredNurses = nurses.filter((nurse) => {
-    const term = searchTerm.toLowerCase();
-    const assignedHosp = hospitalsList.find(h => h.id === nurse.hospital);
-    const hospName = assignedHosp ? assignedHosp.Name.toLowerCase() : '';
-    const fullName = (nurse.name || `${nurse.first_name || ''} ${nurse.last_name || ''}`).toLowerCase();
-    const contact = (nurse.contact || nurse.phone_number || '').toLowerCase();
-
-    const matchesSearch =
-      fullName.includes(term) ||
-      (nurse.nurse_id || '').toLowerCase().includes(term) ||
-      (nurse.nurse_role || nurse.role || '').toLowerCase().includes(term) ||
-      (nurse.ward || '').toLowerCase().includes(term) ||
-      (nurse.shift || '').toLowerCase().includes(term) ||
-      contact.includes(term) ||
-      (nurse.email || '').toLowerCase().includes(term) ||
-      hospName.includes(term);
-
-    const matchesShift =
-      shiftFilter === 'ALL'
-        ? true
-        : (nurse.shift || '').toLowerCase().includes(shiftFilter.toLowerCase());
-
-    const matchesHospital =
-      hospitalFilter === 'ALL'
-        ? true
-        : (nurse.hospital || '').toString() === hospitalFilter.toString();
-
-    const matchesStatus =
-      statusFilter === 'ALL'
-        ? true
-        : statusFilter === 'Active'
-          ? nurse.is_active === true
-          : nurse.is_active === false;
-
-    return matchesSearch && matchesShift && matchesHospital && matchesStatus;
-  });
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [searchTerm, shiftFilter, statusFilter]);
 
   const handleOpenAddModal = () => {
     setFormData({
@@ -124,10 +141,18 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
     setIsAddModalOpen(true);
   };
 
-  const handleCreateNurse = async (e) => {
+  const handleFormChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.hospital) {
-      alert('Please select an assigned hospital branch.');
+    if (!formData.name.trim()) {
+      alert('Nurse Full Name is required.');
       return;
     }
 
@@ -143,7 +168,9 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
         nurse_id: generatedNurseId,
         contact: formData.contact.trim(),
         password: formData.password || '',
-        hospital: Number(formData.hospital)
+        hospital: Number(hospitalData?.id),
+        status: formData.is_active ? 'On Duty' : 'On Leave',
+        is_active: formData.is_active
       };
 
       const response = await fetch('http://127.0.0.1:8000/api/super-admin/Nurses/', {
@@ -158,35 +185,39 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
         const createdId = data.nurse_id || generatedNurseId;
         alert(`Nurse registered successfully!\nNurse ID: ${createdId}`);
         setIsAddModalOpen(false);
-        fetchNurses();
+        fetchAdminAndNurses();
       } else {
         alert('Error: ' + JSON.stringify(data));
       }
-    } catch (error) {
-      console.error('Error creating nurse:', error);
+    } catch (err) {
+      console.error('Error registering nurse:', err);
       alert('Network error while saving nurse profile.');
     }
   };
 
   const handleToggleStatus = async (nurse) => {
+    const newStatus = !nurse.is_active;
     try {
-      const updatedStatus = !nurse.is_active;
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${nurse.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: updatedStatus, status: updatedStatus ? 'On Duty' : 'Off Duty' })
+        body: JSON.stringify({ is_active: newStatus })
       });
 
       if (response.ok) {
-        const data = await response.json().catch(() => null);
-        setNurses(prev => prev.map(n => n.id === nurse.id ? { ...n, is_active: updatedStatus, ...(data || {}) } : n));
-        fetchNurses();
+        setNurses(prev => prev.map(n => n.id === nurse.id ? { ...n, is_active: newStatus } : n));
       } else {
-        alert('Failed to update status.');
+        const putRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${nurse.id}/`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...nurse, is_active: newStatus })
+        });
+        if (putRes.ok) {
+          setNurses(prev => prev.map(n => n.id === nurse.id ? { ...n, is_active: newStatus } : n));
+        }
       }
-    } catch (error) {
-      console.error('Error toggling status:', error);
-      alert('Error updating nurse status.');
+    } catch (err) {
+      console.error('Error toggling nurse status:', err);
     }
   };
 
@@ -194,135 +225,161 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
     if (setSelectedNurse) {
       setSelectedNurse(nurse);
     }
-    try {
-      localStorage.setItem('selectedNurse', JSON.stringify(nurse));
-    } catch (err) {
-      console.error('Error storing selectedNurse:', err);
-    }
+    localStorage.setItem('selectedNurse', JSON.stringify(nurse));
     if (setCurrentPage) {
-      setCurrentPage('nurse_details');
+      setCurrentPage('admin_nurse_details');
     }
   };
 
+  const filteredNurses = nurses.filter(nurse => {
+    const term = searchTerm.toLowerCase();
+    const fullName = (nurse.name || `${nurse.first_name || ''} ${nurse.last_name || ''}`).toLowerCase();
+    const contact = (nurse.contact || nurse.phone || '').toLowerCase();
+    const email = (nurse.email || '').toLowerCase();
+
+    const matchesSearch =
+      fullName.includes(term) ||
+      (nurse.nurse_id || '').toLowerCase().includes(term) ||
+      (nurse.role || nurse.nurse_role || '').toLowerCase().includes(term) ||
+      (nurse.ward || '').toLowerCase().includes(term) ||
+      contact.includes(term) ||
+      email.includes(term);
+
+    const matchesShift = shiftFilter === 'ALL' || (nurse.shift || '').toLowerCase().includes(shiftFilter.toLowerCase());
+    const matchesStatus =
+      statusFilter === 'ALL' ||
+      (statusFilter === 'Active' && nurse.is_active !== false) ||
+      (statusFilter === 'Inactive' && nurse.is_active === false);
+
+    return matchesSearch && matchesShift && matchesStatus;
+  });
+
+  const activeCount = nurses.filter(n => n.is_active !== false).length;
+  const leaveCount = nurses.filter(n => n.is_active === false).length;
+
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
-      {/* HEADER BANNER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
-        <div className="flex items-center gap-3">
+      <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-4 sm:p-6 shadow-md border border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-bold text-sky-800 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
-                Nursing Staff Registry
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
-                {activeNursesCount} Active On Duty
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full border bg-rose-50 text-rose-700 border-rose-200">
-                {inactiveNursesCount} Inactive
-              </span>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 text-teal-200 text-xs font-semibold border border-teal-400/30">
+              <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
+              {hospitalData?.Name || 'Branch Hospital'} • Nursing Department
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 mt-1">
-              Nurses & Clinical Care Management
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-2 tracking-tight text-slate-100">
+              Nursing Staff Management
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Staff nurse registrations, duty shifts, ward allocations, and branch assignments.
+            <p className="text-xs sm:text-sm text-slate-300 mt-1">
+              Oversee ward duty allocations, shift schedules, and active nursing roster.
             </p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={handleOpenAddModal}
-            className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
-          >
-            <span>+</span> Register New Nurse
-          </button>
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={handleOpenAddModal}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md transition duration-150 cursor-pointer flex items-center justify-center gap-2"
+            >
+              + Register New Nurse
+            </button>
+            <button
+              type="button"
+              onClick={fetchAdminAndNurses}
+              className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition cursor-pointer"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* TOP SUMMARY METRICS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Nurses</p>
-          <h3 className="text-xl sm:text-2xl font-extrabold text-slate-800 mt-1">{totalNursesCount}</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Registered staff</p>
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-teal-300 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Staff</span>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-teal-50 text-teal-700 border-teal-200">
+              Total Roster
+            </span>
+          </div>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Branch Nurses</p>
+          <h3 className="text-lg sm:text-xl font-bold text-slate-800 mt-0.5">{nurses.length} Nurses</h3>
+          <p className="text-xs text-slate-500 mt-1">Assigned to this facility</p>
         </div>
 
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active & On Duty</p>
-          <h3 className="text-xl sm:text-2xl font-extrabold text-emerald-700 mt-1">{activeNursesCount}</h3>
-          <p className="text-xs text-slate-400 mt-0.5">{inactiveNursesCount} Inactive</p>
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-emerald-300 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active</span>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+              On Duty
+            </span>
+          </div>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Active Nurses</p>
+          <h3 className="text-lg sm:text-xl font-bold text-emerald-700 mt-0.5">{activeCount} Available</h3>
+          <p className="text-xs text-emerald-600 mt-1">Working in Wards & ICUs</p>
         </div>
 
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Hospital Assigned</p>
-          <h3 className="text-xl sm:text-2xl font-extrabold text-indigo-700 mt-1">{assignedNursesCount}</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Deployed in Wards</p>
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-rose-300 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Leave</span>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-rose-50 text-rose-700 border-rose-200">
+              On Leave
+            </span>
+          </div>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Inactive / Leave</p>
+          <h3 className="text-lg sm:text-xl font-bold text-rose-700 mt-0.5">{leaveCount} Off Duty</h3>
+          <p className="text-xs text-rose-600 mt-1">Login disabled while inactive</p>
         </div>
       </div>
 
-      {/* SEARCH AND FILTERS */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-        <div className="relative flex-1">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="w-full sm:w-72">
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by nurse name, ID, role, ward, hospital, or phone..."
-            className="w-full pl-3 pr-4 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white transition"
+            placeholder="Search by name, ID, ward, role..."
+            className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white transition"
           />
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
           <select
             value={shiftFilter}
             onChange={(e) => setShiftFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-semibold focus:outline-none focus:border-sky-600 cursor-pointer"
+            className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 focus:outline-none focus:border-teal-600 cursor-pointer"
           >
             <option value="ALL">All Shifts</option>
             <option value="Morning">Morning Shift</option>
             <option value="Evening">Evening Shift</option>
             <option value="Night">Night Shift</option>
-          </select>
-
-          <select
-            value={hospitalFilter}
-            onChange={(e) => setHospitalFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-semibold focus:outline-none focus:border-sky-600 cursor-pointer"
-          >
-            <option value="ALL">All Hospital Branches</option>
-            {hospitalsList.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.Name} ({h.city})
-              </option>
-            ))}
+            <option value="Full Day">Full Day</option>
           </select>
 
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-semibold focus:outline-none focus:border-sky-600 cursor-pointer"
+            className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 focus:outline-none focus:border-teal-600 cursor-pointer"
           >
-            <option value="ALL">All Statuses</option>
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
+            <option value="ALL">All Status</option>
+            <option value="Active">Active Only</option>
+            <option value="Inactive">Inactive Only</option>
           </select>
         </div>
       </div>
 
-      {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto w-full">
           {loading ? (
-            <p className="text-center py-8 text-xs text-slate-500">Loading nurses registry from backend...</p>
+            <div className="text-center py-12">
+              <div className="w-8 h-8 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+              <p className="text-xs font-semibold text-slate-500">Loading branch nurses from backend...</p>
+            </div>
           ) : filteredNurses.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-xs font-semibold text-slate-500">No nurses found matching your criteria.</p>
+              <p className="text-xs font-semibold text-slate-500">No nurses found matching criteria.</p>
               <button
                 type="button"
                 onClick={handleOpenAddModal}
-                className="mt-3 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold cursor-pointer"
+                className="mt-3 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold cursor-pointer"
               >
                 + Register Nurse Now
               </button>
@@ -333,7 +390,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                 <tr>
                   <th className="py-3.5 px-4 text-center">Nurse Name & ID</th>
                   <th className="py-3.5 px-4 text-center">Role & Ward</th>
-                  <th className="py-3.5 px-4 text-center">Assigned Hospital</th>
+                  <th className="py-3.5 px-4 text-center">Shift Timings</th>
                   <th className="py-3.5 px-4 text-center">CONTACT & EMAIL</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4 text-center">Actions</th>
@@ -341,38 +398,25 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredNurses.slice(0, visibleCount).map((nurse) => {
-                  const hospId = Number(typeof nurse.hospital === 'object' ? nurse.hospital?.id : nurse.hospital);
-                  const assignedHosp = hospitalsList.find(h => h.id === hospId) || hospitalsList.find(h => h.id === Number(nurse.hospital));
                   const emailLower = (nurse.email || '').toLowerCase();
-                  const nurseDisplayName = nurse.name || `${nurse.first_name || ''} ${nurse.last_name || ''}`.trim() || 'Nurse';
-
                   return (
                     <tr key={nurse.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-bold text-slate-800 break-words">{nurseDisplayName}</div>
-                        <span className="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block mt-0.5">
+                        <div className="font-bold text-slate-800 break-words">{nurse.name || 'Nurse'}</div>
+                        <span className="font-mono text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
                           {nurse.nurse_id || `NUR-${nurse.id}`}
                         </span>
                       </td>
+
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-semibold text-slate-800 text-xs">
-                          {nurse.nurse_role || nurse.role || 'Staff Nurse'}
-                        </div>
-                        <span className="text-[11px] text-slate-500">
-                          {nurse.ward || 'General Ward'}
-                        </span>
+                        <div className="font-semibold text-slate-800">{nurse.role || nurse.nurse_role || 'Staff Nurse'}</div>
+                        <span className="text-[11px] text-slate-500 block mt-0.5">{nurse.ward || 'General Ward'}</span>
                       </td>
-                      <td className="py-3.5 px-4 text-center">
-                        {assignedHosp || (nurse.hospital_name && !/^\d+$/.test(nurse.hospital_name)) ? (
-                          <span className="font-semibold text-slate-800">
-                            {assignedHosp ? assignedHosp.Name : nurse.hospital_name}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-medium text-xs">
-                            Unassigned
-                          </span>
-                        )}
+
+                      <td className="py-3.5 px-4 text-center font-medium text-slate-700">
+                        {nurse.shift || 'Morning Shift (07:00 AM - 03:00 PM)'}
                       </td>
+
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-col items-center justify-center gap-0.5">
                           <span className="font-bold text-slate-800 text-xs">
@@ -391,24 +435,27 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                           )}
                         </div>
                       </td>
+
                       <td className="py-3.5 px-4 text-center">
                         <button
                           type="button"
                           onClick={() => handleToggleStatus(nurse)}
                           title="Click to toggle active/inactive status"
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${nurse.is_active !== false
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${
+                            nurse.is_active !== false
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                               : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
-                            }`}
+                          }`}
                         >
                           {nurse.is_active !== false ? 'Active' : 'Inactive'}
                         </button>
                       </td>
+
                       <td className="py-3.5 px-4 text-center">
                         <button
                           type="button"
                           onClick={() => handleViewNurseDetails(nurse)}
-                          className="px-3.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1"
+                          className="px-3.5 py-1.5 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white font-bold text-xs transition cursor-pointer border border-teal-200 inline-flex items-center justify-center gap-1"
                         >
                           Details &rarr;
                         </button>
@@ -426,9 +473,9 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
             <button
               type="button"
               onClick={() => setVisibleCount((prev) => prev + 10)}
-              className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+              className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
             >
-              Show More
+              Show More ({filteredNurses.length - visibleCount} remaining)
             </button>
           </div>
         )}
@@ -438,7 +485,10 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4 my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h2 className="text-base sm:text-lg font-bold text-slate-800">Register New Nurse</h2>
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-slate-800">Register New Nurse</h2>
+                <p className="text-xs text-slate-500">Auto-assigned to {hospitalData?.Name || 'Branch Hospital'}</p>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsAddModalOpen(false)}
@@ -448,8 +498,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
               </button>
             </div>
 
-            <form onSubmit={handleCreateNurse} className="space-y-3 text-xs">
-              {/* ROW 1: NURSE FULL NAME & OFFICIAL EMAIL */}
+            <form onSubmit={handleAddSubmit} className="space-y-3 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Nurse Full Name *</label>
@@ -475,7 +524,6 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                 </div>
               </div>
 
-              {/* ROW 2: CONTACT PHONE & SIGNIN PASSWORD */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone (Numbers only) *</label>
@@ -505,39 +553,28 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                     <button
                       type="button"
                       onClick={() => setShowAddPassword(!showAddPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                      title={showAddPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-3 top-2 text-slate-400 hover:text-slate-600 cursor-pointer text-xs font-semibold"
                     >
-                      {showAddPassword ? (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                        </svg>
-                      ) : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                      )}
+                      {showAddPassword ? 'Hide' : 'Show'}
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* ROW 3: ROLE / DESIGNATION */}
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Role / Designation *</label>
                 <select
                   required
                   value={formData.nurse_role}
-                  onChange={(e) => setFormData({ ...formData, nurse_role: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, nurse_role: e.target.value, role: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-medium cursor-pointer"
                 >
-                  <option value="Staff Nurse">Staff Nurse</option>
-                  <option value="Head Nurse">Head Nurse</option>
+                  {rolesList.map((r, i) => (
+                    <option key={i} value={r}>{r}</option>
+                  ))}
                 </select>
               </div>
 
-              {/* ROW 4: ASSIGNED WARD & SHIFT TIMING */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Ward *</label>
@@ -547,12 +584,9 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                     onChange={(e) => setFormData({ ...formData, ward: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-medium cursor-pointer"
                   >
-                    <option value="General Ward">General Ward</option>
-                    <option value="ICU">ICU</option>
-                    <option value="NICU">NICU</option>
-                    <option value="Emergency Ward">Emergency Ward</option>
-                    <option value="Operation Theatre">Operation Theatre</option>
-                    <option value="OPD">OPD</option>
+                    {wardsList.map((w, i) => (
+                      <option key={i} value={w}>{w}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -563,15 +597,13 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                     onChange={(e) => setFormData({ ...formData, shift: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-medium cursor-pointer"
                   >
-                    <option value="Morning">Morning</option>
-                    <option value="Evening">Evening</option>
-                    <option value="Night">Night</option>
-                    <option value="Rotating">Rotating</option>
+                    {shiftsList.map((s, i) => (
+                      <option key={i} value={s}>{s}</option>
+                    ))}
                   </select>
                 </div>
               </div>
 
-              {/* ROW 5: QUALIFICATIONS & EXPERIENCE */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Qualifications</label>
@@ -595,25 +627,13 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                 </div>
               </div>
 
-              {/* ROW 6: ASSIGN HOSPITAL BRANCH */}
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch *</label>
-                <select
-                  required
-                  value={formData.hospital}
-                  onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
-                >
-                  <option value="" disabled>Select Assigned Hospital Branch *</option>
-                  {hospitalsList.map((h) => (
-                    <option key={h.id} value={h.id}>
-                      {h.Name} ({h.city}) - {h.Branch_Code}
-                    </option>
-                  ))}
-                </select>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Hospital Branch</label>
+                <div className="p-2.5 bg-slate-100 rounded-xl border border-slate-200 text-slate-700 font-medium">
+                  {hospitalData?.Name || 'Branch Hospital'} ({hospitalData?.city || 'Main Branch'})
+                </div>
               </div>
 
-              {/* ROW 7: ACTIVE CHECKBOX */}
               <div className="flex items-center gap-2 pt-1">
                 <input
                   type="checkbox"
@@ -650,4 +670,4 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
   );
 };
 
-export default Nurses;
+export default AdminNurses;

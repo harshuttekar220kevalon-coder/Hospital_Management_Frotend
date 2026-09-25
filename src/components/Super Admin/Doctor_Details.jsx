@@ -196,10 +196,15 @@ const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCur
   const handleSaveDoctorEdit = async (e) => {
     e.preventDefault();
     if (!activeDoc || !activeDoc.id) return;
+    if (!editFormData.hospitals || editFormData.hospitals.length === 0) {
+      alert('Please select at least one assigned hospital branch.');
+      return;
+    }
 
     try {
       const payload = {
         ...editFormData,
+        role: 'Doctor',
         name: editFormData.name.startsWith('Dr.') ? editFormData.name : `Dr. ${editFormData.name}`,
         consultation_fee: Number(editFormData.consultation_fee) || 0.00,
         hospitals: editFormData.hospitals.map(Number)
@@ -232,8 +237,17 @@ const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCur
   // Toggle Doctor Active Status
   const handleToggleStatus = async () => {
     if (!activeDoc || !activeDoc.id) return;
+    const newStatus = !activeDoc.is_active;
+    const optimistic = {
+      ...activeDoc,
+      is_active: newStatus,
+      status: newStatus ? 'Available' : 'On Leave'
+    };
+    setDoctorData(optimistic);
+    if (setSelectedDoctor) setSelectedDoctor(optimistic);
+    localStorage.setItem('selectedDoctor', JSON.stringify(optimistic));
+
     try {
-      const newStatus = !activeDoc.is_active;
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${activeDoc.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -241,15 +255,24 @@ const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCur
       });
 
       if (response.ok) {
-        const updated = await response.json();
-        setDoctorData(updated);
-        if (setSelectedDoctor) setSelectedDoctor(updated);
-        localStorage.setItem('selectedDoctor', JSON.stringify(updated));
+        const updated = await response.json().catch(() => null);
+        if (updated) {
+          setDoctorData(updated);
+          if (setSelectedDoctor) setSelectedDoctor(updated);
+          localStorage.setItem('selectedDoctor', JSON.stringify(updated));
+        }
       } else {
+        // Revert on error
+        setDoctorData(activeDoc);
+        if (setSelectedDoctor) setSelectedDoctor(activeDoc);
+        localStorage.setItem('selectedDoctor', JSON.stringify(activeDoc));
         alert('Failed to toggle status.');
       }
     } catch (err) {
       console.error('Error toggling status:', err);
+      setDoctorData(activeDoc);
+      if (setSelectedDoctor) setSelectedDoctor(activeDoc);
+      localStorage.setItem('selectedDoctor', JSON.stringify(activeDoc));
     }
   };
 
@@ -262,6 +285,11 @@ const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCur
   // Save Quick Hospital Assignment
   const handleSaveHospitalAssignments = async () => {
     if (!activeDoc || !activeDoc.id) return;
+    if (!selectedHospitalsForAssign || selectedHospitalsForAssign.length === 0) {
+      alert('Please select at least one assigned hospital branch.');
+      return;
+    }
+
     try {
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${activeDoc.id}/`, {
         method: 'PATCH',
@@ -434,61 +462,73 @@ const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCur
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Doctor ID / Registration</span>
-                <p className="font-mono text-sm font-bold text-teal-700 mt-0.5">{activeDoc.doctor_id || `DOC-${activeDoc.id}`}</p>
+                <p className="font-mono text-sm font-bold text-teal-700 mt-0.5 break-all">{activeDoc.doctor_id || `DOC-${activeDoc.id}`}</p>
               </div>
 
               {/* CONSULTATION FEE FIELD */}
-              <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200">
+              <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200 min-w-0">
                 <span className="text-[10px] text-emerald-800 uppercase font-bold">Consultation Fee</span>
                 <p className="font-bold text-emerald-900 text-base mt-0.5">₹{activeDoc.consultation_fee ?? '0.00'}</p>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Medical Qualification</span>
-                <p className="font-bold text-slate-800 text-sm mt-0.5">{activeDoc.qualification || 'MBBS'}</p>
+                <p className="font-bold text-slate-800 text-sm mt-0.5 break-words break-all">{activeDoc.qualification || 'MBBS'}</p>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Clinical Specialization</span>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {parseSpecializations(activeDoc.specialization || activeDoc.specialty).map((spec, idx) => (
-                    <span key={idx} className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 inline-block">
+                    <span key={idx} className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 inline-block break-words">
                       {spec}
                     </span>
                   ))}
                 </div>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Additional Skills / Expertise</span>
-                <p className="font-semibold text-slate-800 mt-0.5">{activeDoc.additional_skills || 'None specified'}</p>
+                <p className="font-semibold text-slate-800 mt-0.5 break-words break-all">{activeDoc.additional_skills || 'None specified'}</p>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Department</span>
-                <p className="font-semibold text-slate-800 mt-0.5">{activeDoc.department || 'General'}</p>
+                <p className="font-semibold text-slate-800 mt-0.5 break-words break-all">{activeDoc.department || 'General'}</p>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Years of Experience</span>
-                <p className="font-semibold text-slate-800 mt-0.5">{activeDoc.experience || 'Not specified'}</p>
+                <p className="font-semibold text-slate-800 mt-0.5 break-words">{activeDoc.experience || 'Not specified'}</p>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">OPD Consultation Schedule</span>
-                <p className="font-bold text-teal-800 mt-0.5">{activeDoc.opd_timings || 'Mon - Fri'}</p>
+                <p className="font-bold text-teal-800 mt-0.5 break-words">{activeDoc.opd_timings || 'Mon - Fri'}</p>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Official Email Address</span>
-                <p className="font-semibold text-blue-700 mt-0.5 break-all">{activeDoc.email || '-'}</p>
+                {activeDoc.email ? (
+                  <p className="mt-0.5 break-all">
+                    <a
+                      href={`mailto:${activeDoc.email.toLowerCase()}`}
+                      className="font-semibold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
+                      title="Send email"
+                    >
+                      {activeDoc.email.toLowerCase()}
+                    </a>
+                  </p>
+                ) : (
+                  <p className="font-semibold text-slate-400 mt-0.5">-</p>
+                )}
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Phone Number</span>
-                <p className="font-semibold text-slate-800 mt-0.5">{activeDoc.phone || '-'}</p>
+                <p className="font-semibold text-slate-800 mt-0.5 break-all">{activeDoc.phone || '-'}</p>
               </div>
             </div>
           </div>
@@ -563,7 +603,20 @@ const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCur
                       <div className="space-y-1.5 text-xs text-slate-600 pt-2 border-t border-slate-200/60">
                         <p className="text-[11px]"><span className="font-semibold text-slate-700">Address:</span> {hosp.address || `${hosp.area}, ${hosp.city}`}</p>
                         <p className="text-[11px]"><span className="font-semibold text-slate-700">Phone:</span> {hosp.contact || '-'}</p>
-                        <p className="text-[11px]"><span className="font-semibold text-slate-700">Email:</span> {hosp.email || '-'}</p>
+                        <p className="text-[11px]">
+                          <span className="font-semibold text-slate-700">Email:</span>{' '}
+                          {hosp.email ? (
+                            <a
+                              href={`mailto:${hosp.email.toLowerCase()}`}
+                              className="text-blue-600 hover:underline"
+                              title="Send email"
+                            >
+                              {hosp.email.toLowerCase()}
+                            </a>
+                          ) : (
+                            '-'
+                          )}
+                        </p>
                       </div>
 
                       <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-slate-200/60 text-center">

@@ -142,8 +142,8 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         hospital: editFormData.hospital ? Number(editFormData.hospital) : null,
         name: editFormData.name ? editFormData.name.trim() : '',
         receptionist_id: recIdToSend,
-        role: editFormData.role,
-        designation: editFormData.role,
+        role: editFormData.role || editFormData.designation || activeReceptionist.role || 'Front Desk Receptionist',
+        designation: editFormData.role || editFormData.designation || activeReceptionist.role || 'Front Desk Receptionist',
         shift: editFormData.shift,
         languages: editFormData.languages ? editFormData.languages.trim() : 'English, Hindi',
         contact: editFormData.contact ? editFormData.contact.trim() : '',
@@ -195,10 +195,18 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
   // Toggle Receptionist Active Status
   const handleToggleStatus = async () => {
     if (!activeReceptionist || !activeReceptionist.id) return;
+    const newStatus = !activeReceptionist.is_active;
+    const newStatusText = newStatus ? 'Active' : 'Off Duty';
+    const optimistic = {
+      ...activeReceptionist,
+      is_active: newStatus,
+      status: newStatusText
+    };
+    setReceptionistData(optimistic);
+    if (setSelectedReceptionist) setSelectedReceptionist(optimistic);
+    localStorage.setItem('selectedReceptionist', JSON.stringify(optimistic));
+
     try {
-      const newStatus = !activeReceptionist.is_active;
-      const newStatusText = newStatus ? 'Active' : 'Off Duty';
-      
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${activeReceptionist.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -211,10 +219,17 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         if (setSelectedReceptionist) setSelectedReceptionist(updated);
         localStorage.setItem('selectedReceptionist', JSON.stringify(updated));
       } else {
+        // Revert on error
+        setReceptionistData(activeReceptionist);
+        if (setSelectedReceptionist) setSelectedReceptionist(activeReceptionist);
+        localStorage.setItem('selectedReceptionist', JSON.stringify(activeReceptionist));
         alert('Failed to toggle duty status.');
       }
     } catch (err) {
       console.error('Error toggling status:', err);
+      setReceptionistData(activeReceptionist);
+      if (setSelectedReceptionist) setSelectedReceptionist(activeReceptionist);
+      localStorage.setItem('selectedReceptionist', JSON.stringify(activeReceptionist));
     }
   };
 
@@ -248,9 +263,13 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
 
   const handleSaveHospitalAssignment = async () => {
     if (!activeReceptionist || !activeReceptionist.id) return;
+    if (!assignHospitalId) {
+      alert('Please select an assigned hospital branch.');
+      return;
+    }
 
     try {
-      const updatedHospitalId = assignHospitalId ? Number(assignHospitalId) : null;
+      const updatedHospitalId = Number(assignHospitalId);
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${activeReceptionist.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -434,72 +453,84 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
 
             <div className="space-y-3 text-xs">
               {/* 1. RECEPTIONIST ID */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-slate-400 uppercase font-bold">Receptionist id:</span>
                   <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
                     Permanent
                   </span>
                 </div>
-                <p className="font-mono text-sm font-bold text-amber-700 mt-0.5 select-none">{activeReceptionist.receptionist_id || `REC-${activeReceptionist.id}`}</p>
+                <p className="font-mono text-sm font-bold text-amber-700 mt-0.5 select-none break-all">{activeReceptionist.receptionist_id || `REC-${activeReceptionist.id}`}</p>
               </div>
 
               {/* 2. NAME */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Name:</span>
-                <p className="font-bold text-slate-800 text-sm mt-0.5">{displayName}</p>
+                <p className="font-bold text-slate-800 text-sm mt-0.5 break-words break-all">{displayName}</p>
               </div>
 
               {/* 3. ROLE */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Role:</span>
                 <div className="mt-1">
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block">
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block break-words">
                     {displayRole}
                   </span>
                 </div>
               </div>
 
               {/* 4. SHIFT */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Shift:</span>
-                <p className="font-semibold text-amber-700 mt-0.5">{activeReceptionist.shift || 'Morning Shift'}</p>
+                <p className="font-semibold text-amber-700 mt-0.5 break-words">{activeReceptionist.shift || 'Morning Shift'}</p>
               </div>
 
               {/* 5. LANGUAGES */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Languages:</span>
-                <p className="font-semibold text-slate-800 mt-0.5">{activeReceptionist.languages || 'English, Hindi'}</p>
+                <p className="font-semibold text-slate-800 mt-0.5 break-words break-all">{activeReceptionist.languages || 'English, Hindi'}</p>
               </div>
 
               {/* 6. CONTACT */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Contact:</span>
-                <p className="font-mono font-bold text-slate-800 mt-0.5">{displayPhone}</p>
+                <p className="font-mono font-bold text-slate-800 mt-0.5 break-all">{displayPhone}</p>
               </div>
 
               {/* 7. EMAIL */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Email:</span>
-                <p className="font-semibold text-blue-700 mt-0.5 break-all">{activeReceptionist.email || '-'}</p>
+                {activeReceptionist.email ? (
+                  <p className="mt-0.5 break-all">
+                    <a
+                      href={`mailto:${activeReceptionist.email.toLowerCase()}`}
+                      className="font-semibold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
+                      title="Send email"
+                    >
+                      {activeReceptionist.email.toLowerCase()}
+                    </a>
+                  </p>
+                ) : (
+                  <p className="font-semibold text-slate-400 mt-0.5">-</p>
+                )}
               </div>
 
               {/* 8. HOSPITAL */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Hospital:</span>
-                <p className="font-semibold text-slate-800 mt-0.5">{assignedHospital ? assignedHospital.Name : 'Unassigned'}</p>
+                <p className="font-semibold text-slate-800 mt-0.5 break-words break-all">{assignedHospital ? assignedHospital.Name : 'Unassigned'}</p>
               </div>
 
               {/* 9. STATUS */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between min-w-0">
+                <div className="min-w-0 flex-1 mr-2">
                   <span className="text-[10px] text-slate-400 uppercase font-bold">Status:</span>
-                  <p className="font-semibold text-slate-800 mt-0.5">{activeReceptionist.status || (activeReceptionist.is_active ? 'Active' : 'Off Duty')}</p>
+                  <p className="font-semibold text-slate-800 mt-0.5 break-words">{activeReceptionist.status || (activeReceptionist.is_active ? 'Active' : 'Off Duty')}</p>
                 </div>
                 <button
                   type="button"
                   onClick={handleToggleStatus}
-                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-bold text-[10px] border border-slate-300 transition cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-bold text-[10px] border border-slate-300 transition cursor-pointer shrink-0"
                 >
                   Toggle
                 </button>
@@ -570,7 +601,19 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 uppercase font-bold">Official Email</span>
-                    <p className="font-semibold text-blue-700 mt-0.5 truncate">{assignedHospital.email || '-'}</p>
+                    {assignedHospital.email ? (
+                      <p className="mt-0.5 truncate">
+                        <a
+                          href={`mailto:${assignedHospital.email.toLowerCase()}`}
+                          className="font-semibold text-blue-600 hover:underline"
+                          title="Send email"
+                        >
+                          {assignedHospital.email.toLowerCase()}
+                        </a>
+                      </p>
+                    ) : (
+                      <p className="font-semibold text-slate-400 mt-0.5">-</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -630,11 +673,12 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital: *</label>
                 <select
+                  required
                   value={editFormData.hospital}
                   onChange={(e) => setEditFormData({ ...editFormData, hospital: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-amber-600 font-medium cursor-pointer"
                 >
-                  <option value="">Leave Unassigned</option>
+                  <option value="">-- Select Hospital Branch * --</option>
                   {hospitalsList.map((h) => (
                     <option key={h.id} value={h.id}>
                       {h.Name} ({h.city}) - {h.Branch_Code}
@@ -837,13 +881,14 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
               </p>
 
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Select Hospital Branch</label>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Select Hospital Branch *</label>
                 <select
+                  required
                   value={assignHospitalId}
                   onChange={(e) => setAssignHospitalId(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                 >
-                  <option value="">Leave Unassigned</option>
+                  <option value="" disabled>Select Hospital Branch *</option>
                   {hospitalsList.map((h) => (
                     <option key={h.id} value={h.id}>
                       {h.Name} ({h.city}) - {h.Branch_Code}

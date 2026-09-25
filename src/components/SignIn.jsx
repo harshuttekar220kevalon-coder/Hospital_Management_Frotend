@@ -36,10 +36,17 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
       if (response.ok) {
         alert('Account created successfully!');
         
-        const userObj = data.user || data.data || data;
+        const userObj = data.user || data.data || data || {};
+        let mappedRole = (formData.role || userObj.role || 'DOCTOR').toString();
+        if (mappedRole.toUpperCase().includes('NURSE')) mappedRole = 'Nurse';
+        else if (mappedRole.toUpperCase().includes('RECEPTION')) mappedRole = 'Receptionist';
+        else if (mappedRole.toUpperCase().includes('PATIENT')) mappedRole = 'Patient';
+        else if (mappedRole.toUpperCase().includes('DOCTOR')) mappedRole = 'Doctor';
+        else if (mappedRole.toUpperCase().includes('ADMIN')) mappedRole = 'Hospital Admin';
+
         const extractedUser = {
           name: `${formData.firstName} ${formData.lastName}`.trim() || userObj.name || formData.email.split('@')[0],
-          role: (formData.role || userObj.role || 'DOCTOR').toString().toUpperCase(),
+          role: mappedRole,
           email: formData.email,
         };
 

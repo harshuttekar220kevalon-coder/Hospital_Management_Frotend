@@ -55,6 +55,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
     email: '',
     contact: '',
     designation: 'Hospital Administrator',
+    role: 'Hospital Admin',
     hospital: '',
     is_active: true
   });
@@ -62,13 +63,11 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
   const [resetEmail, setResetEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showEditPassword, setShowEditPassword] = useState(false);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [activeTab]);
 
-  // Optimized useEffect with safe dependency
   useEffect(() => {
     let isMounted = true;
 
@@ -91,7 +90,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
           if (isMounted) setHospitalsList(allHospitals);
         }
 
-        if (currentAdmin && currentAdmin.id) {
+        if (currentAdmin && currentAdmin.id && !String(currentAdmin.id).startsWith('hosp-')) {
           const adminRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${currentAdmin.id}/`).catch(() => null);
           if (adminRes && adminRes.ok) {
             const freshAdmin = await adminRes.json();
@@ -101,74 +100,74 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
               localStorage.setItem('selectedAdmin', JSON.stringify(freshAdmin));
             }
           }
+        }
 
-          const rawHospitalId = currentAdmin.hospital;
-          const targetHospitalId = typeof rawHospitalId === 'object' && rawHospitalId !== null
-            ? rawHospitalId.id
-            : rawHospitalId;
+        const rawHospitalId = currentAdmin?.hospital;
+        const targetHospitalId = typeof rawHospitalId === 'object' && rawHospitalId !== null
+          ? rawHospitalId.id
+          : rawHospitalId;
 
-          if (targetHospitalId) {
-            let targetHosp = allHospitals.find(h => Number(h.id) === Number(targetHospitalId));
-            if (!targetHosp) {
-              const hRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${targetHospitalId}/`).catch(() => null);
-              if (hRes && hRes.ok) {
-                targetHosp = await hRes.json();
-              }
+        if (targetHospitalId) {
+          let targetHosp = allHospitals.find(h => Number(h.id) === Number(targetHospitalId));
+          if (!targetHosp) {
+            const hRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${targetHospitalId}/`).catch(() => null);
+            if (hRes && hRes.ok) {
+              targetHosp = await hRes.json();
             }
-            if (isMounted && targetHosp) setHospitalData(targetHosp);
+          }
+          if (isMounted && targetHosp) setHospitalData(targetHosp);
 
-            // Fetch Branch Doctors
-            const docRes = await fetch('http://127.0.0.1:8000/api/super-admin/Doctors/').catch(() => null);
-            if (docRes && docRes.ok) {
-              const allDocs = await docRes.json();
-              const branchDocs = allDocs.filter(d => {
-                if (Array.isArray(d.hospitals)) return d.hospitals.map(Number).includes(Number(targetHospitalId));
-                return Number(d.hospital) === Number(targetHospitalId);
-              });
-              if (isMounted) setDoctorsList(branchDocs);
-            }
+          // Fetch Branch Doctors
+          const docRes = await fetch('http://127.0.0.1:8000/api/super-admin/Doctors/').catch(() => null);
+          if (docRes && docRes.ok) {
+            const allDocs = await docRes.json();
+            const branchDocs = allDocs.filter(d => {
+              if (Array.isArray(d.hospitals)) return d.hospitals.map(Number).includes(Number(targetHospitalId));
+              return Number(d.hospital) === Number(targetHospitalId);
+            });
+            if (isMounted) setDoctorsList(branchDocs);
+          }
 
-            // Fetch Branch Nurses
-            const nurRes = await fetch('http://127.0.0.1:8000/api/super-admin/Nurses/').catch(() => null);
-            if (nurRes && nurRes.ok) {
-              const allNurs = await nurRes.json();
-              const branchNurs = allNurs.filter(n => Number(n.hospital) === Number(targetHospitalId));
-              if (isMounted) setNursesList(branchNurs);
-            }
+          // Fetch Branch Nurses
+          const nurRes = await fetch('http://127.0.0.1:8000/api/super-admin/Nurses/').catch(() => null);
+          if (nurRes && nurRes.ok) {
+            const allNurs = await nurRes.json();
+            const branchNurs = allNurs.filter(n => Number(n.hospital) === Number(targetHospitalId));
+            if (isMounted) setNursesList(branchNurs);
+          }
 
-            // Fetch Branch Receptionists
-            const recRes = await fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/').catch(() => null);
-            if (recRes && recRes.ok) {
-              const allRecs = await recRes.json();
-              const branchRecs = allRecs.filter(r => Number(r.hospital) === Number(targetHospitalId));
-              if (isMounted) setReceptionistsList(branchRecs);
-            }
+          // Fetch Branch Receptionists
+          const recRes = await fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/').catch(() => null);
+          if (recRes && recRes.ok) {
+            const allRecs = await recRes.json();
+            const branchRecs = allRecs.filter(r => Number(r.hospital) === Number(targetHospitalId));
+            if (isMounted) setReceptionistsList(branchRecs);
+          }
 
-            // Fetch Branch Patients
-            const patRes = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/').catch(() => null);
-            if (patRes && patRes.ok) {
-              const allPats = await patRes.json();
-              const branchPats = allPats.filter(p => Number(p.hospital) === Number(targetHospitalId));
-              if (isMounted) setPatientsList(branchPats);
-            }
+          // Fetch Branch Patients
+          const patRes = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/').catch(() => null);
+          if (patRes && patRes.ok) {
+            const allPats = await patRes.json();
+            const branchPats = allPats.filter(p => Number(p.hospital) === Number(targetHospitalId));
+            if (isMounted) setPatientsList(branchPats);
+          }
 
-            // Parse Departments
-            if (targetHosp && (targetHosp.departments || targetHosp.department)) {
-              const rawDepts = targetHosp.departments || targetHosp.department;
-              let deptsArray = [];
-              if (Array.isArray(rawDepts)) {
-                deptsArray = rawDepts.map((d, index) => ({
-                  id: index + 1,
-                  name: typeof d === 'string' ? d : (d.name || 'Department')
-                }));
-              } else if (typeof rawDepts === 'string') {
-                deptsArray = rawDepts.split(',').map((d, index) => ({
-                  id: index + 1,
-                  name: d.trim()
-                })).filter(d => d.name.length > 0);
-              }
-              if (isMounted) setDepartmentsList(deptsArray);
+          // Parse Departments
+          if (targetHosp && (targetHosp.departments || targetHosp.department)) {
+            const rawDepts = targetHosp.departments || targetHosp.department;
+            let deptsArray = [];
+            if (Array.isArray(rawDepts)) {
+              deptsArray = rawDepts.map((d, index) => ({
+                id: index + 1,
+                name: typeof d === 'string' ? d : (d.name || 'Department')
+              }));
+            } else if (typeof rawDepts === 'string') {
+              deptsArray = rawDepts.split(',').map((d, index) => ({
+                id: index + 1,
+                name: d.trim()
+              })).filter(d => d.name.length > 0);
             }
+            if (isMounted) setDepartmentsList(deptsArray);
           }
         }
       } catch (error) {
@@ -183,7 +182,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
     return () => {
       isMounted = false;
     };
-  }, [selectedAdmin?.id]); // Only run when selectedAdmin ID changes
+  }, [selectedAdmin?.id]);
 
   const handleBackClick = () => {
     if (setCurrentPage) {
@@ -222,31 +221,67 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
     (d.name || '').toLowerCase().includes(deptSearch.toLowerCase())
   );
 
+  const handleToggleStatus = async () => {
+    if (!admin || !admin.id || String(admin.id).startsWith('hosp-')) return;
+    try {
+      const nextStatus = !admin.is_active;
+      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${admin.id}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: nextStatus })
+      });
+
+      if (response.ok) {
+        const updated = { ...admin, is_active: nextStatus };
+        setAdminData(updated);
+        if (setSelectedAdmin) setSelectedAdmin(updated);
+        localStorage.setItem('selectedAdmin', JSON.stringify(updated));
+      } else {
+        alert('Failed to update status.');
+      }
+    } catch (error) {
+      console.error('Error toggling admin status:', error);
+      alert('Error updating status.');
+    }
+  };
+
   const handleOpenEdit = () => {
+    let hospId = '';
+    if (admin.hospital) {
+      hospId = typeof admin.hospital === 'object' ? admin.hospital.id : admin.hospital;
+    } else if (activeHospital) {
+      hospId = activeHospital.id;
+    }
+
     setEditFormData({
       name: admin.name || '',
-      email: admin.email || '',
+      email: (admin.email || '').toLowerCase(),
       contact: admin.contact || '',
-      password: admin.password || '',
       designation: admin.designation || 'Hospital Administrator',
-      hospital: typeof admin.hospital === 'object' && admin.hospital !== null ? admin.hospital.id : (admin.hospital || ''),
+      role: admin.role || 'Hospital Admin',
+      hospital: hospId,
       is_active: admin.is_active !== false
     });
-    setShowEditPassword(false);
     setIsEditModalOpen(true);
   };
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (!admin || !admin.id) return;
+    if (!editFormData.hospital) {
+      alert('Please select an assigned hospital branch.');
+      return;
+    }
+
     try {
       const payload = {
-        name: editFormData.name,
-        email: editFormData.email,
-        contact: editFormData.contact,
-        designation: editFormData.designation,
-        hospital: editFormData.hospital ? Number(editFormData.hospital) : null,
-        is_active: editFormData.is_active
+        name: editFormData.name.trim(),
+        email: editFormData.email.trim().toLowerCase(),
+        contact: editFormData.contact.trim(),
+        designation: editFormData.designation || 'Hospital Administrator',
+        role: editFormData.role || 'Hospital Admin',
+        hospital: Number(editFormData.hospital),
+        is_active: Boolean(editFormData.is_active)
       };
 
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${admin.id}/`, {
@@ -255,17 +290,16 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
         body: JSON.stringify(payload)
       });
 
+      const data = await response.json();
+
       if (response.ok) {
-        const updated = await response.json();
-        setAdminData(updated);
-        if (setSelectedAdmin) setSelectedAdmin(updated);
-        localStorage.setItem('selectedAdmin', JSON.stringify(updated));
+        alert('Hospital Administrator updated successfully.');
+        setAdminData(data);
+        if (setSelectedAdmin) setSelectedAdmin(data);
+        localStorage.setItem('selectedAdmin', JSON.stringify(data));
         setIsEditModalOpen(false);
-        alert('Administrator details updated successfully.');
-        window.location.reload();
       } else {
-        const err = await response.json().catch(() => ({}));
-        alert('Failed to update administrator: ' + JSON.stringify(err));
+        alert('Error: ' + JSON.stringify(data));
       }
     } catch (error) {
       console.error('Error updating admin:', error);
@@ -274,7 +308,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
   };
 
   const handleOpenResetPassword = () => {
-    setResetEmail('');
+    setResetEmail((admin.email || '').toLowerCase());
     setNewPassword('');
     setShowNewPassword(false);
     setIsResetPasswordModalOpen(true);
@@ -282,58 +316,30 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
 
   const handleSaveResetPassword = async (e) => {
     e.preventDefault();
-    const emailToReset = resetEmail.trim();
+    const emailToReset = (resetEmail || '').trim().toLowerCase();
     const passwordToSet = newPassword.trim();
 
     if (!emailToReset) {
-      alert('Please enter the administrator email ID.');
+      alert('Please enter a valid email address.');
       return;
     }
-    if (!passwordToSet) {
-      alert('Please enter a new password.');
+    if (!passwordToSet || passwordToSet.length < 6) {
+      alert('Please enter a secure password of at least 6 characters.');
       return;
     }
 
     try {
-      let isSuccess = false;
-      let updatedAdmin = null;
-
-      // 1. Try email-based reset password endpoint
-      let response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/reset_password/`, {
-        method: 'POST',
+      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${admin.id}/`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailToReset, new_password: passwordToSet, password: passwordToSet })
-      }).catch(() => null);
+        body: JSON.stringify({
+          email: emailToReset,
+          password: passwordToSet
+        })
+      });
 
-      if (response && response.ok) {
-        isSuccess = true;
-        try {
-          updatedAdmin = await response.json();
-        } catch {
-          // ignore
-        }
-      } else {
-        // 2. Direct PATCH endpoint using admin ID
-        const targetId = admin?.id;
-        if (targetId) {
-          response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${targetId}/`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: emailToReset, password: passwordToSet })
-          }).catch(() => null);
-
-          if (response && response.ok) {
-            isSuccess = true;
-            try {
-              updatedAdmin = await response.json();
-            } catch {
-              // ignore
-            }
-          }
-        }
-      }
-
-      if (isSuccess) {
+      if (response.ok) {
+        const updatedAdmin = await response.json().catch(() => null);
         const freshAdmin = {
           ...admin,
           email: emailToReset,
@@ -356,7 +362,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
   };
 
   const handleDeleteAdmin = async () => {
-    if (!admin || !admin.id) return;
+    if (!admin || !admin.id || String(admin.id).startsWith('hosp-')) return;
     try {
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${admin.id}/`, {
         method: 'DELETE'
@@ -366,6 +372,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
         alert('Administrator deleted successfully.');
         if (setSelectedAdmin) setSelectedAdmin(null);
         localStorage.removeItem('selectedAdmin');
+        setIsDeleteModalOpen(false);
         handleBackClick();
       } else {
         alert('Failed to delete administrator.');
@@ -413,15 +420,30 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                 {admin.designation || 'Hospital Administrator'}
               </span>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                admin.is_active !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
-              }`}>
+              <button
+                type="button"
+                onClick={handleToggleStatus}
+                className={`px-2.5 py-0.5 rounded-full text-xs font-bold border transition cursor-pointer ${
+                  admin.is_active !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
+                }`}
+              >
                 {admin.is_active !== false ? 'Active' : 'Inactive'}
-              </span>
+              </button>
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 tracking-tight mt-1">
               {admin.name || 'Administrator'}
             </h1>
+            {admin.email && (
+              <p className="mt-1">
+                <a
+                  href={`mailto:${admin.email.toLowerCase()}`}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
+                  title="Send email"
+                >
+                  {admin.email.toLowerCase()}
+                </a>
+              </p>
+            )}
           </div>
         </div>
 
@@ -452,6 +474,82 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
         </div>
       </div>
 
+      {/* ADMIN CREDENTIALS & ASSIGNED HOSPITAL PROFILE */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        {/* Left: Admin Info */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-3">
+          <h2 className="text-base font-bold text-slate-800">Admin Credentials & Contact</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
+              <span className="text-slate-400 uppercase text-[10px] font-bold">Email Address</span>
+              {admin.email ? (
+                <p className="font-semibold text-slate-800 mt-0.5 break-all">
+                  <a href={`mailto:${admin.email.toLowerCase()}`} className="text-sky-700 hover:underline">
+                    {admin.email.toLowerCase()}
+                  </a>
+                </p>
+              ) : (
+                <p className="font-semibold text-slate-400 mt-0.5">-</p>
+              )}
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
+              <span className="text-slate-400 uppercase text-[10px] font-bold">Contact Phone</span>
+              <p className="font-semibold text-slate-800 mt-0.5">{admin.contact || '-'}</p>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 sm:col-span-2">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 uppercase text-[10px] font-bold">Signin Password</span>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-[10px] text-sky-600 font-semibold hover:underline cursor-pointer"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              <p className="font-mono font-semibold text-slate-800 mt-0.5 tracking-wider">
+                {showPassword ? (admin.password || '••••••••') : '••••••••'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Assigned Hospital Branch */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-bold text-slate-800">Assigned Hospital Branch</h2>
+            {activeHospital && activeHospital.Branch_Code && (
+              <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded border border-slate-200">
+                {activeHospital.Branch_Code}
+              </span>
+            )}
+          </div>
+          {activeHospital ? (
+            <div className="space-y-3 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="font-bold text-slate-800 text-sm">{activeHospital.Name}</p>
+                <p className="text-slate-500 mt-0.5">{activeHospital.address || `${activeHospital.city || ''} ${activeHospital.area || ''}`}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Total Beds</span>
+                  <p className="font-bold text-indigo-700 mt-0.5">{activeHospital.total_beds || 0} Beds</p>
+                </div>
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">ICU Beds</span>
+                  <p className="font-bold text-emerald-700 mt-0.5">{activeHospital.icu_beds || 0} Beds</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 py-4 text-center">No hospital branch assigned to this administrator.</p>
+          )}
+        </div>
+      </div>
+
+      {/* TOP SUMMARY METRICS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Branch Doctors</p>
@@ -475,6 +573,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
         </div>
       </div>
 
+      {/* TABS BAR */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-2 shadow-xs flex flex-wrap items-center gap-1.5">
         {[
           { id: 'all', label: 'All Overview' },
@@ -527,7 +626,16 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
 
       {activeTab === 'doctors' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
-          <h2 className="text-base font-bold text-slate-800">Branch Doctors List ({filteredDoctors.length})</h2>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="text-base font-bold text-slate-800">Branch Doctors List ({filteredDoctors.length})</h2>
+            <input
+              type="text"
+              value={doctorSearch}
+              onChange={(e) => setDoctorSearch(e.target.value)}
+              placeholder="Filter doctors..."
+              className="px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs focus:outline-none focus:border-sky-600 focus:bg-white"
+            />
+          </div>
           {filteredDoctors.length === 0 ? (
             <p className="text-center py-8 text-xs text-slate-400">No doctors found.</p>
           ) : (
@@ -536,9 +644,16 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                 {filteredDoctors.slice(0, visibleDoctorsCount).map((doc) => (
                   <div key={doc.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
                     <h3 className="font-bold text-slate-800 text-sm">{doc.name}</h3>
-                    <p className="text-teal-700 font-semibold">{doc.specialization}</p>
-                    <p className="text-slate-500">ID: {doc.doctor_id}</p>
-                    <p className="text-slate-500">Contact: {doc.phone}</p>
+                    <p className="text-teal-700 font-semibold">{doc.specialization || doc.specialty || 'General'}</p>
+                    <p className="text-slate-500">ID: {doc.doctor_id || `DOC-${doc.id}`}</p>
+                    <p className="text-slate-500">Contact: {doc.phone || '-'}</p>
+                    {doc.email && (
+                      <p className="text-[11px]">
+                        <a href={`mailto:${doc.email.toLowerCase()}`} className="text-sky-700 hover:underline">
+                          {doc.email.toLowerCase()}
+                        </a>
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -560,7 +675,16 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
 
       {activeTab === 'nurses' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
-          <h2 className="text-base font-bold text-slate-800">Branch Nursing Staff ({filteredNurses.length})</h2>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="text-base font-bold text-slate-800">Branch Nursing Staff ({filteredNurses.length})</h2>
+            <input
+              type="text"
+              value={nurseSearch}
+              onChange={(e) => setNurseSearch(e.target.value)}
+              placeholder="Filter nurses..."
+              className="px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs focus:outline-none focus:border-sky-600 focus:bg-white"
+            />
+          </div>
           {filteredNurses.length === 0 ? (
             <p className="text-center py-8 text-xs text-slate-400">No nurses found.</p>
           ) : (
@@ -569,8 +693,9 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                 {filteredNurses.slice(0, visibleNursesCount).map((nurse) => (
                   <div key={nurse.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
                     <h3 className="font-bold text-slate-800 text-sm">{nurse.name}</h3>
-                    <p className="text-emerald-700 font-semibold">{nurse.role} - Ward: {nurse.ward}</p>
-                    <p className="text-slate-500">ID: {nurse.nurse_id}</p>
+                    <p className="text-emerald-700 font-semibold">{nurse.role === 'Head Nurse' ? 'Head Nurse' : 'Staff Nurse'} - Ward: {nurse.ward || 'General'}</p>
+                    <p className="text-slate-500">ID: {nurse.nurse_id || `NUR-${nurse.id}`}</p>
+                    <p className="text-slate-500">Shift: {nurse.shift || 'Morning'}</p>
                   </div>
                 ))}
               </div>
@@ -592,7 +717,16 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
 
       {activeTab === 'receptionists' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
-          <h2 className="text-base font-bold text-slate-800">Branch Receptionists ({filteredReceptionists.length})</h2>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="text-base font-bold text-slate-800">Branch Receptionists ({filteredReceptionists.length})</h2>
+            <input
+              type="text"
+              value={receptionistSearch}
+              onChange={(e) => setReceptionistSearch(e.target.value)}
+              placeholder="Filter receptionists..."
+              className="px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs focus:outline-none focus:border-sky-600 focus:bg-white"
+            />
+          </div>
           {filteredReceptionists.length === 0 ? (
             <p className="text-center py-8 text-xs text-slate-400">No receptionists found.</p>
           ) : (
@@ -601,8 +735,9 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                 {filteredReceptionists.slice(0, visibleReceptionistsCount).map((rec) => (
                   <div key={rec.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
                     <h3 className="font-bold text-slate-800 text-sm">{rec.name}</h3>
-                    <p className="text-amber-700 font-semibold">{rec.role}</p>
-                    <p className="text-slate-500">ID: {rec.receptionist_id}</p>
+                    <p className="text-amber-700 font-semibold">{rec.role || 'Front Desk'}</p>
+                    <p className="text-slate-500">ID: {rec.receptionist_id || `REC-${rec.id}`}</p>
+                    <p className="text-slate-500">Shift: {rec.shift || 'Morning Shift'}</p>
                   </div>
                 ))}
               </div>
@@ -624,17 +759,27 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
 
       {activeTab === 'patients' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
-          <h2 className="text-base font-bold text-slate-800">Branch Patient Registry ({filteredPatients.length})</h2>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="text-base font-bold text-slate-800">Branch Patient Registry ({filteredPatients.length})</h2>
+            <input
+              type="text"
+              value={patientSearch}
+              onChange={(e) => setPatientSearch(e.target.value)}
+              placeholder="Filter patients..."
+              className="px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs focus:outline-none focus:border-sky-600 focus:bg-white"
+            />
+          </div>
           {filteredPatients.length === 0 ? (
             <p className="text-center py-8 text-xs text-slate-400">No patients registered.</p>
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {filteredPatients.slice(0, visiblePatientsCount).map((pat) => (
-                  <div key={pat.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-                    <h3 className="font-bold text-slate-800 text-sm">{pat.name}</h3>
-                    <p className="text-indigo-700 font-semibold">{pat.symptoms_diagnosis || 'General Visit'}</p>
-                    <p className="text-slate-500">ID: {pat.patient_id}</p>
+                  <div key={pat.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs min-w-0">
+                    <h3 className="font-bold text-slate-800 text-sm break-words break-all">{pat.name}</h3>
+                    <p className="text-indigo-700 font-semibold break-words break-all">{pat.symptoms_diagnosis || 'General Visit'}</p>
+                    <p className="text-slate-500 break-all">ID: {pat.patient_id || pat.uhid || `PAT-${pat.id}`}</p>
+                    <p className="text-slate-500">Paid: ₹{pat.amount_paid || 0}</p>
                   </div>
                 ))}
               </div>
@@ -656,7 +801,16 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
 
       {activeTab === 'departments' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
-          <h2 className="text-base font-bold text-slate-800">Branch Clinical Departments ({filteredDepts.length})</h2>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="text-base font-bold text-slate-800">Branch Clinical Departments ({filteredDepts.length})</h2>
+            <input
+              type="text"
+              value={deptSearch}
+              onChange={(e) => setDeptSearch(e.target.value)}
+              placeholder="Filter departments..."
+              className="px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs focus:outline-none focus:border-sky-600 focus:bg-white"
+            />
+          </div>
           {filteredDepts.length === 0 ? (
             <p className="text-center py-8 text-xs text-slate-400">No departments configured.</p>
           ) : (
@@ -690,10 +844,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4 my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h2 className="text-base font-bold text-slate-800">Edit Administrator Details</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Update profile, contact, and hospital branch assignment.</p>
-              </div>
+              <h2 className="text-base font-bold text-slate-800">Edit Administrator Details</h2>
               <button
                 type="button"
                 onClick={() => setIsEditModalOpen(false)}
@@ -705,87 +856,57 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
 
             <form onSubmit={handleSaveEdit} className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Full Name *</label>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Hospital Branch: *</label>
+                <select
+                  required
+                  value={editFormData.hospital}
+                  onChange={(e) => setEditFormData({ ...editFormData, hospital: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
+                >
+                  <option value="">-- Select Hospital Branch * --</option>
+                  {hospitalsList.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.Name} ({h.city}) - {h.Branch_Code}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Full Name: *</label>
                 <input
                   type="text"
                   required
                   value={editFormData.name}
                   onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                  placeholder="Full Name"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Official Email *</label>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Official Email: *</label>
                 <input
                   type="email"
                   required
                   value={editFormData.email}
-                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                  placeholder="admin@hospital.com"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
+                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value.toLowerCase() })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white lowercase"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone (Numbers only) *</label>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone: *</label>
                 <input
                   type="tel"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={10}
                   required
                   value={editFormData.contact}
-                  onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '') })}
-                  placeholder="10-digit mobile number"
+                  onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
-              {/* Password Field (Read-Only / Backend Synced) */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block font-semibold text-slate-700 uppercase">
-                    Admin Signin Password
-                  </label>
-                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                    Read-Only (Non-editable)
-                  </span>
-                </div>
-                <div className="relative">
-                  <input
-                    type={showEditPassword ? 'text' : 'password'}
-                    readOnly
-                    value={editFormData.password || admin.password || '••••••••'}
-                    className="w-full pl-3 pr-10 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono cursor-not-allowed select-none focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowEditPassword(!showEditPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                    title={showEditPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showEditPassword ? (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-                <p className="text-[10px] text-slate-400 mt-0.5">Password cannot be changed here. Use the 'Reset Password' button to change.</p>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Designation</label>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Designation:</label>
                 <input
                   type="text"
                   value={editFormData.designation}
@@ -794,44 +915,30 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch</label>
-                <select
-                  value={editFormData.hospital}
-                  onChange={(e) => setEditFormData({ ...editFormData, hospital: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
-                >
-                  <option value="">Select Hospital Branch *</option>
-                  {hospitalsList.map((h) => (
-                    <option key={h.id} value={h.id}>{h.Name} ({h.city}) - {h.Branch_Code}</option>
-                  ))}
-                </select>
-              </div>
-
               <div className="flex items-center gap-2 pt-1">
                 <input
                   type="checkbox"
-                  id="adminActiveEditModal"
+                  id="admin_status_edit"
                   checked={editFormData.is_active}
                   onChange={(e) => setEditFormData({ ...editFormData, is_active: e.target.checked })}
                   className="w-4 h-4 text-sky-600 rounded cursor-pointer"
                 />
-                <label htmlFor="adminActiveEditModal" className="font-semibold text-slate-700 cursor-pointer">
-                  Active Status
+                <label htmlFor="admin_status_edit" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                  Active Administrator
                 </label>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold shadow-md cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
                 >
                   Save Changes
                 </button>
@@ -846,10 +953,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-4 sm:p-6 space-y-4 my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h2 className="text-base font-bold text-slate-800">Reset Administrator Password</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Identify administrator by Email ID to reset login credentials.</p>
-              </div>
+              <h2 className="text-base font-bold text-slate-800">Reset Administrator Password</h2>
               <button
                 type="button"
                 onClick={() => setIsResetPasswordModalOpen(false)}
@@ -861,67 +965,49 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
 
             <form onSubmit={handleSaveResetPassword} className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">
-                  Administrator Email ID *
-                </label>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Admin Email *</label>
                 <input
                   type="email"
                   required
-                  autoComplete="off"
                   value={resetEmail}
-                  onChange={(e) => setResetEmail(e.target.value)}
-                  placeholder="Enter administrator email address"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white"
+                  onChange={(e) => setResetEmail(e.target.value.toLowerCase())}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 lowercase"
                 />
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  The account associated with this email address will be updated with the new password.
-                </p>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">
-                  New Password *
-                </label>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">New Secure Password *</label>
                 <div className="relative">
                   <input
                     type={showNewPassword ? 'text' : 'password'}
                     required
+                    minLength={6}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Enter new strong password"
-                    className="w-full pl-3 pr-10 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white font-mono"
+                    placeholder="Minimum 6 characters"
+                    className="w-full pl-3 pr-16 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                    title={showNewPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 font-semibold text-[11px] cursor-pointer"
                   >
-                    {showNewPassword ? (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    )}
+                    {showNewPassword ? 'Hide' : 'Show'}
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsResetPasswordModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-md cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
                 >
                   Update Password
                 </button>
@@ -931,15 +1017,29 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
         </div>
       )}
 
-      {/* Delete Modal */}
+      {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-3">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4 text-center">
-            <h3 className="text-base font-bold text-slate-800">Delete Administrator?</h3>
-            <p className="text-xs text-slate-500">Are you sure you want to delete this administrator?</p>
-            <div className="flex justify-center gap-3 pt-2">
-              <button onClick={() => setIsDeleteModalOpen(false)} className="px-4 py-2 bg-slate-100 rounded-xl text-xs">Cancel</button>
-              <button onClick={handleDeleteAdmin} className="px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold">Delete</button>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-4 sm:p-6 space-y-4 my-auto">
+            <h2 className="text-base font-bold text-slate-800">Delete Administrator?</h2>
+            <p className="text-xs text-slate-600">
+              Are you sure you want to delete administrator <span className="font-bold text-slate-800">{admin.name}</span>? This action cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAdmin}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+              >
+                Yes, Delete
+              </button>
             </div>
           </div>
         </div>

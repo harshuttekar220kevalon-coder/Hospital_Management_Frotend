@@ -181,9 +181,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
     const matchesHospital =
       hospitalFilter === 'ALL'
         ? true
-        : hospitalFilter === 'UNASSIGNED'
-          ? !hasHospitalAssigned(doc)
-          : hospIds.map(String).includes(hospitalFilter.toString());
+        : hospIds.map(String).includes(hospitalFilter.toString());
 
     const matchesStatus =
       statusFilter === 'ALL'
@@ -208,16 +206,22 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
 
   const handleCreateDoctor = async (e) => {
     e.preventDefault();
+    if (!formData.hospital) {
+      alert('Please select an assigned hospital branch.');
+      return;
+    }
+
     try {
       const generatedDocId = generateDoctorId();
       const payload = {
         ...formData,
+        role: 'Doctor',
         doctor_id: generatedDocId,
         name: formData.name.startsWith('Dr.') ? formData.name.trim() : `Dr. ${formData.name.trim()}`,
         consultation_fee: Number(formData.consultation_fee) || 0.00,
         additional_skills: (formData.additional_skills || '').trim(),
         password: formData.password || '',
-        hospitals: formData.hospital ? [Number(formData.hospital)] : []
+        hospitals: [Number(formData.hospital)]
       };
       delete payload.hospital;
 
@@ -272,14 +276,19 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
   const handleUpdateDoctor = async (e) => {
     e.preventDefault();
     if (!selectedDoctor) return;
+    if (!formData.hospital) {
+      alert('Please select an assigned hospital branch.');
+      return;
+    }
 
     try {
       const payload = {
         ...formData,
+        role: 'Doctor',
         name: formData.name.startsWith('Dr.') ? formData.name : `Dr. ${formData.name}`,
         consultation_fee: Number(formData.consultation_fee) || 0.00,
         additional_skills: (formData.additional_skills || '').trim(),
-        hospitals: formData.hospital ? [Number(formData.hospital)] : []
+        hospitals: [Number(formData.hospital)]
       };
       delete payload.hospital;
 
@@ -318,9 +327,13 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
 
   const handleSaveHospitalAssignment = async () => {
     if (!selectedDoctor) return;
+    if (!assignHospitalId) {
+      alert('Please select an assigned hospital branch.');
+      return;
+    }
 
     try {
-      const updatedHospitals = assignHospitalId ? [Number(assignHospitalId)] : [];
+      const updatedHospitals = [Number(assignHospitalId)];
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${selectedDoctor.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -349,16 +362,18 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
       });
 
       if (response.ok) {
+        const data = await response.json().catch(() => null);
+        setDoctors(prev => prev.map(d => d.id === doctor.id ? { ...d, is_active: updatedStatus, ...(data || {}) } : d));
         fetchDoctors();
         if (detailDoctor && detailDoctor.id === doctor.id) {
-          const fresh = await response.json();
-          setDetailDoctor(fresh);
+          setDetailDoctor(prev => ({ ...prev, is_active: updatedStatus, ...(data || {}) }));
         }
       } else {
         alert('Failed to update status.');
       }
     } catch (error) {
       console.error('Error toggling status:', error);
+      alert('Error updating doctor status.');
     }
   };
 
@@ -445,7 +460,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Hospital Assigned</p>
           <h3 className="text-xl sm:text-2xl font-extrabold text-indigo-700 mt-1">{assignedDoctorsCount}</h3>
-          <p className="text-xs text-slate-400 mt-0.5">{totalDoctorsCount - assignedDoctorsCount} Unassigned</p>
+          <p className="text-xs text-slate-400 mt-0.5">Affiliated with active branches</p>
         </div>
       </div>
 
@@ -479,7 +494,6 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
             className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-semibold focus:outline-none focus:border-sky-600 cursor-pointer"
           >
             <option value="ALL">All Hospital Branches</option>
-            <option value="UNASSIGNED">Unassigned Only</option>
             {hospitalsList.map((h) => (
               <option key={h.id} value={h.id}>
                 {h.Name} ({h.city})
@@ -519,11 +533,10 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
             <table className="w-full text-center text-xs text-slate-600 min-w-[760px]">
               <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                 <tr>
-                  <th className="py-3.5 px-4 text-center">Doctor ID</th>
+                  <th className="py-3.5 px-4 text-center">Doctor Name & ID</th>
                   <th className="py-3.5 px-4 text-center">Specialization</th>
-                  <th className="py-3.5 px-4 text-center">Fee (₹)</th>
                   <th className="py-3.5 px-4 text-center">Assigned Hospital</th>
-                  <th className="py-3.5 px-4 text-center">Contact Email</th>
+                  <th className="py-3.5 px-4 text-center">CONTACT & EMAIL</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4 text-center">Actions</th>
                 </tr>
@@ -532,11 +545,13 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                 {filteredDoctors.slice(0, visibleCount).map((doc) => {
                   const hospIds = Array.isArray(doc.hospitals) ? doc.hospitals : (doc.hospital ? [doc.hospital] : []);
                   const assignedHospitalsList = hospIds.map(hid => hospitalsList.find(h => h.id === Number(typeof hid === 'object' ? hid.id : hid))).filter(Boolean);
+                  const emailLower = (doc.email || '').toLowerCase();
 
                   return (
                     <tr key={doc.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4 text-center">
-                        <span className="font-mono text-xs text-sky-700 font-bold bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200 inline-block">
+                        <div className="font-bold text-slate-800 break-words">{doc.name || 'Doctor'}</div>
+                        <span className="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block mt-0.5">
                           {doc.doctor_id || `DOC-${doc.id}`}
                         </span>
                       </td>
@@ -564,11 +579,6 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                         })()}
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <span className="font-mono font-bold text-emerald-800">
-                          ₹{doc.consultation_fee ?? '0.00'}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
                         {assignedHospitalsList.length === 0 ? (
                           <span className="text-slate-400 font-medium text-xs">
                             {doc.hospital_name && !/^\d+$/.test(doc.hospital_name) ? doc.hospital_name : 'Unassigned'}
@@ -590,17 +600,35 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                         )}
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <p className="font-medium text-sky-700 truncate max-w-[180px] mx-auto">{doc.email || '-'}</p>
+                        <div className="flex flex-col items-center justify-center gap-0.5">
+                          <span className="font-bold text-slate-800 text-xs">
+                            {doc.phone || doc.contact || '-'}
+                          </span>
+                          {emailLower ? (
+                            <a
+                              href={`mailto:${emailLower}`}
+                              title={`Send email to ${emailLower}`}
+                              className="text-[11px] text-sky-700 hover:text-sky-900 hover:underline block lowercase transition truncate max-w-[180px]"
+                            >
+                              {emailLower}
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">-</span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-block ${doc.is_active !== false
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-rose-50 text-rose-700 border-rose-200'
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(doc)}
+                          title="Click to toggle active/inactive status"
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${doc.is_active !== false
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                              : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
                             }`}
                         >
                           {doc.is_active !== false ? 'Active' : 'Inactive'}
-                        </span>
+                        </button>
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <button
@@ -728,8 +756,9 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
               {/* ROW 3: ASSIGN HOSPITAL BRANCH & DEPARTMENT (SELECTABLE FROM ASSIGNED HOSPITAL) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch *</label>
                   <select
+                    required
                     value={formData.hospital}
                     onChange={(e) => {
                       const newHospId = e.target.value;
@@ -742,7 +771,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                     }}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-600 font-medium cursor-pointer"
                   >
-                    <option value="">Leave Unassigned</option>
+                    <option value="" disabled>Select Hospital Branch *</option>
                     {hospitalsList.map((h) => (
                       <option key={h.id} value={h.id}>
                         {h.Name} ({h.city}) - {h.Branch_Code}
@@ -894,26 +923,18 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                 </div>
               </div>
 
-              {/* ROW 7: AUTO-GENERATED ID BADGE & ACTIVE CHECKBOX */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="doctorActiveCreate"
-                    checked={formData.is_active}
-                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                    className="w-4 h-4 text-teal-600 rounded cursor-pointer"
-                  />
-                  <label htmlFor="doctorActiveCreate" className="font-semibold text-slate-700 cursor-pointer">
-                    Doctor is Currently Active & Available
-                  </label>
-                </div>
-                <div className="flex items-center gap-1.5 text-slate-500">
-                  <span className="text-[10px] uppercase font-bold">Doctor ID:</span>
-                  <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
-                    Auto-Generated upon creation
-                  </span>
-                </div>
+              {/* ROW 7: ACTIVE CHECKBOX */}
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="doctorActiveCreate"
+                  checked={formData.is_active}
+                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                  className="w-4 h-4 text-teal-600 rounded cursor-pointer"
+                />
+                <label htmlFor="doctorActiveCreate" className="font-semibold text-slate-700 cursor-pointer">
+                  Doctor is Currently Active & Available
+                </label>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
@@ -995,8 +1016,9 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch *</label>
                   <select
+                    required
                     value={formData.hospital}
                     onChange={(e) => {
                       const newHospId = e.target.value;
@@ -1009,7 +1031,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                     }}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-600 font-medium cursor-pointer"
                   >
-                    <option value="">Leave Unassigned</option>
+                    <option value="" disabled>Select Hospital Branch *</option>
                     {hospitalsList.map((h) => (
                       <option key={h.id} value={h.id}>
                         {h.Name} ({h.city}) - {h.Branch_Code}
@@ -1204,14 +1226,15 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
 
             <div>
               <label className="block font-semibold text-slate-700 text-xs uppercase mb-1">
-                Select Destination Hospital Branch:
+                Select Destination Hospital Branch: *
               </label>
               <select
+                required
                 value={assignHospitalId}
                 onChange={(e) => setAssignHospitalId(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 font-medium focus:outline-none focus:border-teal-600 cursor-pointer"
               >
-                <option value="">Unassign / No Hospital Assigned</option>
+                <option value="" disabled>Select Destination Hospital Branch *</option>
                 {hospitalsList.map((h) => (
                   <option key={h.id} value={h.id}>
                     {h.Name} ({h.city}) - {h.Branch_Code}
@@ -1301,7 +1324,19 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 sm:col-span-2">
                 <p className="text-[10px] text-slate-400 uppercase font-semibold">Email</p>
-                <p className="font-bold text-slate-800 mt-0.5 break-all">{detailDoctor.email}</p>
+                {detailDoctor.email ? (
+                  <p className="mt-0.5 break-all">
+                    <a
+                      href={`mailto:${detailDoctor.email.toLowerCase()}`}
+                      className="font-bold text-sky-600 hover:text-sky-800 hover:underline"
+                      title="Send email"
+                    >
+                      {detailDoctor.email.toLowerCase()}
+                    </a>
+                  </p>
+                ) : (
+                  <p className="font-bold text-slate-400 mt-0.5">-</p>
+                )}
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 sm:col-span-2">
                 <p className="text-[10px] text-slate-400 uppercase font-semibold">OPD Timings</p>

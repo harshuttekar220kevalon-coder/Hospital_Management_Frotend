@@ -402,29 +402,41 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
               )}
             </div>
 
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 mt-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 mt-2 break-words break-all">
               {activeBranch.Name || 'Hospital Details'}
             </h1>
 
-            <p className="text-xs text-slate-600 mt-1">
+            <p className="text-xs text-slate-600 mt-1 break-words break-all">
               {activeBranch.address || (activeBranch.city ? `${activeBranch.city}, ${activeBranch.area || ''}` : 'Address not specified')}
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2.5 border-t border-slate-100 text-xs text-slate-600">
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] uppercase font-bold text-slate-400">City / Location</p>
-              <p className="font-semibold text-slate-800 mt-0.5">{activeBranch.city || '-'} {activeBranch.area ? `(${activeBranch.area})` : ''}</p>
+              <p className="font-semibold text-slate-800 mt-0.5 break-words">{activeBranch.city || '-'} {activeBranch.area ? `(${activeBranch.area})` : ''}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] uppercase font-bold text-slate-400">Contact Number</p>
-              <p className="font-semibold text-slate-800 mt-0.5">{activeBranch.contact || '-'}</p>
+              <p className="font-semibold text-slate-800 mt-0.5 break-all">{activeBranch.contact || '-'}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] uppercase font-bold text-slate-400">Official Email</p>
-              <p className="font-semibold text-sky-700 mt-0.5 truncate">{activeBranch.email || '-'}</p>
+              {activeBranch.email ? (
+                <p className="mt-0.5 break-all">
+                  <a
+                    href={`mailto:${activeBranch.email.toLowerCase()}`}
+                    className="font-semibold text-sky-700 hover:text-sky-900 hover:underline"
+                    title="Send email"
+                  >
+                    {activeBranch.email.toLowerCase()}
+                  </a>
+                </p>
+              ) : (
+                <p className="font-semibold text-slate-400 mt-0.5">-</p>
+              )}
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] uppercase font-bold text-slate-400">Total Beds</p>
               <p className="font-semibold text-slate-800 mt-0.5">{activeBranch.total_beds || 100} Beds</p>
             </div>
@@ -491,7 +503,19 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
               </div>
               <div>
                 <p className="text-[10px] uppercase font-bold text-slate-400">Admin Email</p>
-                <p className="font-semibold text-slate-800 mt-0.5 truncate">{hospitalAdminInfo.email || '-'}</p>
+                {hospitalAdminInfo.email ? (
+                  <p className="mt-0.5 truncate">
+                    <a
+                      href={`mailto:${hospitalAdminInfo.email.toLowerCase()}`}
+                      className="font-semibold text-blue-600 hover:underline"
+                      title="Send email"
+                    >
+                      {hospitalAdminInfo.email.toLowerCase()}
+                    </a>
+                  </p>
+                ) : (
+                  <p className="font-semibold text-slate-400 mt-0.5">-</p>
+                )}
               </div>
             </div>
           )}
@@ -601,7 +625,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     <th className="py-3 px-3">Doctor Name & ID</th>
                     <th className="py-3 px-3">Specialization</th>
                     <th className="py-3 px-3">OPD Timings</th>
-                    <th className="py-3 px-3">Contact</th>
+                    <th className="py-3 px-3">CONTACT & EMAIL</th>
                     <th className="py-3 px-3 text-center">Status</th>
                   </tr>
                 </thead>
@@ -619,8 +643,22 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                       </td>
                       <td className="py-3 px-3 font-semibold text-slate-800">{doc.opd_timings || 'Mon-Fri'}</td>
                       <td className="py-3 px-3">
-                        <p className="font-medium text-slate-700">{doc.phone}</p>
-                        <p className="text-[10px] text-slate-400">{doc.email}</p>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-bold text-slate-800 text-xs">
+                            {doc.phone || doc.contact || '-'}
+                          </span>
+                          {doc.email ? (
+                            <a
+                              href={`mailto:${doc.email.toLowerCase()}`}
+                              className="text-[11px] text-sky-700 hover:text-sky-900 hover:underline block lowercase transition truncate max-w-[180px]"
+                              title="Send email"
+                            >
+                              {doc.email.toLowerCase()}
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">-</span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-3 text-center">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
@@ -666,7 +704,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     <th className="py-3 px-3">Nurse Name & ID</th>
                     <th className="py-3 px-3">Role & Ward</th>
                     <th className="py-3 px-3">Shift</th>
-                    <th className="py-3 px-3">Contact</th>
+                    <th className="py-3 px-3">CONTACT & EMAIL</th>
                     <th className="py-3 px-3 text-center">Status</th>
                   </tr>
                 </thead>
@@ -685,8 +723,22 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                       </td>
                       <td className="py-3 px-3 font-medium text-slate-700">{nur.shift}</td>
                       <td className="py-3 px-3">
-                        <p className="font-medium text-slate-700">{nur.contact}</p>
-                        <p className="text-[10px] text-slate-400">{nur.email}</p>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-bold text-slate-800 text-xs">
+                            {nur.contact || nur.phone || '-'}
+                          </span>
+                          {nur.email ? (
+                            <a
+                              href={`mailto:${nur.email.toLowerCase()}`}
+                              className="text-[11px] text-sky-700 hover:text-sky-900 hover:underline block lowercase transition truncate max-w-[180px]"
+                              title="Send email"
+                            >
+                              {nur.email.toLowerCase()}
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">-</span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-3 text-center">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
@@ -729,10 +781,10 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
               <table className="w-full text-left text-xs text-slate-600 min-w-[760px]">
                 <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                   <tr>
-                    <th className="py-3 px-3">Name & ID</th>
+                    <th className="py-3 px-3">Receptionist Name & ID</th>
                     <th className="py-3 px-3">Role & Shift</th>
                     <th className="py-3 px-3">Languages</th>
-                    <th className="py-3 px-3">Contact</th>
+                    <th className="py-3 px-3">CONTACT & EMAIL</th>
                     <th className="py-3 px-3 text-center">Status</th>
                   </tr>
                 </thead>
@@ -749,8 +801,22 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                       </td>
                       <td className="py-3 px-3 font-medium text-slate-700">{rec.languages}</td>
                       <td className="py-3 px-3">
-                        <p className="font-medium text-slate-700">{rec.contact}</p>
-                        <p className="text-[10px] text-slate-400">{rec.email}</p>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-bold text-slate-800 text-xs">
+                            {rec.contact || rec.phone || '-'}
+                          </span>
+                          {rec.email ? (
+                            <a
+                              href={`mailto:${rec.email.toLowerCase()}`}
+                              className="text-[11px] text-sky-700 hover:text-sky-900 hover:underline block lowercase transition truncate max-w-[180px]"
+                              title="Send email"
+                            >
+                              {rec.email.toLowerCase()}
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">-</span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-3 text-center">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
@@ -800,8 +866,8 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
               <table className="w-full text-left text-xs text-slate-600 min-w-[760px]">
                 <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                   <tr>
-                    <th className="py-3 px-3">Patient Name & UHID</th>
-                    <th className="py-3 px-3">Contact</th>
+                    <th className="py-3 px-3">Patient Name & ID</th>
+                    <th className="py-3 px-3">CONTACT & EMAIL</th>
                     <th className="py-3 px-3 text-center">Status</th>
                   </tr>
                 </thead>
@@ -812,7 +878,24 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                         <p className="font-bold text-slate-800">{pat.name}</p>
                         <span className="font-mono text-[10px] text-sky-800 font-semibold">{pat.patient_id || pat.uhid || 'PAT'}</span>
                       </td>
-                      <td className="py-3 px-3 font-medium text-slate-700">{pat.contact || pat.phone}</td>
+                      <td className="py-3 px-3">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-bold text-slate-800 text-xs">
+                            {pat.contact || pat.phone || '-'}
+                          </span>
+                          {pat.email ? (
+                            <a
+                              href={`mailto:${pat.email.toLowerCase()}`}
+                              className="text-[11px] text-sky-700 hover:text-sky-900 hover:underline block lowercase transition truncate max-w-[180px]"
+                              title="Send email"
+                            >
+                              {pat.email.toLowerCase()}
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">-</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-3 px-3 text-center">
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-200 inline-block">
                           {pat.status || 'Confirmed'}

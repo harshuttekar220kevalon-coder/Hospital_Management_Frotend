@@ -226,8 +226,15 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
   };
 
   const handleToggleStatus = async (hosp) => {
+    const nextStatus = !hosp.is_active;
+    // Optimistically update UI state
+    setHospitals(prev => prev.map(h => h.id === hosp.id ? { ...h, is_active: nextStatus } : h));
+    if (detailHospital && detailHospital.id === hosp.id) {
+      setDetailHospital(prev => ({ ...prev, is_active: nextStatus }));
+    }
+
     try {
-      const updatedData = { ...hosp, is_active: !hosp.is_active };
+      const updatedData = { ...hosp, is_active: nextStatus };
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${hosp.id}/`, {
         method: 'PUT',
         headers: {
@@ -237,16 +244,27 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
       });
 
       if (response.ok) {
-        fetchHospitals();
-        if (detailHospital && detailHospital.id === hosp.id) {
-          const freshData = await response.json();
-          setDetailHospital(freshData);
+        const freshData = await response.json().catch(() => null);
+        if (freshData) {
+          setHospitals(prev => prev.map(h => h.id === hosp.id ? freshData : h));
+          if (detailHospital && detailHospital.id === hosp.id) {
+            setDetailHospital(freshData);
+          }
         }
       } else {
+        // Revert on error
+        setHospitals(prev => prev.map(h => h.id === hosp.id ? hosp : h));
+        if (detailHospital && detailHospital.id === hosp.id) {
+          setDetailHospital(hosp);
+        }
         alert('Failed to update status.');
       }
     } catch (error) {
       console.error('Error toggling status:', error);
+      setHospitals(prev => prev.map(h => h.id === hosp.id ? hosp : h));
+      if (detailHospital && detailHospital.id === hosp.id) {
+        setDetailHospital(hosp);
+      }
     }
   };
 
@@ -385,47 +403,67 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
             <table className="w-full text-center text-xs text-slate-600 min-w-[760px]">
               <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                 <tr>
-                  <th className="py-3.5 px-3 sm:px-4 text-center">Branch Code</th>
-                  <th className="py-3.5 px-3 sm:px-4 text-center">Hospital Name</th>
+                  <th className="py-3.5 px-3 sm:px-4 text-center">Branch Name & Code</th>
                   <th className="py-3.5 px-3 sm:px-4 text-center">City / Area</th>
-                  <th className="py-3.5 px-3 sm:px-4 text-center">Contact & Email</th>
+                  <th className="py-3.5 px-3 sm:px-4 text-center">CONTACT & EMAIL</th>
                   <th className="py-3.5 px-3 sm:px-4 text-center">Status</th>
                   <th className="py-3.5 px-3 sm:px-4 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredHospitals.slice(0, visibleCount).map((hosp) => (
-                  <tr key={hosp.id} className="hover:bg-slate-50/70 transition">
-                    <td className="py-3 px-3 sm:px-4 font-mono font-bold text-sky-700 text-center">{hosp.Branch_Code || 'N/A'}</td>
-                    <td className="py-3 px-3 sm:px-4 font-semibold text-slate-800 text-center">{hosp.Name}</td>
-                    <td className="py-3 px-3 sm:px-4 text-center">{hosp.city} ({hosp.area})</td>
-                    <td className="py-3 px-3 sm:px-4 text-center">
-                      <p className="font-medium text-slate-700">{hosp.contact}</p>
-                      <p className="text-slate-400 text-[10px]">{hosp.email}</p>
-                    </td>
-                    <td className="py-3 px-3 sm:px-4 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStatus(hosp)}
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${hosp.is_active
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-rose-50 text-rose-700 border-rose-200'
-                          }`}
-                      >
-                        {hosp.is_active ? 'Active' : 'Inactive'}
-                      </button>
-                    </td>
-                    <td className="py-3 px-3 sm:px-4 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleViewFullDetails(hosp)}
-                        className="px-3.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1"
-                      >
-                        Details &rarr;
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredHospitals.slice(0, visibleCount).map((hosp) => {
+                  const emailLower = (hosp.email || '').toLowerCase();
+                  return (
+                    <tr key={hosp.id} className="hover:bg-slate-50/70 transition">
+                      <td className="py-3 px-3 sm:px-4 text-center">
+                        <div className="font-bold text-slate-800 break-words">{hosp.Name}</div>
+                        <span className="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block mt-0.5">
+                          {hosp.Branch_Code || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 sm:px-4 text-center font-medium text-slate-700">{hosp.city} ({hosp.area})</td>
+                      <td className="py-3 px-3 sm:px-4 text-center">
+                        <div className="flex flex-col items-center justify-center gap-0.5">
+                          <span className="font-bold text-slate-800 text-xs">
+                            {hosp.contact || '-'}
+                          </span>
+                          {emailLower ? (
+                            <a
+                              href={`mailto:${emailLower}`}
+                              className="text-[11px] text-sky-700 hover:text-sky-900 hover:underline block lowercase transition truncate max-w-[180px]"
+                              title="Send email"
+                            >
+                              {emailLower}
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">-</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 sm:px-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(hosp)}
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${hosp.is_active
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-rose-50 text-rose-700 border-rose-200'
+                            }`}
+                        >
+                          {hosp.is_active ? 'Active' : 'Inactive'}
+                        </button>
+                      </td>
+                      <td className="py-3 px-3 sm:px-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleViewFullDetails(hosp)}
+                          className="px-3.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1"
+                        >
+                          Details &rarr;
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -930,7 +968,19 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
               </div>
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 col-span-1 sm:col-span-2">
                 <p className="text-[10px] text-slate-400 uppercase font-semibold">Official Email</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5 break-all">{detailHospital.email}</p>
+                {detailHospital.email ? (
+                  <p className="mt-0.5 break-all">
+                    <a
+                      href={`mailto:${detailHospital.email.toLowerCase()}`}
+                      className="text-sm font-bold text-sky-600 hover:text-sky-800 hover:underline"
+                      title="Send email"
+                    >
+                      {detailHospital.email.toLowerCase()}
+                    </a>
+                  </p>
+                ) : (
+                  <p className="text-sm font-bold text-slate-400 mt-0.5">-</p>
+                )}
               </div>
             </div>
 

@@ -1,21 +1,17 @@
 import React, { useState, useEffect } from 'react';
 
-const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) => {
+const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptionist, setSelectedHospital }) => {
   const [receptionists, setReceptionists] = useState([]);
-  const [hospitalsList, setHospitalsList] = useState([]);
+  const [hospitalData, setHospitalData] = useState(null);
   const [loading, setLoading] = useState(true);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [shiftFilter, setShiftFilter] = useState('ALL');
-  const [hospitalFilter, setHospitalFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [visibleCount, setVisibleCount] = useState(10);
-  const [showAddPassword, setShowAddPassword] = useState(false);
-
-  useEffect(() => {
-    setVisibleCount(10);
-  }, [searchTerm, shiftFilter, hospitalFilter, statusFilter]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [showAddPassword, setShowAddPassword] = useState(false);
 
   const shiftsList = [
     'Morning Shift (07:00 AM - 03:00 PM)',
@@ -34,7 +30,6 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
     'Emergency Receptionist'
   ];
 
-  // Exact 10 fields only: Hospital, Name, Receptionist id, Role, Shift, Languages, Contact, Email, Password, Status
   const initialFormState = {
     hospital: '',
     name: '',
@@ -51,78 +46,82 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
 
   const [formData, setFormData] = useState(initialFormState);
 
-  const fetchHospitals = async () => {
-    try {
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/');
-      if (response.ok) {
-        const data = await response.json();
-        setHospitalsList(data);
-      }
-    } catch (err) {
-      console.error('Error fetching hospitals:', err);
-    }
-  };
-
-  const fetchReceptionists = async () => {
+  const fetchAdminAndReceptionists = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/').catch(() => null);
-      if (response && response.ok) {
-        const data = await response.json();
-        setReceptionists(data);
-      } else {
-        console.warn('Could not fetch receptionists from backend.');
+
+      let assignedHospitalId = currentUser?.hospital || null;
+
+      try {
+        const adminsRes = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/').catch(() => null);
+        if (adminsRes && adminsRes.ok) {
+          const adminsList = await adminsRes.json();
+          const currentEmail = (currentUser?.email || '').toLowerCase().trim();
+          const matchedAdmin = adminsList.find(a => (a.email || '').toLowerCase().trim() === currentEmail);
+          if (matchedAdmin && matchedAdmin.hospital) {
+            assignedHospitalId = Number(matchedAdmin.hospital);
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching admin record:', e);
+      }
+
+      if (!assignedHospitalId) {
+        try {
+          const saved = localStorage.getItem('selectedHospital');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed?.id) assignedHospitalId = parsed.id;
+          }
+        } catch {}
+      }
+
+      let hosp = null;
+      if (assignedHospitalId) {
+        const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${assignedHospitalId}/`).catch(() => null);
+        if (hospRes && hospRes.ok) {
+          hosp = await hospRes.json();
+        }
+      }
+
+      if (!hosp) {
+        const allHospRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/').catch(() => null);
+        if (allHospRes && allHospRes.ok) {
+          const allHosp = await allHospRes.json();
+          hosp = (assignedHospitalId ? allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) : null) || allHosp[0] || null;
+          if (hosp) assignedHospitalId = hosp.id;
+        }
+      }
+
+      if (hosp) {
+        setHospitalData(hosp);
+        if (setSelectedHospital) setSelectedHospital(hosp);
+      }
+
+      const recRes = await fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/').catch(() => null);
+      if (recRes && recRes.ok) {
+        const allRecs = await recRes.json();
+        if (assignedHospitalId) {
+          const branchRecs = allRecs.filter(r => Number(r.hospital) === Number(assignedHospitalId));
+          setReceptionists(branchRecs.length > 0 ? branchRecs : allRecs);
+        } else {
+          setReceptionists(allRecs);
+        }
       }
     } catch (err) {
-      console.error('Error fetching receptionists:', err);
+      console.error('Error loading receptionists data:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchHospitals();
-    fetchReceptionists();
-  }, []);
+    fetchAdminAndReceptionists();
+  }, [currentUser]);
 
-  const totalReceptionistsCount = receptionists.length;
-  const activeReceptionistsCount = receptionists.filter(r => r.is_active && r.status !== 'On Leave').length;
-  const assignedReceptionistsCount = receptionists.filter(r => r.hospital).length;
-
-  const filteredReceptionists = receptionists.filter((rec) => {
-    const term = searchTerm.toLowerCase();
-    const assignedHosp = hospitalsList.find(h => h.id === rec.hospital);
-    const hospName = assignedHosp ? (assignedHosp.Name || '').toLowerCase() : '';
-
-    const matchesSearch =
-      (rec.name || '').toLowerCase().includes(term) ||
-      (rec.receptionist_id || '').toLowerCase().includes(term) ||
-      (rec.role || '').toLowerCase().includes(term) ||
-      (rec.shift || '').toLowerCase().includes(term) ||
-      (rec.contact || '').toLowerCase().includes(term) ||
-      (rec.email || '').toLowerCase().includes(term) ||
-      (rec.languages || '').toLowerCase().includes(term) ||
-      hospName.includes(term);
-
-    const matchesShift =
-      shiftFilter === 'ALL'
-        ? true
-        : (rec.shift || '').toLowerCase().includes(shiftFilter.toLowerCase());
-
-    const matchesHospital =
-      hospitalFilter === 'ALL'
-        ? true
-        : (rec.hospital || '').toString() === hospitalFilter.toString();
-
-    const matchesStatus =
-      statusFilter === 'ALL'
-        ? true
-        : statusFilter === 'Active'
-          ? rec.is_active !== false
-          : rec.is_active === false;
-
-    return matchesSearch && matchesShift && matchesHospital && matchesStatus;
-  });
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [searchTerm, shiftFilter, statusFilter]);
 
   const handleOpenAddModal = () => {
     setFormData({
@@ -134,24 +133,25 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
     setIsAddModalOpen(true);
   };
 
-  const handleCreateReceptionist = async (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.hospital) {
-      alert('Please select an assigned hospital branch.');
+    if (!formData.name.trim()) {
+      alert('Receptionist Name is required.');
       return;
     }
 
     try {
       const generatedRecId = `REC-${Math.floor(1000 + Math.random() * 9000)}`;
+      const hospId = Number(hospitalData?.id || currentUser?.hospital || 1);
       const payload = {
-        hospital: Number(formData.hospital),
+        hospital: hospId,
         name: formData.name.trim(),
         receptionist_id: generatedRecId,
         role: formData.role || formData.designation || 'Front Desk Receptionist',
         designation: formData.role || formData.designation || 'Front Desk Receptionist',
         shift: formData.shift,
-        languages: formData.languages.trim(),
-        contact: formData.contact.trim(),
+        languages: (formData.languages || 'English, Hindi').trim(),
+        contact: (formData.contact || '').replace(/\D/g, '').slice(0, 10),
         email: formData.email.trim(),
         password: formData.password || '',
         desk: 'Main Lobby Desk 1',
@@ -172,171 +172,200 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
         const createdId = data.receptionist_id || generatedRecId;
         alert(`Receptionist registered successfully!\nReceptionist ID: ${createdId}`);
         setIsAddModalOpen(false);
-        fetchReceptionists();
+        fetchAdminAndReceptionists();
       } else {
         alert('Error: ' + JSON.stringify(data));
       }
     } catch (error) {
       console.error('Error creating receptionist:', error);
-      alert('Network error while saving receptionist profile.');
+      alert('Network error while registering receptionist.');
     }
   };
 
   const handleToggleStatus = async (rec) => {
+    const newStatus = !rec.is_active;
     try {
-      const updatedStatus = !rec.is_active;
       const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${rec.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: updatedStatus, status: updatedStatus ? 'Active' : 'Off Duty' })
+        body: JSON.stringify({ is_active: newStatus, status: newStatus ? 'Active' : 'On Leave' })
       });
 
       if (response.ok) {
-        const data = await response.json().catch(() => null);
-        setReceptionists(prev => prev.map(r => r.id === rec.id ? { ...r, is_active: updatedStatus, ...(data || {}) } : r));
-        fetchReceptionists();
+        setReceptionists(prev => prev.map(r => r.id === rec.id ? { ...r, is_active: newStatus, status: newStatus ? 'Active' : 'On Leave' } : r));
       } else {
-        alert('Failed to update status.');
+        const putRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${rec.id}/`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...rec, is_active: newStatus, status: newStatus ? 'Active' : 'On Leave' })
+        });
+        if (putRes.ok) {
+          setReceptionists(prev => prev.map(r => r.id === rec.id ? { ...r, is_active: newStatus, status: newStatus ? 'Active' : 'On Leave' } : r));
+        }
       }
-    } catch (error) {
-      console.error('Error toggling status:', error);
-      alert('Error updating receptionist status.');
+    } catch (err) {
+      console.error('Error toggling receptionist status:', err);
     }
   };
 
-  const handleNavigateToDetails = (rec) => {
+  const handleViewReceptionistDetails = (rec) => {
     if (setSelectedReceptionist) {
       setSelectedReceptionist(rec);
     }
-    try {
-      localStorage.setItem('selectedReceptionist', JSON.stringify(rec));
-    } catch {
-      // ignore
-    }
+    localStorage.setItem('selectedReceptionist', JSON.stringify(rec));
     if (setCurrentPage) {
-      setCurrentPage('receptionist_details');
+      setCurrentPage('admin_receptionist_details');
     }
   };
 
+  const filteredReceptionists = receptionists.filter(rec => {
+    const term = searchTerm.toLowerCase();
+    const fullName = (rec.name || '').toLowerCase();
+    const contact = (rec.contact || rec.phone || '').toLowerCase();
+    const email = (rec.email || '').toLowerCase();
+
+    const matchesSearch =
+      fullName.includes(term) ||
+      (rec.receptionist_id || '').toLowerCase().includes(term) ||
+      (rec.role || '').toLowerCase().includes(term) ||
+      (rec.shift || '').toLowerCase().includes(term) ||
+      contact.includes(term) ||
+      email.includes(term);
+
+    const matchesShift = shiftFilter === 'ALL' || (rec.shift || '').toLowerCase().includes(shiftFilter.toLowerCase());
+    const matchesStatus =
+      statusFilter === 'ALL' ||
+      (statusFilter === 'Active' && rec.is_active !== false) ||
+      (statusFilter === 'Inactive' && rec.is_active === false);
+
+    return matchesSearch && matchesShift && matchesStatus;
+  });
+
+  const activeCount = receptionists.filter(r => r.is_active !== false && r.status !== 'On Leave').length;
+  const leaveCount = receptionists.filter(r => r.is_active === false || r.status === 'On Leave').length;
+
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
-      {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
-        <div className="flex items-center gap-3">
+      <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-4 sm:p-6 shadow-md border border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-bold text-sky-800 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
-                Front Desk & Reception Registry
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
-                {activeReceptionistsCount} Active On Desk
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full border bg-rose-50 text-rose-700 border-rose-200">
-                {totalReceptionistsCount - activeReceptionistsCount} Inactive
-              </span>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 text-teal-200 text-xs font-semibold border border-teal-400/30">
+              <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
+              {hospitalData?.Name || 'Branch Hospital'} • Front Desk & Registration
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800 mt-1">
-              Receptionists & Front Desk Management
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-2 tracking-tight text-slate-100">
+              Front Desk & Receptionists
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Front desk executives, duty shifts, languages, and hospital branch allocations.
+            <p className="text-xs sm:text-sm text-slate-300 mt-1">
+              Manage reception desks, patient registration counters, and shift rosters.
             </p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={handleOpenAddModal}
-            className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
-          >
-            <span>+</span> Register Receptionist
-          </button>
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={handleOpenAddModal}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md transition duration-150 cursor-pointer flex items-center justify-center gap-2"
+            >
+              + Register New Receptionist
+            </button>
+            <button
+              type="button"
+              onClick={fetchAdminAndReceptionists}
+              className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition cursor-pointer"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* TOP SUMMARY METRICS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Receptionists</p>
-          <h3 className="text-xl sm:text-2xl font-extrabold text-slate-800 mt-1">{totalReceptionistsCount}</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Registered staff</p>
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-teal-300 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Desk</span>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-teal-50 text-teal-700 border-teal-200">
+              Total Roster
+            </span>
+          </div>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Branch Receptionists</p>
+          <h3 className="text-lg sm:text-xl font-bold text-slate-800 mt-0.5">{receptionists.length} Staff</h3>
+          <p className="text-xs text-slate-500 mt-1">Assigned to this facility</p>
         </div>
 
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active & On Desk</p>
-          <h3 className="text-xl sm:text-2xl font-extrabold text-emerald-700 mt-1">{activeReceptionistsCount}</h3>
-          <p className="text-xs text-slate-400 mt-0.5">{totalReceptionistsCount - activeReceptionistsCount} Inactive</p>
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-emerald-300 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active</span>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+              On Duty
+            </span>
+          </div>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Active on Counters</p>
+          <h3 className="text-lg sm:text-xl font-bold text-emerald-700 mt-0.5">{activeCount} Available</h3>
+          <p className="text-xs text-emerald-600 mt-1">Managing Inflow & Queries</p>
         </div>
 
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Hospital Assigned</p>
-          <h3 className="text-xl sm:text-2xl font-extrabold text-indigo-700 mt-1">{assignedReceptionistsCount}</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Deployed to branches</p>
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-rose-300 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Leave</span>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-rose-50 text-rose-700 border-rose-200">
+              On Leave
+            </span>
+          </div>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Inactive / Leave</p>
+          <h3 className="text-lg sm:text-xl font-bold text-rose-700 mt-0.5">{leaveCount} Off Duty</h3>
+          <p className="text-xs text-rose-600 mt-1">Login disabled while inactive</p>
         </div>
       </div>
 
-      {/* SEARCH AND FILTERS */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-        <div className="relative flex-1">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="w-full sm:w-72">
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by ID, name, role, shift, phone, email, or hospital..."
-            className="w-full pl-3 pr-4 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white transition"
+            placeholder="Search by name, ID, desk role..."
+            className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white transition"
           />
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
           <select
             value={shiftFilter}
             onChange={(e) => setShiftFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-semibold focus:outline-none focus:border-sky-600 cursor-pointer"
+            className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 focus:outline-none focus:border-teal-600 cursor-pointer"
           >
-            <option value="ALL">All Duty Shifts</option>
-            {shiftsList.map((s, i) => (
-              <option key={i} value={s}>{s}</option>
-            ))}
-          </select>
-
-          <select
-            value={hospitalFilter}
-            onChange={(e) => setHospitalFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-semibold focus:outline-none focus:border-sky-600 cursor-pointer"
-          >
-            <option value="ALL">All Hospital Branches</option>
-            {hospitalsList.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.Name} ({h.city})
-              </option>
+            <option value="ALL">All Shifts</option>
+            {shiftsList.map((s) => (
+              <option key={s} value={s}>{s}</option>
             ))}
           </select>
 
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-semibold focus:outline-none focus:border-sky-600 cursor-pointer"
+            className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 focus:outline-none focus:border-teal-600 cursor-pointer"
           >
-            <option value="ALL">All Statuses</option>
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
+            <option value="ALL">All Status</option>
+            <option value="Active">Active Only</option>
+            <option value="Inactive">Inactive Only</option>
           </select>
         </div>
       </div>
 
-      {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto w-full">
           {loading ? (
-            <p className="text-center py-8 text-xs text-slate-500">Loading receptionists from backend...</p>
+            <div className="text-center py-12">
+              <div className="w-8 h-8 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+              <p className="text-xs font-semibold text-slate-500">Loading branch receptionists from backend...</p>
+            </div>
           ) : filteredReceptionists.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-xs font-semibold text-slate-500">No receptionists found matching your criteria.</p>
+              <p className="text-xs font-semibold text-slate-500">No receptionists found matching criteria.</p>
               <button
                 type="button"
                 onClick={handleOpenAddModal}
-                className="mt-3 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold cursor-pointer"
+                className="mt-3 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold cursor-pointer"
               >
                 + Register Receptionist Now
               </button>
@@ -346,8 +375,8 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
               <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4 text-center">Receptionist Name & ID</th>
-                  <th className="py-3.5 px-4 text-center">Role & Shift</th>
-                  <th className="py-3.5 px-4 text-center">Assigned Hospital</th>
+                  <th className="py-3.5 px-4 text-center">Desk Role</th>
+                  <th className="py-3.5 px-4 text-center">Shift Timings</th>
                   <th className="py-3.5 px-4 text-center">CONTACT & EMAIL</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4 text-center">Actions</th>
@@ -355,38 +384,25 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredReceptionists.slice(0, visibleCount).map((rec) => {
-                  const hospId = Number(typeof rec.hospital === 'object' ? rec.hospital?.id : rec.hospital);
-                  const assignedHosp = hospitalsList.find(h => h.id === hospId) || hospitalsList.find(h => h.id === Number(rec.hospital));
                   const emailLower = (rec.email || '').toLowerCase();
-
                   return (
                     <tr key={rec.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4 text-center">
                         <div className="font-bold text-slate-800 break-words">{rec.name || 'Receptionist'}</div>
-                        <span className="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block mt-0.5">
+                        <span className="font-mono text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
                           {rec.receptionist_id || `REC-${rec.id}`}
                         </span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-semibold text-slate-800 text-xs">
-                          {rec.role || rec.designation || 'Front Desk Receptionist'}
-                        </div>
-                        <span className="text-[11px] text-slate-500">
-                          {rec.shift || 'Morning Shift'}
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 inline-block">
+                          {rec.role || 'Front Desk Receptionist'}
                         </span>
+                        <span className="text-[11px] text-slate-400 block mt-0.5">{rec.languages || 'English, Hindi'}</span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-center">
-                        {assignedHosp || (rec.hospital_name && !/^\d+$/.test(rec.hospital_name)) ? (
-                          <span className="font-semibold text-slate-800">
-                            {assignedHosp ? assignedHosp.Name : rec.hospital_name}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-medium text-xs">
-                            Unassigned
-                          </span>
-                        )}
+                      <td className="py-3.5 px-4 text-center font-medium text-slate-700">
+                        {rec.shift || 'Morning Shift (07:00 AM - 03:00 PM)'}
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
@@ -413,20 +429,21 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                           type="button"
                           onClick={() => handleToggleStatus(rec)}
                           title="Click to toggle active/inactive status"
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${rec.is_active !== false
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${
+                            rec.is_active !== false && rec.status !== 'On Leave'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                               : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
-                            }`}
+                          }`}
                         >
-                          {rec.is_active !== false ? 'Active' : 'Inactive'}
+                          {rec.is_active !== false && rec.status !== 'On Leave' ? 'Active' : 'Inactive'}
                         </button>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
                         <button
                           type="button"
-                          onClick={() => handleNavigateToDetails(rec)}
-                          className="px-3.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1"
+                          onClick={() => handleViewReceptionistDetails(rec)}
+                          className="px-3.5 py-1.5 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white font-bold text-xs transition cursor-pointer border border-teal-200 inline-flex items-center justify-center gap-1"
                         >
                           Details &rarr;
                         </button>
@@ -444,15 +461,14 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
             <button
               type="button"
               onClick={() => setVisibleCount((prev) => prev + 10)}
-              className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+              className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
             >
-              Show More
+              Show More ({filteredReceptionists.length - visibleCount} remaining)
             </button>
           </div>
         )}
       </div>
 
-      {/* REGISTER RECEPTIONIST MODAL - EXACT 10 FIELDS */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4 my-auto">
@@ -467,8 +483,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
               </button>
             </div>
 
-            <form onSubmit={handleCreateReceptionist} className="space-y-3 text-xs">
-              {/* ROW 1: RECEPTIONIST FULL NAME & OFFICIAL EMAIL */}
+            <form onSubmit={handleAddSubmit} className="space-y-3 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Receptionist Full Name *</label>
@@ -494,7 +509,6 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                 </div>
               </div>
 
-              {/* ROW 2: CONTACT PHONE & SIGNIN PASSWORD */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone (Numbers only) *</label>
@@ -505,7 +519,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                     maxLength={10}
                     required
                     value={formData.contact}
-                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '') })}
+                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                     placeholder="e.g. 9876543210"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
@@ -521,30 +535,19 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       placeholder="Enter signin password"
-                      className="w-full pl-3 pr-10 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono text-xs"
+                      className="w-full pl-3 pr-16 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono text-xs"
                     />
                     <button
                       type="button"
                       onClick={() => setShowAddPassword(!showAddPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                      title={showAddPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-1 top-1 bottom-1 px-2.5 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-bold text-[11px] border border-slate-300 shadow-2xs flex items-center transition cursor-pointer"
                     >
-                      {showAddPassword ? (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                        </svg>
-                      ) : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                      )}
+                      {showAddPassword ? 'Hide' : 'Show'}
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* ROW 3: ROLE */}
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Role *</label>
                 <select
@@ -559,7 +562,6 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                 </select>
               </div>
 
-              {/* ROW 4: SHIFT & LANGUAGES */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Shift *</label>
@@ -587,43 +589,35 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                 </div>
               </div>
 
-              {/* ROW 5: ASSIGN HOSPITAL BRANCH */}
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital Branch *</label>
-                <select
-                  required
-                  value={formData.hospital}
-                  onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
-                >
-                  <option value="" disabled>Select Hospital Branch *</option>
-                  {hospitalsList.map((h) => (
-                    <option key={h.id} value={h.id}>
-                      {h.Name} ({h.city}) - {h.Branch_Code}
-                    </option>
-                  ))}
-                </select>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Hospital Branch</label>
+                <input
+                  type="text"
+                  readOnly
+                  tabIndex={-1}
+                  value={hospitalData?.Name ? `${hospitalData.Name} (${hospitalData.city || ''})` : 'Assigned Hospital Branch'}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed select-none focus:outline-none"
+                />
               </div>
 
-              {/* ROW 6: STATUS */}
               <div className="flex items-center gap-2 pt-1">
                 <input
                   type="checkbox"
-                  id="recActiveCreate"
+                  id="receptionistActiveAddModal"
                   checked={formData.is_active}
-                  onChange={(e) => setFormData({
-                    ...formData,
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
                     is_active: e.target.checked,
                     status: e.target.checked ? 'Active' : 'Off Duty'
                   })}
                   className="w-4 h-4 text-sky-600 rounded cursor-pointer"
                 />
-                <label htmlFor="recActiveCreate" className="font-semibold text-slate-700 cursor-pointer">
-                  Status: Active & On Duty
+                <label htmlFor="receptionistActiveAddModal" className="font-semibold text-slate-700 cursor-pointer">
+                  Receptionist Active & Available for Duty
                 </label>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
@@ -633,7 +627,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-md cursor-pointer transition"
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold shadow-md transition cursor-pointer"
                 >
                   Register Receptionist
                 </button>
@@ -646,4 +640,4 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
   );
 };
 
-export default Receptionist;
+export default AdminReceptionists;

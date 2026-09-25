@@ -855,9 +855,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
     return (
       <div className="max-w-4xl mx-auto px-4 py-12 text-center">
         <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-md">
-          <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center text-3xl mx-auto mb-4">
-            🏥
-          </div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
             No Hospital Branch Assigned Yet
           </h2>
@@ -870,7 +867,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               onClick={fetchAssignedHospitalData}
               className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
             >
-              🔄 Refresh Status
+              Refresh Status
             </button>
             <button
               type="button"
@@ -892,7 +889,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
       
       {/* Top Banner Header */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white p-4 sm:p-6 shadow-md border border-slate-800">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-semibold border border-teal-500/30">
@@ -910,7 +907,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold mt-2 tracking-tight text-slate-100 flex items-center gap-2">
-              <span>🏥</span> {curHosp.Name}
+              {curHosp.Name}
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-3xl">
               {curHosp.address ? curHosp.address : `${curHosp.area || ''}, ${curHosp.city || ''}`}
@@ -921,19 +918,16 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
             <button
               type="button"
               onClick={handleOpenEditDetails}
-              className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
               Edit & Update Details
             </button>
             <button
               type="button"
               onClick={fetchAssignedHospitalData}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold shadow-sm transition cursor-pointer"
             >
-              🔄 Refresh Data
+              Refresh Data
             </button>
           </div>
         </div>
@@ -978,7 +972,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
-          <span>🏥</span> Hospital Details
+          Hospital Details
         </button>
 
         <button
@@ -990,7 +984,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
-          <span>🏢</span> Hospital Profile
+          Hospital Profile
         </button>
 
         <button
@@ -1002,7 +996,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
-          <span>🩺</span> Departments
+          Departments
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === 'departments' ? 'bg-blue-800 text-white' : 'bg-slate-100 text-slate-700'}`}>
             {departmentsList.length}
           </span>
@@ -1017,7 +1011,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
-          <span>🛏️</span> Wards
+          Wards
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === 'wards' ? 'bg-blue-800 text-white' : 'bg-slate-100 text-slate-700'}`}>
             {wards.length}
           </span>
@@ -1032,7 +1026,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
-          <span>🚪</span> Rooms & Beds
+          Rooms & Beds
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === 'rooms_beds' ? 'bg-blue-800 text-white' : 'bg-slate-100 text-slate-700'}`}>
             {totalBedsCount} Beds
           </span>
@@ -1051,7 +1045,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl">📍</span>
                     <h3 className="text-sm font-bold text-slate-800">Branch Location & Identity</h3>
                   </div>
                   <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
@@ -1086,7 +1079,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl">📞</span>
                     <h3 className="text-sm font-bold text-slate-800">Communication Desk</h3>
                   </div>
                   <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
@@ -1099,7 +1091,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                     <span className="text-sm font-bold text-slate-800">{curHosp.contact || 'N/A'}</span>
                   </div>
                   <div>
-                    <span className="font-semibold text-rose-500 block text-[10px] uppercase font-bold">🚨 24x7 Emergency Contact</span>
+                    <span className="font-semibold text-rose-500 block text-[10px] uppercase font-bold">24x7 Emergency Contact</span>
                     <span className="text-sm font-bold text-rose-700">{curHosp.emergency_contact || curHosp.contact || '+91 22 2680 9108'}</span>
                   </div>
                   <div>
@@ -1115,7 +1107,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl">📜</span>
                     <h3 className="text-sm font-bold text-slate-800">Licensure & Admin Info</h3>
                   </div>
                   <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold">
@@ -1168,34 +1159,34 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-4">
               <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-100 text-center">
-                <span className="text-2xl block">🛏️</span>
+                <span className="text-xs font-semibold text-slate-400 uppercase block">Total Beds</span>
                 <span className="text-lg sm:text-xl font-bold text-blue-900 mt-1 block">{curHosp.total_beds || 0}</span>
-                <span className="text-[11px] font-semibold text-blue-700">Total Registered Beds</span>
+                <span className="text-[11px] font-semibold text-blue-700">Registered Beds</span>
               </div>
               <div className="p-3.5 rounded-xl bg-rose-50/70 border border-rose-100 text-center">
-                <span className="text-2xl block">🚨</span>
+                <span className="text-xs font-semibold text-slate-400 uppercase block">ICU Units</span>
                 <span className="text-lg sm:text-xl font-bold text-rose-900 mt-1 block">{curHosp.icu_beds || 0}</span>
-                <span className="text-[11px] font-semibold text-rose-700">ICU / Critical Beds</span>
+                <span className="text-[11px] font-semibold text-rose-700">Critical Beds</span>
               </div>
               <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-100 text-center">
-                <span className="text-2xl block">👶</span>
+                <span className="text-xs font-semibold text-slate-400 uppercase block">NICU / PICU</span>
                 <span className="text-lg sm:text-xl font-bold text-purple-900 mt-1 block">{curHosp.nicu_beds || 0}</span>
-                <span className="text-[11px] font-semibold text-purple-700">NICU / PICU Units</span>
+                <span className="text-[11px] font-semibold text-purple-700">Infant Units</span>
               </div>
               <div className="p-3.5 rounded-xl bg-teal-50/70 border border-teal-100 text-center">
-                <span className="text-2xl block">🔬</span>
+                <span className="text-xs font-semibold text-slate-400 uppercase block">OT Suites</span>
                 <span className="text-lg sm:text-xl font-bold text-teal-900 mt-1 block">{curHosp.operation_theatres || 0}</span>
-                <span className="text-[11px] font-semibold text-teal-700">Operation Theatres</span>
+                <span className="text-[11px] font-semibold text-teal-700">Operating Theatres</span>
               </div>
               <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-100 text-center">
-                <span className="text-2xl block">🚑</span>
+                <span className="text-xs font-semibold text-slate-400 uppercase block">Fleet</span>
                 <span className="text-lg sm:text-xl font-bold text-amber-900 mt-1 block">{curHosp.ambulances_count || 0}</span>
-                <span className="text-[11px] font-semibold text-amber-700">Ambulances Fleet</span>
+                <span className="text-[11px] font-semibold text-amber-700">Ambulances</span>
               </div>
               <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-100 text-center">
-                <span className="text-2xl block">🛋️</span>
+                <span className="text-xs font-semibold text-slate-400 uppercase block">Restrooms</span>
                 <span className="text-lg sm:text-xl font-bold text-indigo-900 mt-1 block">{curHosp.restroom_for_relatives || 0}</span>
-                <span className="text-[11px] font-semibold text-indigo-700">Relative Restrooms</span>
+                <span className="text-[11px] font-semibold text-indigo-700">Relative Lounges</span>
               </div>
             </div>
           </div>
@@ -1219,11 +1210,11 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-blue-50/60 p-3.5 rounded-xl border border-blue-100">
-                    <h4 className="font-bold text-blue-900 text-xs uppercase tracking-wider mb-1">🎯 Institutional Vision</h4>
+                    <h4 className="font-bold text-blue-900 text-xs uppercase tracking-wider mb-1">Institutional Vision</h4>
                     <p className="text-xs text-slate-700 leading-relaxed">To deliver patient-centric clinical excellence and trusted healthcare across all specialties.</p>
                   </div>
                   <div className="bg-teal-50/60 p-3.5 rounded-xl border border-teal-100">
-                    <h4 className="font-bold text-teal-900 text-xs uppercase tracking-wider mb-1">🚀 Institutional Mission</h4>
+                    <h4 className="font-bold text-teal-900 text-xs uppercase tracking-wider mb-1">Institutional Mission</h4>
                     <p className="text-xs text-slate-700 leading-relaxed">Providing high quality, affordable and ethical medical treatment with continuous advancement.</p>
                   </div>
                 </div>
@@ -1235,14 +1226,12 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                   <h4 className="text-sm font-bold text-white mt-1">Standards & Compliance</h4>
                   <div className="mt-4 space-y-2.5 text-xs">
                     <div className="flex items-center gap-2.5 bg-slate-800/80 p-2 rounded-lg border border-slate-700">
-                      <span className="text-lg">🏅</span>
                       <div>
                         <p className="font-bold text-slate-100">NABH Accredited Facility</p>
                         <p className="text-[10px] text-slate-400">Standard Clinical Protocol</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2.5 bg-slate-800/80 p-2 rounded-lg border border-slate-700">
-                      <span className="text-lg">🛡️</span>
                       <div>
                         <p className="font-bold text-slate-100">ISO 9001:2015 Certified</p>
                         <p className="text-[10px] text-slate-400">Quality Management System</p>
@@ -1318,9 +1307,8 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                   placeholder="Search department name or HOD..."
                   value={deptSearch}
                   onChange={(e) => setDeptSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-4 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
               </div>
               <select
                 value={deptCategoryFilter}
@@ -1338,7 +1326,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               onClick={handleOpenAddDept}
               className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
-              <span>+</span> Add Department
+              + Add Department
             </button>
           </div>
 
@@ -1410,7 +1398,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
           {filteredDepartments.length === 0 && (
             <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-500">
-              <span className="text-3xl block mb-2">🔍</span>
               <p className="text-sm font-semibold">No departments found matching your criteria.</p>
             </div>
           )}
@@ -1430,9 +1417,8 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                   placeholder="Search ward name, code, or supervisor..."
                   value={wardSearch}
                   onChange={(e) => setWardSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-4 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
               </div>
               <select
                 value={wardTypeFilter}
@@ -1450,7 +1436,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               onClick={handleOpenAddWard}
               className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
-              <span>+</span> Add New Ward
+              + Add New Ward
             </button>
           </div>
 
@@ -1489,8 +1475,8 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                         <div className={`h-full ${barColor} transition-all duration-300`} style={{ width: `${Math.min(100, occupancyPct)}%` }}></div>
                       </div>
                       <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
-                        <span className="text-emerald-700 font-bold">🟢 {ward.available_beds} Available</span>
-                        <span className="text-rose-700 font-bold">🔴 {ward.occupied_beds} Occupied</span>
+                        <span className="text-emerald-700 font-bold">{ward.available_beds} Available</span>
+                        <span className="text-rose-700 font-bold">{ward.occupied_beds} Occupied</span>
                       </div>
                     </div>
 
@@ -1575,9 +1561,8 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                   placeholder="Search by Room Number, Patient Name, or Bed..."
                   value={roomSearch}
                   onChange={(e) => setRoomSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-4 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -1758,7 +1743,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div>
                 <h3 className="text-sm sm:text-base font-bold text-slate-800">Edit Assigned Hospital Details</h3>
-                <p className="text-[11px] text-slate-500">Live backend update for hospital #{hospitalData?.id}</p>
+                <p className="text-[11px] text-slate-500">Update hospital profile information for #{hospitalData?.id}</p>
               </div>
               <button
                 type="button"
@@ -2291,10 +2276,10 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                 <label className="font-semibold text-slate-700 block mb-1">Bed Allocation Status *</label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { label: '🟢 Available', val: 'Available' },
-                    { label: '🔴 Occupied', val: 'Occupied' },
-                    { label: '🟡 Reserved', val: 'Reserved' },
-                    { label: '🔵 Cleaning', val: 'Cleaning' },
+                    { label: 'Available', val: 'Available' },
+                    { label: 'Occupied', val: 'Occupied' },
+                    { label: 'Reserved', val: 'Reserved' },
+                    { label: 'Cleaning', val: 'Cleaning' },
                   ].map(opt => (
                     <button
                       key={opt.val}

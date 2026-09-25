@@ -34,6 +34,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     hospital: '',
     doctor: '',
     consultation_fee: 0.00,
+    Hospitals_Chargies: 0.00,
     amount_paid: 0.00,
     payment_status: 'Pending',
     payment_method: '',
@@ -114,12 +115,36 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     const docId = e.target.value;
     const selectedDoc = doctorsList.find(d => d.id === Number(docId));
     const fee = selectedDoc ? (selectedDoc.consultation_fee ?? 0.00) : 0.00;
+    const hospCharge = Number(addFormData.Hospitals_Chargies) || 0.00;
+    const total = fee + hospCharge;
 
     setAddFormData(prev => ({
       ...prev,
       doctor: docId,
       consultation_fee: fee,
-      amount_paid: fee // Default amount paid to full fee
+      amount_paid: total
+    }));
+  };
+
+  const handleConsultationFeeChange = (e) => {
+    const fee = parseFloat(e.target.value) || 0.00;
+    const hospCharge = Number(addFormData.Hospitals_Chargies) || 0.00;
+    const total = fee + hospCharge;
+    setAddFormData(prev => ({
+      ...prev,
+      consultation_fee: e.target.value,
+      amount_paid: total
+    }));
+  };
+
+  const handleHospitalChargesChange = (e) => {
+    const hospCharge = parseFloat(e.target.value) || 0.00;
+    const fee = Number(addFormData.consultation_fee) || 0.00;
+    const total = fee + hospCharge;
+    setAddFormData(prev => ({
+      ...prev,
+      Hospitals_Chargies: e.target.value,
+      amount_paid: total
     }));
   };
 
@@ -191,6 +216,11 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
 
   const handleCreatePatient = async (e) => {
     e.preventDefault();
+    if (!addFormData.hospital) {
+      alert('Please select a target hospital branch.');
+      return;
+    }
+
     try {
       const generatedDocPatId = generatePatientId();
       const selectedDocObj = doctorsList.find(d => d.id === Number(addFormData.doctor));
@@ -205,11 +235,13 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
         gender: addFormData.gender,
         blood_group: addFormData.blood_group,
         address: (addFormData.address || '').trim(),
-        hospital: addFormData.hospital ? Number(addFormData.hospital) : null,
+        hospital: Number(addFormData.hospital),
         doctor: addFormData.doctor ? Number(addFormData.doctor) : null,
         doctor_name: selectedDocObj ? selectedDocObj.name : '',
         doctor_specialization: selectedDocObj ? (selectedDocObj.specialization || selectedDocObj.specialty || '') : '',
         consultation_fee: Number(addFormData.consultation_fee) || 0.00,
+        Hospitals_Chargies: Number(addFormData.Hospitals_Chargies) || 0.00,
+        hospital_charges: Number(addFormData.Hospitals_Chargies) || 0.00,
         amount_paid: Number(addFormData.amount_paid) || 0.00,
         payment_status: addFormData.payment_status,
         payment_method: addFormData.payment_method,
@@ -488,10 +520,10 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
             <table className="w-full text-center text-xs text-slate-600 min-w-[760px]">
               <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                 <tr>
-                  <th className="py-3.5 px-4 text-center">Patient ID</th>
+                  <th className="py-3.5 px-4 text-center">Patient Name & ID</th>
+                  <th className="py-3.5 px-4 text-center">Hospital & Doctor</th>
                   <th className="py-3.5 px-4 text-center">Visit Time</th>
-                  <th className="py-3.5 px-4 text-center">Doctor</th>
-                  <th className="py-3.5 px-4 text-center">Target Hospital</th>
+                  <th className="py-3.5 px-4 text-center">CONTACT & EMAIL</th>
                   <th className="py-3.5 px-4 text-center">Payment</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4 text-center">Actions</th>
@@ -506,12 +538,16 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                   const displayHospital = assignedHosp ? assignedHosp.Name : (pat.hospital_name && !/^\d+$/.test(pat.hospital_name) ? pat.hospital_name : 'Unassigned');
                   const displayVisitTime = pat.visit_date_time ? new Date(pat.visit_date_time).toLocaleString() : (pat.appointment_time || 'Not Scheduled');
                   const appliedToday = isAppliedToday(pat);
+                  const emailLower = (pat.email || '').toLowerCase();
 
                   return (
                     <tr key={pat.id} className={`transition ${appliedToday ? 'bg-sky-50/40 hover:bg-sky-50/70' : 'hover:bg-slate-50/70'}`}>
                       <td className="py-3.5 px-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200 inline-block">
+                        <div className="font-bold text-slate-800 break-words">
+                          {pat.name || 'Patient'}
+                        </div>
+                        <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                          <span className="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block">
                             {displayId}
                           </span>
                           {appliedToday && (
@@ -524,39 +560,57 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
 
                       <td className="py-3.5 px-4 text-center">
                         <p className="font-semibold text-slate-800">
-                          {displayVisitTime}
+                          {displayHospital}
                         </p>
-                      </td>
-
-                      <td className="py-3.5 px-4 text-center">
-                        <p className="font-semibold text-slate-800">
+                        <p className="text-[11px] text-slate-500">
                           {displayDoctor}
                         </p>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        {assignedHosp || (pat.hospital_name && !/^\d+$/.test(pat.hospital_name)) ? (
-                          <span className="font-semibold text-slate-800">
-                            {assignedHosp ? assignedHosp.Name : pat.hospital_name}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-medium text-xs">
-                            Unassigned
-                          </span>
-                        )}
+                        <p className="font-semibold text-slate-800">
+                          {displayVisitTime}
+                        </p>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-block ${pat.payment_status === 'Paid'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : pat.payment_status === 'Failed'
-                              ? 'bg-rose-50 text-rose-700 border-rose-200'
-                              : pat.payment_status === 'Partial'
-                                ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                : 'bg-amber-50 text-amber-700 border-amber-200'
-                          }`}>
-                          {pat.payment_status || 'Pending'}
-                        </span>
+                        <div className="flex flex-col items-center justify-center gap-0.5">
+                          <span className="font-bold text-slate-800 text-xs">
+                            {pat.contact || pat.phone || '-'}
+                          </span>
+                          {emailLower ? (
+                            <a
+                              href={`mailto:${emailLower}`}
+                              title={`Send email to ${emailLower}`}
+                              className="text-[11px] text-sky-700 hover:text-sky-900 hover:underline block lowercase transition truncate max-w-[180px]"
+                            >
+                              {emailLower}
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">-</span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <div className="flex flex-col items-center justify-center gap-0.5">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-block ${pat.payment_status === 'Paid'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : pat.payment_status === 'Failed'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : pat.payment_status === 'Partial'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}>
+                            {pat.payment_status || 'Pending'}
+                          </span>
+                          <span className="font-mono text-[11px] font-bold text-slate-700">
+                            ₹{Number(pat.amount_paid || (pat.payment_status === 'Paid' ? (Number(pat.consultation_fee || 0) + Number(pat.Hospitals_Chargies || pat.hospital_charges || 0)) : 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            Doc: ₹{Number(pat.consultation_fee || 0)} | Hosp: ₹{Number(pat.Hospitals_Chargies || pat.hospital_charges || 0)}
+                          </span>
+                        </div>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
@@ -619,21 +673,6 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
             </div>
 
             <form onSubmit={handleCreatePatient} className="space-y-3 text-xs">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block font-semibold text-slate-700 uppercase">Patient ID / UHID</label>
-                  <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
-                    Auto-Generated
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  readOnly
-                  tabIndex={-1}
-                  value="Auto-Generated upon creation"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-500 italic font-medium cursor-not-allowed select-none focus:outline-none"
-                />
-              </div>
 
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Patient Full Name *</label>
@@ -746,7 +785,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                         }}
                         className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                       >
-                        <option value="">-- Select Target Hospital Branch --</option>
+                        <option value="" disabled>Select Target Hospital Branch *</option>
                         {hospitalsList.map((h) => (
                           <option key={h.id} value={h.id}>
                             {h.Name} ({h.city}) - {h.Branch_Code}
@@ -800,19 +839,63 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
 
               {/* PAYMENT SECTION */}
               <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200 space-y-3">
-                <p className="font-bold text-emerald-900 uppercase text-[11px]">Payment & Consultation Fee Details</p>
+                <div className="flex items-center justify-between">
+                  <p className="font-bold text-emerald-900 uppercase text-[11px]">Fee & Billing Details</p>
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                    Auto-Calculated Total
+                  </span>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-slate-700 uppercase mb-1">Consultation Fee (₹)</label>
+                    <label className="block font-semibold text-slate-700 uppercase mb-1">Doctor Consultation Fee (₹) *</label>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       value={addFormData.consultation_fee}
-                      onChange={(e) => setAddFormData({ ...addFormData, consultation_fee: e.target.value })}
+                      onChange={handleConsultationFeeChange}
+                      placeholder="e.g. 500.00"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono font-bold focus:outline-none focus:border-emerald-600"
                     />
+                    <p className="text-[10px] text-slate-500 mt-0.5">Credited to Doctor earnings</p>
                   </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital Charges / Services (₹) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={addFormData.Hospitals_Chargies}
+                      onChange={handleHospitalChargesChange}
+                      placeholder="e.g. 350.00"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono font-bold focus:outline-none focus:border-emerald-600"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-0.5">Credited to Hospital Revenue</p>
+                  </div>
+                </div>
+
+                {/* Total Billing Live Calculation Preview */}
+                <div className="p-3 bg-white rounded-xl border border-emerald-300 flex flex-wrap items-center justify-between gap-2 shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-slate-500">Bill Breakdown:</span>
+                    <span className="text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded">
+                      Doctor: ₹{Number(addFormData.consultation_fee || 0).toFixed(2)}
+                    </span>
+                    <span className="text-slate-400 font-bold">+</span>
+                    <span className="text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded">
+                      Hospital: ₹{Number(addFormData.Hospitals_Chargies || 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] font-bold text-slate-600 uppercase mr-1.5">Total Amount:</span>
+                    <span className="text-sm font-extrabold text-emerald-700 font-mono">
+                      ₹{(Number(addFormData.consultation_fee || 0) + Number(addFormData.Hospitals_Chargies || 0)).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   <div>
                     <label className="block font-semibold text-slate-700 uppercase mb-1">Amount Paid (₹)</label>
                     <input
@@ -824,9 +907,6 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono font-bold focus:outline-none focus:border-emerald-600"
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block font-semibold text-slate-700 uppercase mb-1">Payment Status</label>
                     <select
@@ -846,6 +926,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                       onChange={(e) => setAddFormData({ ...addFormData, payment_method: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-medium cursor-pointer"
                     >
+                      <option value="">Select Method</option>
                       {paymentMethods.map((pm, idx) => (
                         <option key={idx} value={pm}>{pm}</option>
                       ))}

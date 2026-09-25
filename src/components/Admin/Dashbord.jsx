@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) => {
-  const [visibleCount, setVisibleCount] = useState(6);
+const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setSelectedDoctor, setSelectedPatient }) => {
   const [loading, setLoading] = useState(true);
   const [hospitalData, setHospitalData] = useState(null);
   const [adminRecord, setAdminRecord] = useState(null);
@@ -12,6 +11,31 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) =>
   const [receptionistsList, setReceptionistsList] = useState([]);
   const [patientsList, setPatientsList] = useState([]);
   const [departments, setDepartments] = useState([]);
+
+  // Time Period Filter for Revenue & Patient Statistics
+  const [timePeriod, setTimePeriod] = useState('month'); // 'today' | 'month' | 'year' | 'all'
+  const [deptVisibleCount, setDeptVisibleCount] = useState(6);
+
+  const parseSpecializations = (spec) => {
+    if (!spec) return [];
+    if (Array.isArray(spec)) {
+      return spec
+        .flatMap(item => {
+          if (typeof item === 'string') return item.split(',');
+          if (item?.name && typeof item.name === 'string') return item.name.split(',');
+          return [];
+        })
+        .map(s => s.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim())
+        .filter(Boolean);
+    }
+    if (typeof spec === 'string') {
+      return spec
+        .split(',')
+        .map(s => s.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim())
+        .filter(Boolean);
+    }
+    return [];
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -143,7 +167,7 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) =>
         setPatientsList(branchPats);
       }
 
-      // 7. Parse Departments
+      // 4. Parse Departments
       const rawDepts = hosp.departments || hosp.department;
       let parsedDepts = [];
       if (Array.isArray(rawDepts)) {
@@ -195,9 +219,9 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) =>
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-12 text-center">
-        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-        <p className="text-xs font-semibold text-slate-500">Loading your hospital dashboard...</p>
+      <div className="max-w-7xl mx-auto px-4 py-16 text-center">
+        <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+        <p className="text-xs font-semibold text-slate-500">Loading your hospital administrator overview...</p>
       </div>
     );
   }
@@ -206,7 +230,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) =>
     return (
       <div className="max-w-3xl mx-auto px-4 py-12 text-center">
         <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-md">
-          <span className="text-4xl block mb-3">🏥</span>
           <h2 className="text-xl font-bold text-slate-800">No Hospital Facility Assigned</h2>
           <p className="text-xs text-slate-500 mt-2 leading-relaxed max-w-md mx-auto">
             Your Administrator account (<strong>{currentUser?.email}</strong>) has not been linked to an active hospital by Super Admin yet.
@@ -214,88 +237,599 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) =>
           <button
             type="button"
             onClick={fetchDashboardData}
-            className="mt-5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
+            className="mt-5 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition cursor-pointer"
           >
-            🔄 Check Assignment
+            Check Assignment
           </button>
         </div>
       </div>
     );
   }
 
+  // Staff Counts
   const totalStaffCount = doctorsList.length + nursesList.length + receptionistsList.length;
-  const totalBedsNum = Number(hospitalData.total_beds) || 80;
-  const occupiedBedsNum = Math.min(totalBedsNum, Math.max(patientsList.length, Math.floor(totalBedsNum * 0.72)));
-  const occupancyRate = totalBedsNum > 0 ? Math.round((occupiedBedsNum / totalBedsNum) * 100) : 0;
+  const activeDoctorsCount = doctorsList.filter(d => d.is_active !== false).length;
+  const onLeaveDoctorsCount = doctorsList.filter(d => d.is_active === false).length;
+  const activeNursesCount = nursesList.filter(n => n.is_active !== false).length;
+  const onLeaveNursesCount = nursesList.filter(n => n.is_active === false).length;
+  const activeReceptionistsCount = receptionistsList.filter(r => r.is_active !== false).length;
+  const onLeaveReceptionistsCount = receptionistsList.filter(r => r.is_active === false).length;
+  const activeStaffCount = activeDoctorsCount + activeNursesCount + activeReceptionistsCount;
+  const onLeaveStaffCount = onLeaveDoctorsCount + onLeaveNursesCount + onLeaveReceptionistsCount;
+
+  // Bed & Infrastructure Calculations
+  const totalBedsNum = Number(hospitalData.total_beds) || 0;
+  const admittedPatients = patientsList.filter(p => 
+    (p.status || '').toLowerCase().includes('admit') || 
+    (p.admission_status || '').toLowerCase().includes('admit') ||
+    (p.patient_type || '').toLowerCase().includes('ipd')
+  );
+  const occupiedBedsNum = admittedPatients.length > 0 ? admittedPatients.length : Math.min(totalBedsNum, patientsList.length);
+  const occupancyPercentRaw = totalBedsNum > 0 ? (occupiedBedsNum / totalBedsNum) * 100 : 0;
+  const occupancyRate = occupancyPercentRaw > 0 && occupancyPercentRaw < 1 
+    ? occupancyPercentRaw.toFixed(1) 
+    : Math.round(occupancyPercentRaw);
   const availableBeds = Math.max(0, totalBedsNum - occupiedBedsNum);
 
-  const adminStats = [
-    { title: 'Total Staff on Duty', value: `${totalStaffCount} Members`, change: `${doctorsList.length} Docs, ${nursesList.length} Nurses`, icon: '👥', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { title: 'Admitted / OPD Today', value: `${patientsList.length} Patients`, change: `Active in ${hospitalData.city}`, icon: '📋', color: 'bg-teal-50 text-teal-700 border-teal-200' },
-    { title: 'Bed Occupancy Rate', value: `${occupancyRate}%`, change: `${availableBeds} beds available`, icon: '🛏️', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-    { title: 'Emergency Units & OTs', value: `${hospitalData.operation_theatres || 4} OTs • ${hospitalData.ambulances_count || 2} Amb`, change: '24x7 Ready Fleet', icon: '🚑', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  ];
+  // Time Analysis for Patients & Revenue
+  const now = new Date();
+  const isDateToday = (dStr) => {
+    if (!dStr) return false;
+    const d = new Date(dStr);
+    return !isNaN(d.getTime()) &&
+      d.getDate() === now.getDate() &&
+      d.getMonth() === now.getMonth() &&
+      d.getFullYear() === now.getFullYear();
+  };
+
+  const isDateThisMonth = (dStr) => {
+    if (!dStr) return false;
+    const d = new Date(dStr);
+    return !isNaN(d.getTime()) &&
+      d.getMonth() === now.getMonth() &&
+      d.getFullYear() === now.getFullYear();
+  };
+
+  const isDateThisYear = (dStr) => {
+    if (!dStr) return false;
+    const d = new Date(dStr);
+    return !isNaN(d.getTime()) &&
+      d.getFullYear() === now.getFullYear();
+  };
+
+  const todayPatients = patientsList.filter(p => isDateToday(p.visit_date_time || p.created_at || p.date || p.admission_date));
+  const todayPatientsCount = todayPatients.length > 0 ? todayPatients.length : Math.min(patientsList.length, 3);
+
+  const monthPatients = patientsList.filter(p => isDateThisMonth(p.visit_date_time || p.created_at || p.date || p.admission_date));
+  const monthPatientsCount = monthPatients.length > 0 ? monthPatients.length : patientsList.length;
+
+  const yearPatients = patientsList.filter(p => isDateThisYear(p.visit_date_time || p.created_at || p.date || p.admission_date));
+
+  const getFinancials = (pList) => {
+    let docFees = 0;
+    let hospRevenue = 0;
+    let totalCollected = 0;
+
+    (pList || []).forEach(p => {
+      const docFee = parseFloat(p.consultation_fee) || 0;
+      const hospCharge = parseFloat(p.Hospitals_Chargies) || parseFloat(p.hospital_charges) || 0;
+      const paid = parseFloat(p.amount_paid) || 0;
+      const statusLower = (p.payment_status || '').toLowerCase();
+      const isPaid = statusLower === 'paid';
+      const isPartial = statusLower === 'partial';
+
+      // STRICT RULE: Only add to Doctor Fees, Hospital Revenue, and Total Collections if patient has PAID!
+      if (isPaid) {
+        docFees += docFee;
+        hospRevenue += hospCharge;
+        totalCollected += paid > 0 ? paid : (docFee + hospCharge);
+      } else if (isPartial && paid > 0) {
+        const gross = docFee + hospCharge;
+        if (gross > 0) {
+          docFees += (docFee / gross) * paid;
+          hospRevenue += (hospCharge / gross) * paid;
+        }
+        totalCollected += paid;
+      }
+      // If Pending, Failed, Cancelled, or Unpaid -> 0 is added!
+    });
+
+    return {
+      docFees,
+      hospRevenue,
+      totalGross: docFees + hospRevenue,
+      totalCollected
+    };
+  };
+
+  const todayFin = getFinancials(todayPatients);
+  const monthFin = getFinancials(monthPatients);
+  const yearFin = getFinancials(yearPatients);
+  const allFin = getFinancials(patientsList);
+
+  // Active Time Period Filtered values
+  let activePeriodPatients = patientsList;
+  let activePeriodFin = allFin;
+  let activePeriodLabel = 'All-Time Record';
+
+  if (timePeriod === 'today') {
+    activePeriodPatients = todayPatients;
+    activePeriodFin = todayFin;
+    activePeriodLabel = "Today's Activity";
+  } else if (timePeriod === 'month') {
+    activePeriodPatients = monthPatients;
+    activePeriodFin = monthFin;
+    activePeriodLabel = "This Month's Activity";
+  } else if (timePeriod === 'year') {
+    activePeriodPatients = yearPatients;
+    activePeriodFin = yearFin;
+    activePeriodLabel = "This Year's Activity";
+  }
+
+  const activePeriodAdmitted = activePeriodPatients.filter(p => 
+    (p.status || '').toLowerCase().includes('admit') || 
+    (p.admission_status || '').toLowerCase().includes('admit') ||
+    (p.patient_type || '').toLowerCase().includes('ipd')
+  ).length;
+
+  const activePeriodOPD = Math.max(0, activePeriodPatients.length - activePeriodAdmitted);
+  const activePeriodEmergency = activePeriodPatients.filter(p => 
+    (p.symptoms_severity || '').toLowerCase().includes('urgent') || 
+    (p.symptoms_severity || '').toLowerCase().includes('emergency')
+  ).length;
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 sm:space-y-7">
       
-      {/* Welcome Banner */}
-      <div className="rounded-2xl bg-gradient-to-r from-slate-800 via-blue-900 to-slate-800 text-white p-4 sm:p-6 shadow-md border border-slate-700">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-200 text-xs font-semibold border border-blue-400/30">
-              <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
-              Hospital Admin Portal • {hospitalData.Name}
+      {/* 1. TOP WELCOME & QUICK NAV BANNER */}
+      <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-6 shadow-md border border-slate-700/80">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-semibold border border-teal-400/30">
+              <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
+              {hospitalData.Name} • {hospitalData.city}
             </div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-2 tracking-tight text-slate-100">
-              Welcome, {adminRecord?.name || currentUser?.name || 'Hospital Admin'}
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-white">
+              Welcome, {adminRecord?.name || currentUser?.name || 'Hospital Administrator'}
             </h1>
-            <p className="text-xs sm:text-sm text-slate-300 mt-1">
-              Oversee departmental operations, staff rosters, patient flow, and bed capacity for {hospitalData.Name} ({hospitalData.city}).
+            <p className="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">
+              Hospital Operations Overview: Monitor real-time medical staff duty rosters, emergency infrastructure, patient flow, bed occupancy, and billing revenue.
             </p>
           </div>
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
+
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             <button
               type="button"
-              onClick={() => setCurrentPage && setCurrentPage('admin_hospital_management')}
-              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition cursor-pointer text-center flex items-center justify-center gap-1.5"
+              onClick={() => setCurrentPage && setCurrentPage('admin_doctors')}
+              className="px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
             >
-              <span>🏥</span> Manage Assigned Hospital
+              Doctors ({doctorsList.length})
             </button>
             <button
               type="button"
-              onClick={fetchDashboardData}
-              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold shadow-sm transition cursor-pointer text-center border border-slate-700"
+              onClick={() => setCurrentPage && setCurrentPage('admin_nurses')}
+              className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
             >
-              🔄 Refresh
+              Nurses ({nursesList.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage && setCurrentPage('admin_receptionists')}
+              className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
+            >
+              Receptionists ({receptionistsList.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage && setCurrentPage('admin_patients')}
+              className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
+            >
+              Patients ({patientsList.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage && setCurrentPage('admin_hospital_management')}
+              className="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold shadow-sm transition cursor-pointer border border-slate-600"
+            >
+              Profile & Wards
             </button>
           </div>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {adminStats.map((item, idx) => (
-          <div
-            key={idx}
-            className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-blue-300 transition"
+      {/* 2. SECTION A: MEDICAL & ADMINISTRATIVE STAFF (4 CARDS) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Hospital Staffing Roster</h2>
+            <p className="text-xs text-slate-500">Live operational personnel currently registered in this facility</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCurrentPage && setCurrentPage('admin_doctors')}
+            className="text-xs font-semibold text-teal-700 hover:text-teal-900 cursor-pointer bg-transparent border-0"
           >
+            Manage Staff &rarr;
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
             <div className="flex items-center justify-between">
-              <span className="text-2xl">{item.icon}</span>
-              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${item.color}`}>
-                Live Backend
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Hospital Staff</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                {activeStaffCount} On Duty
               </span>
             </div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">{item.title}</p>
-            <h3 className="text-lg sm:text-xl font-bold text-slate-800 mt-0.5">{item.value}</h3>
-            <p className="text-xs text-slate-500 mt-1">{item.change}</p>
+            <h3 className="text-xl sm:text-2xl font-bold text-slate-800 mt-2">{totalStaffCount} Members</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              {onLeaveStaffCount} On Leave
+            </p>
           </div>
-        ))}
+
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Doctors Roster</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                {activeDoctorsCount} On Duty
+              </span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-bold text-teal-700 mt-2">{doctorsList.length} Doctors</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              {onLeaveDoctorsCount} On Leave
+            </p>
+          </div>
+
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Nursing Staff</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">
+                {activeNursesCount} On Duty
+              </span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-bold text-cyan-800 mt-2">{nursesList.length} Nurses</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              {onLeaveNursesCount} On Leave
+            </p>
+          </div>
+
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Front Desk & Billing</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                {activeReceptionistsCount} On Duty
+              </span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-bold text-indigo-700 mt-2">{receptionistsList.length} Receptionists</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              {onLeaveReceptionistsCount} On Leave
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Departments Table */}
-      <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs">
-        <div className="flex items-center justify-between mb-4">
+      {/* 3. SECTION B: HOSPITAL CAPACITY & CRITICAL INFRASTRUCTURE (4 CARDS) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Beds Capacity & Emergency Infrastructure</h2>
+            <p className="text-xs text-slate-500">Live operational facilities, intensive care units, and emergency assets</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCurrentPage && setCurrentPage('admin_hospital_management')}
+            className="text-xs font-semibold text-blue-700 hover:text-blue-900 cursor-pointer bg-transparent border-0"
+          >
+            Manage Beds & Wards &rarr;
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Hospital Beds</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                {occupancyRate}% Occupancy
+              </span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-bold text-slate-800 mt-2">{totalBedsNum} Total Beds</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              <strong className="text-emerald-700 font-semibold">{availableBeds} beds available</strong> • {occupiedBedsNum} occupied
+            </p>
+          </div>
+
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">ICU Critical Care Beds</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                24x7 Critical
+              </span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-bold text-rose-700 mt-2">{hospitalData.icu_beds || 0} ICU Beds</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Equipped with high-flow ventilators & monitors
+            </p>
+          </div>
+
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">NICU Neonatal Care</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                Neonatal
+              </span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-bold text-amber-700 mt-2">{hospitalData.nicu_beds || 0} NICU Beds</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Incubators & phototherapy units ready
+            </p>
+          </div>
+
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">OTs & Ambulance Fleet</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Emergency Ready
+              </span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-bold text-emerald-700 mt-2">
+              {hospitalData.operation_theatres || 0} OTs • {hospitalData.ambulances_count || 0} Ambulances
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Modular operation suites & mobile ALS fleet
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. SECTION C: PATIENT FLOW & FINANCIAL REVENUE ANALYTICS (WITH TIME FILTER) */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <div>
+            <div className="inline-flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-800">Patient Inflow & Hospital Revenue</h2>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                {activePeriodLabel}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Select a time period to analyze clinical consultations, admissions, and financial collections
+            </p>
+          </div>
+
+          {/* Time Period Filter Tabs */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setTimePeriod('today')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                timePeriod === 'today'
+                  ? 'bg-white text-teal-800 shadow-xs border border-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => setTimePeriod('month')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                timePeriod === 'month'
+                  ? 'bg-white text-teal-800 shadow-xs border border-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              This Month
+            </button>
+            <button
+              type="button"
+              onClick={() => setTimePeriod('year')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                timePeriod === 'year'
+                  ? 'bg-white text-teal-800 shadow-xs border border-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              This Year
+            </button>
+            <button
+              type="button"
+              onClick={() => setTimePeriod('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                timePeriod === 'all'
+                  ? 'bg-white text-teal-800 shadow-xs border border-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              All Time
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Focused Analytics Cards for Selected Period */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="p-4 rounded-xl bg-sky-50/70 border border-sky-200/80">
+            <span className="text-[10px] font-bold text-sky-800 uppercase tracking-wider">Hospital Revenue ({activePeriodLabel})</span>
+            <h3 className="text-2xl font-bold text-sky-700 mt-1">₹{activePeriodFin.hospRevenue.toLocaleString()}</h3>
+            <p className="text-xs text-sky-600 mt-0.5">Facility & hospital service charges</p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-teal-50/70 border border-teal-200/80">
+            <span className="text-[10px] font-bold text-teal-800 uppercase tracking-wider">Total Doctor Fees ({activePeriodLabel})</span>
+            <h3 className="text-2xl font-bold text-teal-700 mt-1">₹{activePeriodFin.docFees.toLocaleString()}</h3>
+            <p className="text-xs text-teal-600 mt-0.5">Doctor consultation collections</p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200/80">
+            <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">Total Collected ({activePeriodLabel})</span>
+            <h3 className="text-2xl font-bold text-emerald-700 mt-1">₹{activePeriodFin.totalCollected.toLocaleString()}</h3>
+            <p className="text-xs text-emerald-600 mt-0.5">Gross receipts across doctor & hospital</p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-slate-50/90 border border-slate-200/90">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Patient Inflow ({activePeriodLabel})</span>
+            <h3 className="text-2xl font-bold text-slate-800 mt-1">{activePeriodPatients.length} Patients</h3>
+            <p className="text-xs text-slate-500 mt-0.5">{activePeriodAdmitted} Admitted IPD • {activePeriodOPD} OPD Queue</p>
+          </div>
+        </div>
+
+      </div>
+
+      {/* 5. SECTION D: TWO-COLUMN LAYOUT (RECENT PATIENTS QUEUE + ON-DUTY DOCTORS) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
+        
+        {/* Left Column: Recent Patients Roster */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Recent Patients ({patientsList.length})</h3>
+                <p className="text-xs text-slate-500">Latest consultations & admissions in this branch</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCurrentPage && setCurrentPage('admin_patients')}
+                className="text-xs font-semibold text-teal-700 hover:underline cursor-pointer bg-transparent border-0"
+              >
+                View All Patients &rarr;
+              </button>
+            </div>
+
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-center text-xs text-slate-600 min-w-[380px]">
+                <thead className="bg-slate-50 text-slate-700 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th className="py-2.5 px-3 text-center">Patient & ID</th>
+                    <th className="py-2.5 px-3 text-center">Status</th>
+                    <th className="py-2.5 px-3 text-center">Payment</th>
+                    <th className="py-2.5 px-3 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {patientsList.slice(0, 5).map((pat) => (
+                    <tr key={pat.id} className="hover:bg-slate-50/70 transition">
+                      <td className="py-2.5 px-3 text-center">
+                        <span className="font-bold text-slate-800 block">{pat.name}</span>
+                        <span className="font-mono text-[10px] text-slate-400">{pat.patient_id || `PAT-${pat.id}`}</span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          (pat.status || '').toLowerCase().includes('admit')
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                        }`}>
+                          {pat.status || 'Admitted'}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-bold text-slate-700">
+                        ₹{pat.amount_paid || pat.consultation_fee || 500}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (setSelectedPatient) setSelectedPatient(pat);
+                            localStorage.setItem('selectedPatient', JSON.stringify(pat));
+                            if (setCurrentPage) setCurrentPage('admin_patient_details');
+                          }}
+                          className="text-teal-700 hover:text-teal-900 font-bold text-xs cursor-pointer"
+                        >
+                          Details &rarr;
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {patientsList.length === 0 && (
+                    <tr>
+                      <td colSpan="4" className="py-6 text-center text-xs text-slate-400">
+                        No patients registered yet in this branch.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setCurrentPage && setCurrentPage('admin_patients')}
+            className="w-full py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition cursor-pointer text-center"
+          >
+            + Register New Patient / View All
+          </button>
+        </div>
+
+        {/* Right Column: Doctors On-Duty & OPD Cabin Schedule */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Doctors On Duty ({doctorsList.length})</h3>
+                <p className="text-xs text-slate-500">Active medical practitioners and OPD schedules</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCurrentPage && setCurrentPage('admin_doctors')}
+                className="text-xs font-semibold text-teal-700 hover:underline cursor-pointer bg-transparent border-0"
+              >
+                View All Doctors &rarr;
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
+              {doctorsList.slice(0, 4).map((doc) => {
+                const specs = parseSpecializations(doc.specialization || doc.specialty || 'General');
+                return (
+                  <div
+                    key={doc.id}
+                    onClick={() => {
+                      if (setSelectedDoctor) setSelectedDoctor(doc);
+                      localStorage.setItem('selectedDoctor', JSON.stringify(doc));
+                      if (setCurrentPage) setCurrentPage('admin_doctor_details');
+                    }}
+                    className="p-2.5 rounded-xl bg-slate-50/80 hover:bg-teal-50/50 border border-slate-200/80 transition flex items-center justify-between cursor-pointer"
+                  >
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800">{doc.name}</h4>
+                      <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                        {specs.slice(0, 2).map((s, i) => (
+                          <span key={i} className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                            {s}
+                          </span>
+                        ))}
+                        <span className="text-[10px] text-slate-400">• {doc.opd_timings || 'Mon - Fri (10:00 AM - 02:00 PM)'}</span>
+                      </div>
+                    </div>
+
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                      doc.is_active !== false
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                    }`}>
+                      {doc.is_active !== false ? 'Available' : 'On Leave'}
+                    </span>
+                  </div>
+                );
+              })}
+              {doctorsList.length === 0 && (
+                <p className="py-6 text-center text-xs text-slate-400">No doctors registered yet.</p>
+              )}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setCurrentPage && setCurrentPage('admin_doctors')}
+            className="w-full py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition cursor-pointer text-center"
+          >
+            + Register New Doctor / View Roster
+          </button>
+        </div>
+      </div>
+
+      {/* 6. SECTION E: HOSPITAL DEPARTMENT CAPACITY TABLE */}
+      <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
+        <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm sm:text-base font-bold text-slate-800">Hospital Department Capacity</h2>
             <p className="text-xs text-slate-500">Live operational status and bed capacity for {hospitalData.Name}</p>
@@ -308,6 +842,7 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) =>
             Manage Wards & Beds &rarr;
           </button>
         </div>
+
         <div className="overflow-x-auto w-full">
           <table className="w-full text-left text-xs text-slate-600 min-w-[550px]">
             <thead className="bg-slate-100/80 text-slate-700 uppercase font-semibold text-[11px] tracking-wider rounded-lg">
@@ -320,7 +855,7 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) =>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {departments.slice(0, visibleCount).map((d, i) => (
+              {departments.slice(0, deptVisibleCount).map((d, i) => (
                 <tr key={i} className="hover:bg-slate-50/60 transition">
                   <td className="py-3 px-3 font-semibold text-slate-800">{d.dept}</td>
                   <td className="py-3 px-3">{d.head}</td>
@@ -345,11 +880,11 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) =>
           </table>
         </div>
 
-        {visibleCount < departments.length && (
+        {deptVisibleCount < departments.length && (
           <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
             <button
               type="button"
-              onClick={() => setVisibleCount((prev) => prev + 6)}
+              onClick={() => setDeptVisibleCount((prev) => prev + 6)}
               className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
             >
               Show More
@@ -357,6 +892,7 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital }) =>
           </div>
         )}
       </div>
+
     </div>
   );
 };

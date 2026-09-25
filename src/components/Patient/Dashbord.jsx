@@ -1,17 +1,77 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const PatientDashboard = ({ currentUser }) => {
-  const patientStats = [
-    { title: 'Upcoming Appointment', value: 'Today, 03:30 PM', sub: 'Dr. Aditi Verma (Cardiology)', icon: '🩺', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { title: 'Active Prescriptions', value: '3 Medications', sub: 'Refill in 12 days', icon: '💊', color: 'bg-teal-50 text-teal-700 border-teal-200' },
-    { title: 'Lab Reports Ready', value: '2 Reports', sub: 'Lipid Profile & CBC', icon: '🧪', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-    { title: 'Billing Invoices', value: 'All Clear', sub: 'Zero Pending Dues', icon: '🧾', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  ];
+  const [patientInfo, setPatientInfo] = useState(null);
+  const [hospitalInfo, setHospitalInfo] = useState(null);
+  const [doctorInfo, setDoctorInfo] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const prescriptions = [
-    { med: 'Atorvastatin 20mg', dosage: '1 tablet after dinner', duration: '30 Days', doctor: 'Dr. Aditi Verma' },
-    { med: 'Metformin 500mg', dosage: '1 tablet twice daily with meals', duration: '60 Days', doctor: 'Dr. Neha Singh' },
-    { med: 'Pantoprazole 40mg', dosage: '1 tablet before breakfast', duration: '15 Days', doctor: 'Dr. Ramesh Sethi' },
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPatientData = async () => {
+      try {
+        setLoading(true);
+        const email = (currentUser?.email || '').toLowerCase().trim();
+        const patId = currentUser?.id;
+
+        // 1. Fetch Patient details
+        const patRes = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/').catch(() => null);
+        let currentPat = null;
+        if (patRes && patRes.ok) {
+          const pats = await patRes.json();
+          currentPat = pats.find(p => 
+            (p.email && p.email.toLowerCase().trim() === email) ||
+            (patId && Number(p.id) === Number(patId)) ||
+            (p.name && p.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim())
+          );
+        }
+
+        if (isMounted) {
+          setPatientInfo(currentPat || currentUser);
+        }
+
+        // 2. Fetch Hospital
+        const targetHospId = currentPat?.hospital || currentUser?.hospital;
+        if (targetHospId) {
+          const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${targetHospId}/`).catch(() => null);
+          if (hospRes && hospRes.ok) {
+            const hospData = await hospRes.json();
+            if (isMounted) setHospitalInfo(hospData);
+          }
+        }
+
+        // 3. Fetch Doctor
+        const targetDocId = currentPat?.doctor;
+        if (targetDocId) {
+          const docRes = await fetch('http://127.0.0.1:8000/api/super-admin/Doctors/').catch(() => null);
+          if (docRes && docRes.ok) {
+            const docs = await docRes.json();
+            const doc = docs.find(d => Number(d.id) === Number(targetDocId));
+            if (isMounted && doc) setDoctorInfo(doc);
+          }
+        }
+      } catch (err) {
+        console.error('Error in PatientDashboard load:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    loadPatientData();
+    return () => { isMounted = false; };
+  }, [currentUser]);
+
+  const patName = patientInfo?.name || currentUser?.name || 'Patient';
+  const uhid = patientInfo?.patient_id || patientInfo?.uhid || currentUser?.patient_id || `PAT-${currentUser?.id || '01'}`;
+  const hospitalName = hospitalInfo?.Name || 'Apex Care Hospital';
+  const docName = doctorInfo?.name || patientInfo?.doctor_name || 'Dr. Assigned Specialist';
+
+  const patientStats = [
+    { title: 'UHID / Patient ID', value: uhid, sub: 'Registered Patient', icon: '🪪', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    { title: 'Assigned Doctor', value: docName, sub: doctorInfo?.specialization || 'Clinical Specialist', icon: '🩺', color: 'bg-teal-50 text-teal-700 border-teal-200' },
+    { title: 'Payment Status', value: patientInfo?.payment_status || 'Paid', sub: `Fee: ₹${patientInfo?.consultation_fee || '500'}`, icon: '🧾', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    { title: 'Visit / Appointment', value: patientInfo?.visit_date_time ? new Date(patientInfo.visit_date_time).toLocaleDateString() : 'Scheduled', sub: hospitalName, icon: '📅', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
   ];
 
   return (
@@ -21,19 +81,19 @@ const PatientDashboard = ({ currentUser }) => {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-200 text-xs font-semibold border border-blue-400/30">
               <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
-              Patient Health & Records Portal
+              Patient Health Portal • {hospitalName}
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-2 tracking-tight text-slate-100">
-              Hello, {currentUser?.name || 'Patient'}
+              Hello, {patName}
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 mt-1">
-              View your doctor appointments, digital prescriptions, lab test reports, and billing history.
+              UHID: {uhid} • Attending Doctor: {docName} • {hospitalName}
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="w-full sm:w-auto px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition cursor-pointer text-center">
-              + Book New Doctor Appointment
-            </button>
+            <span className="px-3 py-2 rounded-xl bg-slate-700 text-slate-200 text-xs font-mono font-semibold border border-slate-600">
+              UHID: {uhid}
+            </span>
           </div>
         </div>
       </div>
@@ -47,7 +107,7 @@ const PatientDashboard = ({ currentUser }) => {
             <div className="flex items-center justify-between">
               <span className="text-2xl">{item.icon}</span>
               <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${item.color}`}>
-                Patient Portal
+                Patient
               </span>
             </div>
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">{item.title}</p>
@@ -61,60 +121,65 @@ const PatientDashboard = ({ currentUser }) => {
         <div className="lg:col-span-2 rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm sm:text-base font-bold text-slate-800">Your Active Digital Prescriptions</h2>
-              <p className="text-xs text-slate-500">Verified doctor prescriptions and dosage instructions</p>
+              <h2 className="text-sm sm:text-base font-bold text-slate-800">Your Appointment & Medical Details</h2>
+              <p className="text-xs text-slate-500">Live consultation details at {hospitalName}</p>
             </div>
-            <span className="text-xs font-semibold text-blue-700 hover:underline cursor-pointer">Pharmacy Refill</span>
+            <span className="text-xs font-semibold text-blue-700">{patientInfo?.status || 'Confirmed'}</span>
           </div>
-          <div className="divide-y divide-slate-100">
-            {prescriptions.map((p, i) => (
-              <div key={i} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <h4 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                    <span>💊</span> {p.med}
-                  </h4>
-                  <p className="text-xs text-slate-600 mt-0.5 font-medium">{p.dosage}</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Prescribed by {p.doctor}</p>
-                </div>
-                <div>
-                  <span className="inline-block px-2.5 py-1 text-[11px] font-semibold rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                    Duration: {p.duration}
-                  </span>
-                </div>
+          <div className="space-y-3 text-xs">
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+              <p className="font-semibold text-slate-700">Symptoms / Chief Complaint:</p>
+              <p className="text-slate-800 mt-1">{patientInfo?.symptoms_diagnosis || 'Regular health check-up & OPD consultation.'}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <p className="text-slate-500 text-[10px] uppercase">Gender & Age</p>
+                <p className="font-bold text-slate-800 mt-0.5">{patientInfo?.gender || 'Male'} • {patientInfo?.age ? `${patientInfo.age} Y` : 'Adult'}</p>
               </div>
-            ))}
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <p className="text-slate-500 text-[10px] uppercase">Blood Group</p>
+                <p className="font-bold text-slate-800 mt-0.5">{patientInfo?.blood_group || 'Not Known'}</p>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs flex flex-col justify-between">
           <div>
-            <h2 className="text-sm sm:text-base font-bold text-slate-800 mb-1">Recent Lab Reports</h2>
-            <p className="text-xs text-slate-500 mb-4">Diagnostic pathology reports ready for download</p>
-            <div className="space-y-3">
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-sm sm:text-base font-bold text-slate-800">Billing & Receipts</h2>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                patientInfo?.payment_status === 'Paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+              }`}>
+                {patientInfo?.payment_status || 'Paid'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mb-3">Invoice breakdown for {patName}</p>
+            <div className="space-y-2 text-xs">
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-slate-800">Complete Blood Count (CBC)</p>
-                  <p className="text-[10px] text-slate-400">Tested: Yesterday • Normal Range</p>
+                  <p className="font-semibold text-slate-700">Doctor Consultation</p>
+                  <p className="text-[10px] text-slate-400">{docName}</p>
                 </div>
-                <button className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 text-[11px] font-semibold transition cursor-pointer">
-                  PDF ⬇
-                </button>
+                <span className="font-mono font-bold text-teal-800">₹{Number(patientInfo?.consultation_fee || 0).toFixed(2)}</span>
               </div>
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-slate-800">Lipid Profile & Cholesterol</p>
-                  <p className="text-[10px] text-slate-400">Tested: 3 days ago • Verified</p>
+                  <p className="font-semibold text-slate-700">Hospital Charges</p>
+                  <p className="text-[10px] text-slate-400">{hospitalName}</p>
                 </div>
-                <button className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 text-[11px] font-semibold transition cursor-pointer">
-                  PDF ⬇
-                </button>
+                <span className="font-mono font-bold text-sky-800">₹{Number(patientInfo?.Hospitals_Chargies ?? patientInfo?.hospital_charges ?? 0).toFixed(2)}</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-emerald-950">Total Bill Amount</p>
+                  <p className="text-[10px] text-emerald-700">Status: {patientInfo?.payment_status || 'Paid'}</p>
+                </div>
+                <span className="font-mono font-extrabold text-sm text-emerald-800">
+                  ₹{(Number(patientInfo?.consultation_fee || 0) + Number(patientInfo?.Hospitals_Chargies ?? patientInfo?.hospital_charges ?? 0)).toFixed(2)}
+                </span>
               </div>
             </div>
-          </div>
-          <div className="mt-4 pt-3 border-t border-slate-100">
-            <button className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold transition cursor-pointer">
-              View All Medical Records
-            </button>
           </div>
         </div>
       </div>

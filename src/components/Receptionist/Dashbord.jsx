@@ -1,20 +1,77 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const ReceptionistDashboard = ({ currentUser }) => {
   const [visibleCount, setVisibleCount] = useState(6);
+  const [loading, setLoading] = useState(true);
+  const [receptionistInfo, setReceptionistInfo] = useState(null);
+  const [hospitalInfo, setHospitalInfo] = useState(null);
+  const [patients, setPatients] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadReceptionistData = async () => {
+      try {
+        setLoading(true);
+        const email = (currentUser?.email || '').toLowerCase().trim();
+        const recId = currentUser?.id;
+
+        // 1. Fetch Receptionist details
+        const recRes = await fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/').catch(() => null);
+        let currentRec = null;
+        if (recRes && recRes.ok) {
+          const recs = await recRes.json();
+          currentRec = recs.find(r => 
+            (r.email && r.email.toLowerCase().trim() === email) ||
+            (recId && Number(r.id) === Number(recId)) ||
+            (r.name && r.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim())
+          );
+        }
+
+        if (isMounted) {
+          setReceptionistInfo(currentRec || currentUser);
+        }
+
+        // 2. Fetch Hospital
+        const targetHospId = currentRec?.hospital || currentUser?.hospital;
+        if (targetHospId) {
+          const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${targetHospId}/`).catch(() => null);
+          if (hospRes && hospRes.ok) {
+            const hospData = await hospRes.json();
+            if (isMounted) setHospitalInfo(hospData);
+          }
+        }
+
+        // 3. Fetch Patient registrations
+        const patRes = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/').catch(() => null);
+        if (patRes && patRes.ok) {
+          const allPats = await patRes.json();
+          const hospPats = targetHospId ? allPats.filter(p => Number(p.hospital) === Number(targetHospId) || Number(p.hospital?.id) === Number(targetHospId)) : allPats;
+          if (isMounted) {
+            setPatients(hospPats.length > 0 ? hospPats : allPats);
+          }
+        }
+      } catch (err) {
+        console.error('Error in ReceptionistDashboard load:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    loadReceptionistData();
+    return () => { isMounted = false; };
+  }, [currentUser]);
+
+  const recName = receptionistInfo?.name || currentUser?.name || 'Front Desk Staff';
+  const roleTitle = receptionistInfo?.role || currentUser?.role || 'Front Desk Receptionist';
+  const shiftName = receptionistInfo?.shift || currentUser?.shift || 'Morning Shift';
+  const hospitalName = hospitalInfo?.Name || 'Apex Care Hospital';
 
   const receptionistStats = [
-    { title: 'Tokens Issued Today', value: '142 Patients', sub: 'Last issued: #142 (OPD)', icon: '🎫', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-    { title: 'Appointments Booked', value: '38 Slots', sub: 'Across 12 Departments', icon: '📅', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { title: 'New Patient Registrations', value: '19 Patients', sub: 'Digital card generated', icon: '👤', color: 'bg-teal-50 text-teal-700 border-teal-200' },
-    { title: 'Visitor Passes Active', value: '27 Passes', sub: 'ICU & General Wards', icon: '🪪', color: 'bg-purple-50 text-purple-700 border-purple-200' },
-  ];
-
-  const recentRegistrations = [
-    { token: '#142', patientName: 'Nitin Kapoor', phone: '+91 98765 43210', dept: 'Cardiology', doctor: 'Dr. Aditi Verma', type: 'Walk-In OPD', time: '11:50 AM' },
-    { token: '#141', patientName: 'Bhavna Dave', phone: '+91 98111 22334', dept: 'Orthopedics', doctor: 'Dr. Rajesh Kumar', type: 'Online Booking', time: '11:42 AM' },
-    { token: '#140', patientName: 'Mohd. Imran', phone: '+91 99223 34455', dept: 'Emergency', doctor: 'Dr. Ramesh Sethi', type: 'Emergency', time: '11:35 AM' },
-    { token: '#139', patientName: 'Priyanka Sen', phone: '+91 97888 99001', dept: 'Pediatrics', doctor: 'Dr. Neha Singh', type: 'Walk-In OPD', time: '11:20 AM' },
+    { title: 'Registered Patients', value: `${patients.length} Entries`, sub: `In ${hospitalName}`, icon: '🎫', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+    { title: 'Duty Shift', value: shiftName, sub: roleTitle, icon: '🕒', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    { title: 'Branch Location', value: hospitalInfo?.city || 'Main Branch', sub: hospitalName, icon: '🏥', color: 'bg-teal-50 text-teal-700 border-teal-200' },
+    { title: 'Receptionist ID', value: receptionistInfo?.receptionist_id || currentUser?.receptionist_id || `REC-${currentUser?.id || '01'}`, sub: 'Active Front Desk', icon: '🪪', color: 'bg-purple-50 text-purple-700 border-purple-200' },
   ];
 
   return (
@@ -24,22 +81,22 @@ const ReceptionistDashboard = ({ currentUser }) => {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-200 text-xs font-semibold border border-amber-400/30">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-              Reception & Patient Helpdesk
+              Reception & Front Desk • {hospitalName}
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-2 tracking-tight text-slate-100">
-              Welcome, {currentUser?.name || 'Reception Desk'}
+              Welcome, {recName}
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 mt-1">
-              Issue OPD tokens, register new patients, schedule consultations, and issue visitor passes.
+              Role: {roleTitle} • Shift: {shiftName} • {hospitalName}
             </p>
           </div>
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
             <button className="w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-sm transition cursor-pointer text-center">
               + Generate OPD Token
             </button>
-            <button className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold border border-slate-600 transition cursor-pointer text-center">
-              + New Patient Entry
-            </button>
+            <span className="px-3 py-2 rounded-xl bg-slate-700 text-slate-200 text-xs font-mono font-semibold border border-slate-600">
+              ID: {receptionistInfo?.receptionist_id || currentUser?.receptionist_id || 'REC-ONLINE'}
+            </span>
           </div>
         </div>
       </div>
@@ -66,54 +123,67 @@ const ReceptionistDashboard = ({ currentUser }) => {
       <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-sm sm:text-base font-bold text-slate-800">Recent Patient Check-ins & OPD Tokens</h2>
-            <p className="text-xs text-slate-500">Real-time token generation and doctor assignment</p>
+            <h2 className="text-sm sm:text-base font-bold text-slate-800">Recent Patient Entries & Tokens ({patients.length})</h2>
+            <p className="text-xs text-slate-500">Live reception registration desk for {hospitalName}</p>
           </div>
-          <span className="text-xs font-semibold text-amber-700 hover:underline cursor-pointer">Print Token Slip</span>
         </div>
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-left text-xs text-slate-600 min-w-[580px]">
+          <table className="w-full text-left text-xs text-slate-600 min-w-[620px]">
             <thead className="bg-slate-100/80 text-slate-700 uppercase font-semibold text-[11px] tracking-wider rounded-lg">
               <tr>
-                <th className="py-3 px-3">Token No.</th>
-                <th className="py-3 px-3">Patient Name</th>
+                <th className="py-3 px-3">Token</th>
+                <th className="py-3 px-3">Patient Name & ID</th>
                 <th className="py-3 px-3">Contact</th>
-                <th className="py-3 px-3">Department</th>
-                <th className="py-3 px-3">Assigned Doctor</th>
-                <th className="py-3 px-3">Type</th>
-                <th className="py-3 px-3 text-right">Time</th>
+                <th className="py-3 px-3">Doctor Assigned</th>
+                <th className="py-3 px-3">Payment</th>
+                <th className="py-3 px-3">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {recentRegistrations.slice(0, visibleCount).map((r, i) => (
-                <tr key={i} className="hover:bg-slate-50/60 transition">
-                  <td className="py-3 px-3 font-mono font-bold text-amber-700">{r.token}</td>
-                  <td className="py-3 px-3 font-semibold text-slate-800">{r.patientName}</td>
-                  <td className="py-3 px-3 font-mono text-slate-500">{r.phone}</td>
-                  <td className="py-3 px-3">{r.dept}</td>
-                  <td className="py-3 px-3 font-medium text-slate-700">{r.doctor}</td>
-                  <td className="py-3 px-3">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                      r.type === 'Emergency' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                      r.type === 'Online Booking' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                      'bg-slate-100 text-slate-700 border border-slate-200'
-                    }`}>
-                      {r.type}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 text-right text-slate-400">{r.time}</td>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-slate-400">Loading registrations...</td>
                 </tr>
-              ))}
+              ) : patients.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-slate-400">No patient registrations yet today.</td>
+                </tr>
+              ) : (
+                patients.slice(0, visibleCount).map((p, i) => (
+                  <tr key={p.id || i} className="hover:bg-slate-50/60 transition">
+                    <td className="py-3 px-3 font-mono font-bold text-amber-700">#{String(i + 1).padStart(2, '0')}</td>
+                    <td className="py-3 px-3 font-semibold text-slate-800">
+                      <div>{p.name}</div>
+                      <span className="font-mono text-[10px] text-sky-700 font-bold">{p.patient_id || p.uhid || `PAT-${p.id}`}</span>
+                    </td>
+                    <td className="py-3 px-3 font-medium text-slate-700">{p.contact || p.phone || '-'}</td>
+                    <td className="py-3 px-3 text-slate-700 font-medium">{p.doctor_name || 'Assigned Specialist'}</td>
+                    <td className="py-3 px-3">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                        p.payment_status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}>
+                        {p.payment_status || 'Pending'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                        {p.status || 'Confirmed'}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
-        {visibleCount < recentRegistrations.length && (
-          <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
+        {visibleCount < patients.length && (
+          <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50 mt-4">
             <button
               type="button"
               onClick={() => setVisibleCount((prev) => prev + 6)}
-              className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+              className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
             >
               Show More
             </button>
