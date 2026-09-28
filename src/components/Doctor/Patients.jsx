@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
+const DoctorPatients = ({ currentUser, setCurrentPage }) => {
   const [loading, setLoading] = useState(true);
   const [doctorInfo, setDoctorInfo] = useState(null);
   const [hospitalInfo, setHospitalInfo] = useState(null);
@@ -14,7 +14,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
 
   const STATUS_OPTIONS = ['Pending', 'Assigned', 'Admitted', 'Discharged', 'Cancelled'];
 
-  const loadDoctorData = async () => {
+  const loadDoctorPatients = async () => {
     try {
       setLoading(true);
       const email = (currentUser?.email || '').toLowerCase().trim();
@@ -84,7 +84,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
   };
 
   useEffect(() => {
-    loadDoctorData();
+    loadDoctorPatients();
   }, [currentUser]);
 
   const isCompletedStatus = (status) => {
@@ -97,7 +97,6 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
     try {
       setUpdatingPatientId(patient.id);
       
-      // When doctor selects 'Completed', backend is updated to 'Discharged'
       const backendStatus = (selectedOption === 'Completed' || selectedOption === 'Complete') ? 'Discharged' : 'Pending';
 
       let res = await fetch(`http://127.0.0.1:8000/api/super-admin/Patients/${patient.id}/`, {
@@ -120,8 +119,8 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
       }
       setActionSuccessMsg(
         backendStatus === 'Discharged'
-          ? `Patient #${patient.id} (${patient.name || 'Patient'}) marked as Completed (Discharged in system).`
-          : `Patient #${patient.id} marked as Pending.`
+          ? `Checkup completed for Patient #${patient.id} (${patient.name || 'Patient'}). Discharged in system!`
+          : `Patient #${patient.id} status updated to "Pending".`
       );
       setTimeout(() => setActionSuccessMsg(''), 4000);
     } catch (err) {
@@ -131,39 +130,8 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
     }
   };
 
-  const parseSpecializations = (spec) => {
-    if (!spec) return [];
-    if (Array.isArray(spec)) {
-      return spec
-        .flatMap(item => {
-          if (typeof item === 'string') return item.split(',');
-          if (item?.name && typeof item.name === 'string') return item.name.split(',');
-          return [];
-        })
-        .map(s => s.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim())
-        .filter(Boolean);
-    }
-    if (typeof spec === 'string') {
-      return spec
-        .split(',')
-        .map(s => s.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim())
-        .filter(Boolean);
-    }
-    return [];
-  };
-
-  const docName = doctorInfo?.name || currentUser?.name || 'Doctor';
-  const cleanDocName = docName.replace(/^Dr\.?\s*/i, '');
-  const doctorIdTag = doctorInfo?.doctor_id || (doctorInfo?.id ? `DOC-${doctorInfo.id}` : (currentUser?.doctor_id || `DOC-${currentUser?.id || '-'}`));
-  const docEmail = (doctorInfo?.email || currentUser?.email || '').toLowerCase();
-  const docPhone = doctorInfo?.phone || doctorInfo?.contact || currentUser?.phone || currentUser?.contact || '-';
-  const docSpecs = parseSpecializations(doctorInfo?.specialization || doctorInfo?.specialty || currentUser?.specialization);
-  const docOpdTimings = doctorInfo?.opd_timings || currentUser?.opd_timings || '-';
-  const docDepartment = doctorInfo?.department || doctorInfo?.department_name || (docSpecs[0] ? `${docSpecs[0]} Department` : '-');
-  const hospitalName = hospitalInfo?.Name || doctorInfo?.hospital_name || '-';
-
-  const completedCount = patients.filter(p => isCompletedStatus(p.status)).length;
-  const pendingCount = patients.filter(p => !isCompletedStatus(p.status)).length;
+  const completedCheckupCount = patients.filter(p => isCompletedStatus(p.status)).length;
+  const pendingCheckupCount = patients.filter(p => !isCompletedStatus(p.status)).length;
 
   const filteredPatients = patients.filter(p => {
     const term = searchTerm.toLowerCase().trim();
@@ -183,6 +151,10 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
     return matchesSearch && matchesStatus;
   });
 
+  const docName = doctorInfo?.name || currentUser?.name || 'Doctor';
+  const cleanDocName = docName.replace(/^Dr\.?\s*/i, '');
+  const hospitalName = hospitalInfo?.Name || doctorInfo?.hospital_name || 'Main Hospital';
+
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
       {/* DOCTOR NAVIGATION BAR */}
@@ -191,7 +163,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
           <button
             type="button"
             onClick={() => setCurrentPage && setCurrentPage('doctor_dashboard')}
-            className="px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer bg-teal-600 text-white shadow-xs whitespace-nowrap"
+            className="px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-slate-100 whitespace-nowrap"
           >
             Dashboard Overview
           </button>
@@ -205,9 +177,9 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
           <button
             type="button"
             onClick={() => setCurrentPage && setCurrentPage('doctor_patients')}
-            className="px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-slate-100 whitespace-nowrap"
+            className="px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer bg-teal-600 text-white shadow-xs whitespace-nowrap"
           >
-            Patient Checkup Queue ({pendingCount} Pending)
+            Patient Checkup Queue ({pendingCheckupCount} Pending)
           </button>
           <button
             type="button"
@@ -220,74 +192,50 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
 
         <button
           type="button"
-          onClick={loadDoctorData}
+          onClick={loadDoctorPatients}
           className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer shrink-0"
         >
           Refresh
         </button>
       </div>
 
+      {/* HEADER BANNER */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-5 sm:p-6 shadow-md border border-slate-800">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-4">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-teal-500 via-emerald-500 to-cyan-500 text-white font-black flex items-center justify-center text-2xl shadow-lg ring-2 ring-teal-400/30 shrink-0">
-              {cleanDocName.slice(0, 2).toUpperCase()}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono text-xs font-bold text-teal-300 bg-teal-500/20 px-2.5 py-0.5 rounded-full border border-teal-400/30">
-                  {doctorIdTag}
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-800 text-slate-200 border border-slate-700">
-                  {docDepartment}
-                </span>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border inline-flex items-center gap-1.5 ${
-                  doctorInfo?.is_active !== false ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${doctorInfo?.is_active !== false ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></span>
-                  {doctorInfo?.is_active !== false ? 'Active Practitioner' : 'On Leave'}
-                </span>
-              </div>
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1.5 tracking-tight text-slate-100">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300 border border-teal-400/30">
+                Assigned Clinical Queue
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-800 text-slate-200 border border-slate-700">
                 Dr. {cleanDocName}
-              </h1>
-              <div className="flex items-center gap-2 flex-wrap text-xs text-slate-300 mt-1">
-                <span>{hospitalName}</span>
-                <span>•</span>
-                {docEmail ? (
-                  <a href={`mailto:${docEmail}`} className="text-teal-300 hover:underline">
-                    {docEmail}
-                  </a>
-                ) : (
-                  <span>{docPhone}</span>
-                )}
-                <span>•</span>
-                <span className="font-semibold text-emerald-300">OPD: {docOpdTimings}</span>
-              </div>
+              </span>
+              <span className="text-xs text-slate-400">
+                {hospitalName}
+              </span>
             </div>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-2 text-slate-100 tracking-tight">
+              Assigned Patients & Live Checkup Workflow
+            </h1>
+            <p className="text-xs text-slate-300 mt-1 max-w-2xl">
+              Manage your assigned clinical OPD consultations. Mark checkups completed in real time to automatically decrease the pending consultation queue.
+            </p>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <button
-              type="button"
-              onClick={loadDoctorData}
-              className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
-            >
-              Refresh Queue
-            </button>
+          <div className="flex items-center gap-3 bg-slate-800/90 px-4 py-3 rounded-2xl border border-slate-700 shrink-0">
+            <div>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Remaining Checkups</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-extrabold text-amber-400 font-mono">
+                  {pendingCheckupCount}
+                </span>
+                <span className="text-xs text-slate-400 font-medium">
+                  / {patients.length} Total Patients
+                </span>
+              </div>
+            </div>
           </div>
         </div>
-
-        {docSpecs.length > 0 && (
-          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] text-slate-400 font-semibold">Specializations:</span>
-            {docSpecs.map((spec, idx) => (
-              <span key={idx} className="px-2.5 py-0.5 rounded-md bg-teal-500/10 text-teal-300 border border-teal-500/20 text-xs font-semibold">
-                {spec}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
 
       {actionSuccessMsg && (
@@ -305,7 +253,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
           <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Patients of Today</p>
           <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-800 mt-1">{patients.length}</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Assigned patient roster</p>
+          <p className="text-xs text-slate-500 mt-0.5">Assigned to Dr. {cleanDocName}</p>
         </div>
 
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-amber-300 shadow-xs bg-amber-50/30 ring-1 ring-amber-200/50">
@@ -313,22 +261,23 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
             <p className="text-[11px] font-bold uppercase tracking-wider text-amber-800">Pending today</p>
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
           </div>
-          <h3 className="text-2xl sm:text-3xl font-black text-amber-700 mt-1">{pendingCount}</h3>
-          <p className="text-xs text-amber-700/80 mt-0.5 font-medium">Awaiting consultation</p>
+          <h3 className="text-2xl sm:text-3xl font-black text-amber-700 mt-1">{pendingCheckupCount}</h3>
+          <p className="text-xs text-amber-700/80 mt-0.5 font-medium">Waiting in queue</p>
         </div>
 
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-emerald-300 shadow-xs bg-emerald-50/30 ring-1 ring-emerald-200/50">
           <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">Completed today</p>
-          <h3 className="text-2xl sm:text-3xl font-black text-emerald-700 mt-1">{completedCount}</h3>
-          <p className="text-xs text-emerald-700/80 mt-0.5 font-medium">Consulted & Discharged</p>
+          <h3 className="text-2xl sm:text-3xl font-black text-emerald-700 mt-1">{completedCheckupCount}</h3>
+          <p className="text-xs text-emerald-700/80 mt-0.5 font-medium">Completed Consultations</p>
         </div>
       </div>
 
+      {/* PATIENT TABLE & CHECKUP ACTIONS */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2 border-b border-slate-100">
           <div>
-            <h2 className="text-base font-bold text-slate-800">Assigned Patient Queue & Status Management</h2>
-            <p className="text-xs text-slate-500">Live clinical consultations list for Dr. {cleanDocName}</p>
+            <h2 className="text-base font-bold text-slate-800">Doctor Patient Queue & Consultation Checklist</h2>
+            <p className="text-xs text-slate-500">Click "Complete Checkup" to mark consultation finished and decrease queue count</p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -347,9 +296,9 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
-              <option value="ALL">All Status ({patients.length})</option>
-              <option value="Pending">Pending today ({pendingCount})</option>
-              <option value="Completed">Completed today ({completedCount})</option>
+              <option value="ALL">All Patients ({patients.length})</option>
+              <option value="Pending">Pending today ({pendingCheckupCount})</option>
+              <option value="Completed">Completed today ({completedCheckupCount})</option>
             </select>
           </div>
         </div>
@@ -359,11 +308,11 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
             <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
               <tr>
                 <th className="py-3 px-3 text-center">Token</th>
-                <th className="py-3 px-3 text-center">Patient Name & ID</th>
+                <th className="py-3 px-3 text-center">Patient & ID</th>
                 <th className="py-3 px-3 text-center">Age / Gender</th>
-                <th className="py-3 px-3 text-center">Symptoms / Diagnosis</th>
+                <th className="py-3 px-3 text-center">Symptoms / Complaint</th>
                 <th className="py-3 px-3 text-center">Status</th>
-                <th className="py-3 px-3 text-center">Actions</th>
+                <th className="py-3 px-3 text-center">Actions & Checkup</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -371,13 +320,13 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                 <tr>
                   <td colSpan={6} className="py-10 text-center text-slate-400">
                     <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                    Loading assigned patient queue...
+                    Loading assigned patient checkup queue...
                   </td>
                 </tr>
               ) : filteredPatients.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-10 text-center text-slate-400">
-                    No patients found in queue for this selection.
+                    No patients found matching this filter criteria.
                   </td>
                 </tr>
               ) : (
@@ -387,7 +336,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                   const isUpdating = updatingPatientId === pat.id;
 
                   return (
-                    <tr key={pat.id || idx} className={`transition ${isDone ? 'bg-slate-50/40 opacity-80' : 'hover:bg-slate-50/70'}`}>
+                    <tr key={pat.id || idx} className={`transition ${isDone ? 'bg-slate-50/40 opacity-75' : 'hover:bg-slate-50/70'}`}>
                       <td className="py-3 px-3 font-mono font-bold text-teal-700">
                         #{String(idx + 1).padStart(2, '0')}
                       </td>
@@ -428,6 +377,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
 
                       <td className="py-3 px-3 text-center">
                         <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          {/* ACTIONS DROPDOWN: Pending & Completed (Discharge) */}
                           <select
                             value={isDone ? 'Completed' : 'Pending'}
                             onChange={(e) => handleUpdatePatientStatus(pat, e.target.value)}
@@ -468,6 +418,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
         )}
       </div>
 
+      {/* DETAIL MODAL */}
       {selectedPatientModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-5 sm:p-6 space-y-4 my-auto animate-in fade-in zoom-in-95 duration-150">
@@ -491,7 +442,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
                 <span className="text-slate-400 uppercase font-bold text-[10px]">Chief Complaints / Diagnosis</span>
                 <p className="text-slate-800 font-medium leading-relaxed">
-                  {selectedPatientModal.symptoms_diagnosis || selectedPatientModal.reason || 'Routine consultation and observation.'}
+                  {selectedPatientModal.symptoms_diagnosis || selectedPatientModal.reason || 'Routine consultation and clinical observation.'}
                 </p>
               </div>
 
@@ -512,7 +463,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
               </div>
 
               <div className="pt-3 flex items-center justify-between gap-3 border-t border-slate-100 flex-wrap">
-                <span className="text-slate-700 font-bold text-xs">Update Status:</span>
+                <span className="text-slate-700 font-bold text-xs">Change Status:</span>
                 <select
                   value={isCompletedStatus(selectedPatientModal.status) ? 'Completed' : 'Pending'}
                   onChange={(e) => handleUpdatePatientStatus(selectedPatientModal, e.target.value)}
@@ -531,4 +482,4 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
   );
 };
 
-export default DoctorDashboard;
+export default DoctorPatients;

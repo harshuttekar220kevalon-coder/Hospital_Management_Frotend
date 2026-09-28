@@ -51,7 +51,7 @@ const ResetPassword = ({ setCurrentPage }) => {
       }
     } catch (error) {
       console.error('Network error:', error);
-      alert('Backend server se connect nahi ho paya. Django server chal raha hai ya check karein.');
+      alert('Unable to connect to server. Please try again later.');
     } finally {
       setLoading(false);
     }

@@ -1,49 +1,38 @@
 import React, { useState, useEffect } from 'react';
 
 const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospital, setSelectedHospital: propSetSelectedHospital, setCurrentPage }) => {
-  // Active Tab: 'details', 'profile', 'departments', 'wards', 'rooms_beds'
   const [activeTab, setActiveTab] = useState('details');
   const [loading, setLoading] = useState(true);
   const [saveLoading, setSaveLoading] = useState(false);
 
-  // Hospital and Admin info from Backend
   const [hospitalData, setHospitalData] = useState(null);
   const [assignedAdminInfo, setAssignedAdminInfo] = useState(null);
   const [noHospitalAssigned, setNoHospitalAssigned] = useState(false);
 
-  // Live Staff & Patients from Backend
   const [doctorsList, setDoctorsList] = useState([]);
   const [nursesList, setNursesList] = useState([]);
   const [receptionistsList, setReceptionistsList] = useState([]);
   const [patientsList, setPatientsList] = useState([]);
   const [departmentsList, setDepartmentsList] = useState([]);
 
-  // Wards & Rooms
   const [wards, setWards] = useState([]);
   const [rooms, setRooms] = useState([]);
 
-  // Filter & Search states
   const [deptSearch, setDeptSearch] = useState('');
   const [deptCategoryFilter, setDeptCategoryFilter] = useState('ALL');
   const [wardSearch, setWardSearch] = useState('');
   const [wardTypeFilter, setWardTypeFilter] = useState('ALL');
   const [roomSearch, setRoomSearch] = useState('');
-  const [roomFloorFilter, setRoomFloorFilter] = useState('ALL');
-  const [roomTypeFilter, setRoomTypeFilter] = useState('ALL');
   const [bedStatusFilter, setBedStatusFilter] = useState('ALL');
-  const [bedViewMode, setBedViewMode] = useState('rooms'); // 'rooms' or 'grid'
 
-  // Modals
   const [isEditDetailsModalOpen, setIsEditDetailsModalOpen] = useState(false);
   const [isDeptModalOpen, setIsDeptModalOpen] = useState(false);
   const [editingDept, setEditingDept] = useState(null);
   const [isWardModalOpen, setIsWardModalOpen] = useState(false);
   const [editingWard, setEditingWard] = useState(null);
-  const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
   const [isBedStatusModalOpen, setIsBedStatusModalOpen] = useState(false);
   const [selectedBedToUpdate, setSelectedBedToUpdate] = useState(null);
 
-  // Form states
   const [detailsFormData, setDetailsFormData] = useState({
     Name: '',
     Branch_Code: '',
@@ -53,12 +42,12 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
     contact: '',
     emergency_contact: '',
     email: '',
-    total_beds: 100,
-    icu_beds: 10,
-    nicu_beds: 5,
-    operation_theatres: 4,
-    ambulances_count: 2,
-    restroom_for_relatives: 3,
+    total_beds: 0,
+    icu_beds: 0,
+    nicu_beds: 0,
+    operation_theatres: 0,
+    ambulances_count: 0,
+    restroom_for_relatives: 0,
     is_active: true
   });
 
@@ -69,10 +58,10 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
     hod: '',
     hod_phone: '',
     location: '',
-    doctors_count: 2,
-    nurses_count: 4,
-    beds_allocated: 15,
-    equipment_count: 10,
+    doctors_count: 0,
+    nurses_count: 0,
+    beds_allocated: 0,
+    equipment_count: '',
     status: 'Normal'
   });
 
@@ -81,7 +70,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
     code: '',
     category: 'General',
     floor: '',
-    total_beds: 20,
+    total_beds: 10,
     occupied_beds: 0,
     supervisor: '',
     contact_ext: '',
@@ -89,28 +78,15 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
     status: 'Active'
   });
 
-  const [roomFormData, setRoomFormData] = useState({
-    room_number: '',
-    floor: 'Floor 1',
-    wing: 'Wing A',
-    room_type: 'General Multi-Bed',
-    ward: '',
-    tariff_per_day: 1500,
-    total_beds_to_add: 2,
-    amenities: 'Central Oxygen, Nurse Call Switch, AC'
-  });
-
   const [bedStatusFormData, setBedStatusFormData] = useState({
     status: 'Available',
     patient_name: '',
     patient_id: '',
     doctor: '',
+    admission_date: '',
     notes: ''
   });
 
-  // -------------------------------------------------------------
-  // 1. FETCH ASSIGNED HOSPITAL & RELATED DATA STRICTLY FROM BACKEND
-  // -------------------------------------------------------------
   const fetchAssignedHospitalData = async () => {
     try {
       setLoading(true);
@@ -118,7 +94,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
       let assignedHospitalId = currentUser?.hospital || propSelectedHospital?.id || null;
 
-      // Check localStorage if not in props
       if (!assignedHospitalId) {
         try {
           const saved = localStorage.getItem('selectedHospital');
@@ -126,12 +101,9 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
             const parsed = JSON.parse(saved);
             if (parsed?.id) assignedHospitalId = parsed.id;
           }
-        } catch (e) {
-          // Ignore
-        }
+        } catch (e) {}
       }
 
-      // Look up Admin in backend to find assigned hospital ID
       try {
         const adminsRes = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/');
         if (adminsRes && adminsRes.ok) {
@@ -153,10 +125,9 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
           }
         }
       } catch (e) {
-        console.error('Error fetching admins:', e);
+        console.error('Admins fetch error:', e);
       }
 
-      // If still no hospital id, try to get the first hospital or check all hospitals
       if (!assignedHospitalId) {
         try {
           const allHospRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/');
@@ -176,7 +147,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
             }
           }
         } catch (e) {
-          console.error('Error fetching fallback hospitals:', e);
+          console.error('Fallback hospitals fetch error:', e);
         }
       }
 
@@ -187,7 +158,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         return;
       }
 
-      // Fetch the specific assigned Hospital from Backend
       let targetHosp = null;
       try {
         const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${assignedHospitalId}/`);
@@ -206,7 +176,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
             targetHosp = allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) || allHosp[0] || null;
           }
         } catch (e) {
-          console.error('All hospitals fallback error:', e);
+          console.error('Hospital list fallback error:', e);
         }
       }
 
@@ -226,13 +196,12 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
       await setupHospitalAndRelatedData(targetHosp, targetHosp.id || assignedHospitalId);
 
     } catch (err) {
-      console.error('Error fetching admin hospital from backend:', err);
+      console.error('Hospital data fetch error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Helper to fetch and setup Doctors, Nurses, Receptionists, Patients & Wards for this hospital
   const setupHospitalAndRelatedData = async (hosp, hospitalId) => {
     try {
       const [docRes, nurRes, recRes, patRes] = await Promise.allSettled([
@@ -242,7 +211,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         fetch('http://127.0.0.1:8000/api/super-admin/Patients/')
       ]);
 
-      // 1. Doctors assigned to this hospital
       let branchDocs = [];
       if (docRes.status === 'fulfilled' && docRes.value.ok) {
         const allDocs = await docRes.value.json().catch(() => []);
@@ -253,7 +221,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         setDoctorsList(branchDocs);
       }
 
-      // 2. Nurses assigned to this hospital
       let branchNurs = [];
       if (nurRes.status === 'fulfilled' && nurRes.value.ok) {
         const allNurs = await nurRes.value.json().catch(() => []);
@@ -261,14 +228,13 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         setNursesList(branchNurs);
       }
 
-      // 3. Receptionists assigned to this hospital
+      let branchRecs = [];
       if (recRes.status === 'fulfilled' && recRes.value.ok) {
         const allRecs = await recRes.value.json().catch(() => []);
-        const branchRecs = allRecs.filter(r => Number(r.hospital) === Number(hospitalId));
+        branchRecs = allRecs.filter(r => Number(r.hospital) === Number(hospitalId));
         setReceptionistsList(branchRecs);
       }
 
-      // 4. Patients assigned to this hospital
       let branchPats = [];
       if (patRes.status === 'fulfilled' && patRes.value.ok) {
         const allPats = await patRes.value.json().catch(() => []);
@@ -276,196 +242,189 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         setPatientsList(branchPats);
       }
 
-      // 5. Parse Departments from hospital.departments
-      const rawDepts = hosp.departments || hosp.department;
+      const rawDepts = hosp.departments || hosp.department || '';
       let parsedDepts = [];
+
       if (Array.isArray(rawDepts)) {
         parsedDepts = rawDepts.map((d, index) => {
           const dName = typeof d === 'string' ? d.trim() : (d.name || `Department ${index + 1}`);
-          const matchingDoc = branchDocs.find(doc => (doc.department || '').toLowerCase().includes(dName.toLowerCase())) || branchDocs[index % (branchDocs.length || 1)];
+          const matchingDoc = branchDocs.find(doc => (doc.department || '').toLowerCase().includes(dName.toLowerCase()));
           return {
             id: index + 1,
             name: dName,
             code: `DEPT-${dName.slice(0, 4).toUpperCase()}-${index + 1}`,
-            category: index % 2 === 0 ? 'Clinical' : 'Surgical',
-            hod: matchingDoc ? matchingDoc.name : 'Dr. Senior Consultant',
-            hod_phone: matchingDoc ? (matchingDoc.contact || matchingDoc.phone || '+91 98200 00000') : '+91 98200 00000',
+            category: 'Clinical',
+            hod: matchingDoc ? matchingDoc.name : '-',
+            hod_phone: matchingDoc ? (matchingDoc.contact || matchingDoc.phone || '-') : '-',
             location: `Floor ${Math.min(4, Math.floor(index / 2) + 1)} - Wing ${index % 2 === 0 ? 'A' : 'B'}`,
-            doctors_count: branchDocs.filter(doc => (doc.department || '').toLowerCase().includes(dName.toLowerCase())).length || 2,
-            nurses_count: Math.max(2, Math.floor((branchNurs.length || 4) / (rawDepts.length || 1))),
-            beds_allocated: Math.floor((hosp.total_beds || 60) / (rawDepts.length || 1)),
-            equipment_count: 10 + index * 3,
-            status: index === 0 ? 'High Alert' : 'Normal',
-            status_color: index === 0 ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            doctors_count: branchDocs.filter(doc => (doc.department || '').toLowerCase().includes(dName.toLowerCase())).length,
+            nurses_count: branchNurs.length > 0 ? Math.max(1, Math.floor(branchNurs.length / (rawDepts.length || 1))) : 0,
+            beds_allocated: (Number(hosp.total_beds) || 0) > 0 ? Math.floor((Number(hosp.total_beds) || 0) / (rawDepts.length || 1)) : 0,
+            equipment_count: '-',
+            status: 'Active',
+            status_color: 'bg-emerald-50 text-emerald-700 border-emerald-200'
           };
         }).filter(d => d.name && d.name.length > 0);
       } else if (typeof rawDepts === 'string' && rawDepts.trim().length > 0) {
-        parsedDepts = rawDepts.split(',').map((d, index) => {
-          const dName = d.trim();
-          const matchingDoc = branchDocs.find(doc => (doc.department || '').toLowerCase().includes(dName.toLowerCase())) || branchDocs[index % (branchDocs.length || 1)];
+        const deptArray = rawDepts.split(',').map(s => s.trim()).filter(Boolean);
+        parsedDepts = deptArray.map((dName, index) => {
+          const matchingDoc = branchDocs.find(doc => (doc.department || '').toLowerCase().includes(dName.toLowerCase()));
           return {
             id: index + 1,
             name: dName,
             code: `DEPT-${dName.slice(0, 4).toUpperCase()}-${index + 1}`,
-            category: index % 2 === 0 ? 'Clinical' : 'Critical Care',
-            hod: matchingDoc ? matchingDoc.name : 'Dr. Senior Consultant',
-            hod_phone: matchingDoc ? (matchingDoc.contact || matchingDoc.phone || '+91 98200 00000') : '+91 98200 00000',
+            category: 'Clinical',
+            hod: matchingDoc ? matchingDoc.name : '-',
+            hod_phone: matchingDoc ? (matchingDoc.contact || matchingDoc.phone || '-') : '-',
             location: `Floor ${Math.min(4, Math.floor(index / 2) + 1)} - Wing ${index % 2 === 0 ? 'A' : 'B'}`,
-            doctors_count: branchDocs.filter(doc => (doc.department || '').toLowerCase().includes(dName.toLowerCase())).length || 2,
-            nurses_count: Math.max(2, Math.floor((branchNurs.length || 4) / (rawDepts.split(',').length || 1))),
-            beds_allocated: Math.floor((hosp.total_beds || 60) / (rawDepts.split(',').length || 1)),
-            equipment_count: 12 + index * 4,
-            status: 'Normal',
+            doctors_count: branchDocs.filter(doc => (doc.department || '').toLowerCase().includes(dName.toLowerCase())).length,
+            nurses_count: branchNurs.length > 0 ? Math.max(1, Math.floor(branchNurs.length / (deptArray.length || 1))) : 0,
+            beds_allocated: (Number(hosp.total_beds) || 0) > 0 ? Math.floor((Number(hosp.total_beds) || 0) / (deptArray.length || 1)) : 0,
+            equipment_count: '-',
+            status: 'Active',
             status_color: 'bg-emerald-50 text-emerald-700 border-emerald-200'
           };
         }).filter(d => d.name && d.name.length > 0);
       }
 
-      if (parsedDepts.length === 0) {
-        parsedDepts = [
-          { id: 1, name: 'Emergency & Trauma Care', code: 'DEPT-EMERG-01', category: 'Critical Care', hod: branchDocs[0]?.name || 'Dr. Ramesh Sethi', hod_phone: branchDocs[0]?.contact || '+91 98201 11223', location: 'Ground Floor - Wing A', doctors_count: 4, nurses_count: 8, beds_allocated: 20, equipment_count: 24, status: 'High Alert', status_color: 'bg-rose-50 text-rose-700 border-rose-200' },
-          { id: 2, name: 'Cardiology Department', code: 'DEPT-CARD-02', category: 'Clinical', hod: branchDocs[1]?.name || 'Dr. Aditi Verma', hod_phone: branchDocs[1]?.contact || '+91 98201 22334', location: '1st Floor - Wing B', doctors_count: 3, nurses_count: 6, beds_allocated: 25, equipment_count: 18, status: 'Normal', status_color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-          { id: 3, name: 'Orthopedics & Joint Care', code: 'DEPT-ORTHO-03', category: 'Surgical', hod: branchDocs[2]?.name || 'Dr. Rajesh Kumar', hod_phone: branchDocs[2]?.contact || '+91 98201 33445', location: '2nd Floor - Wing A', doctors_count: 3, nurses_count: 6, beds_allocated: 20, equipment_count: 15, status: 'Normal', status_color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-          { id: 4, name: 'Pediatrics & Neonatal Care', code: 'DEPT-PED-04', category: 'Clinical', hod: branchDocs[3]?.name || 'Dr. Neha Singh', hod_phone: branchDocs[3]?.contact || '+91 98201 44556', location: '3rd Floor - Wing C', doctors_count: 2, nurses_count: 5, beds_allocated: 15, equipment_count: 12, status: 'Normal', status_color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
-        ];
-      }
       setDepartmentsList(parsedDepts);
 
-      // Generate Wards based on backend capacities
-      const totalBedsNum = Number(hosp.total_beds) || 80;
-      const icuBedsNum = Number(hosp.icu_beds) || 10;
-      const nicuBedsNum = Number(hosp.nicu_beds) || 5;
-      const genBedsNum = Math.max(10, totalBedsNum - icuBedsNum - nicuBedsNum);
+      const totalBedsNum = Number(hosp.total_beds) || 0;
+      const icuBedsNum = Number(hosp.icu_beds) || 0;
+      const nicuBedsNum = Number(hosp.nicu_beds) || 0;
+      const genBedsNum = Math.max(0, totalBedsNum - icuBedsNum - nicuBedsNum);
 
-      const generatedWards = [
-        {
+      const generatedWards = [];
+
+      if (genBedsNum > 0) {
+        const genOccupied = Math.min(genBedsNum, branchPats.length);
+        generatedWards.push({
           id: 1,
-          name: 'General Male Medical Ward',
-          code: 'WRD-GEN-M01',
+          name: 'General Medical Ward',
+          code: 'WRD-GEN-01',
           category: 'General',
           floor: 'Floor 1 - Wing A',
-          total_beds: Math.floor(genBedsNum / 2),
-          occupied_beds: Math.min(Math.floor(genBedsNum / 2) - 2, Math.floor((branchPats.length || 4) * 0.4)),
-          available_beds: Math.max(1, Math.floor(genBedsNum / 2) - Math.min(Math.floor(genBedsNum / 2) - 2, Math.floor((branchPats.length || 4) * 0.4))),
-          supervisor: branchNurs[0]?.name || 'Sister In-Charge',
-          contact_ext: 'Ext: 101',
+          total_beds: genBedsNum,
+          occupied_beds: genOccupied,
+          available_beds: Math.max(0, genBedsNum - genOccupied),
+          supervisor: branchNurs[0]?.name || '-',
+          contact_ext: hosp.contact ? `Tel: ${hosp.contact}` : '-',
           sanitization_status: 'Sanitized & Clean',
           sanitization_color: 'text-emerald-700 bg-emerald-50 border-emerald-200',
           status: 'Active'
-        },
-        {
+        });
+      }
+
+      if (icuBedsNum > 0) {
+        const icuOccupied = Math.min(icuBedsNum, Math.max(0, branchPats.length - genBedsNum));
+        generatedWards.push({
           id: 2,
-          name: 'General Female Surgical Ward',
-          code: 'WRD-GEN-F02',
-          category: 'General',
-          floor: 'Floor 1 - Wing B',
-          total_beds: Math.ceil(genBedsNum / 2),
-          occupied_beds: Math.min(Math.ceil(genBedsNum / 2) - 3, Math.floor((branchPats.length || 3) * 0.3)),
-          available_beds: Math.max(1, Math.ceil(genBedsNum / 2) - Math.min(Math.ceil(genBedsNum / 2) - 3, Math.floor((branchPats.length || 3) * 0.3))),
-          supervisor: branchNurs[1]?.name || 'Sister Anjali Shinde',
-          contact_ext: 'Ext: 102',
-          sanitization_status: 'Sanitized & Clean',
-          sanitization_color: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-          status: 'Active'
-        },
-        {
-          id: 3,
-          name: 'Intensive Coronary Care Unit (ICU)',
-          code: 'WRD-ICU-03',
+          name: 'Intensive Care Unit (ICU)',
+          code: 'WRD-ICU-02',
           category: 'Intensive Care',
           floor: 'Floor 2 - Wing A',
           total_beds: icuBedsNum,
-          occupied_beds: Math.min(icuBedsNum - 1, Math.max(1, Math.floor(icuBedsNum * 0.7))),
-          available_beds: Math.max(1, icuBedsNum - Math.min(icuBedsNum - 1, Math.max(1, Math.floor(icuBedsNum * 0.7)))),
-          supervisor: branchNurs[2]?.name || 'Sister Sneha Jadhav',
-          contact_ext: 'Ext: 201',
-          sanitization_status: 'Deep Cleaned',
+          occupied_beds: icuOccupied,
+          available_beds: Math.max(0, icuBedsNum - icuOccupied),
+          supervisor: branchNurs[1]?.name || branchNurs[0]?.name || '-',
+          contact_ext: hosp.contact ? `Tel: ${hosp.contact}` : '-',
+          sanitization_status: 'Sterilized',
           sanitization_color: 'text-blue-700 bg-blue-50 border-blue-200',
           status: 'Active'
-        },
-        {
-          id: 4,
+        });
+      }
+
+      if (nicuBedsNum > 0) {
+        generatedWards.push({
+          id: 3,
           name: 'Neonatal ICU (NICU / PICU)',
-          code: 'WRD-NICU-04',
+          code: 'WRD-NICU-03',
           category: 'Pediatric',
           floor: 'Floor 3 - Wing C',
           total_beds: nicuBedsNum,
-          occupied_beds: Math.min(nicuBedsNum - 1, Math.max(1, Math.floor(nicuBedsNum * 0.6))),
-          available_beds: Math.max(1, nicuBedsNum - Math.min(nicuBedsNum - 1, Math.max(1, Math.floor(nicuBedsNum * 0.6)))),
-          supervisor: branchNurs[3]?.name || 'Sister Preeti Patil',
-          contact_ext: 'Ext: 301',
+          occupied_beds: 0,
+          available_beds: nicuBedsNum,
+          supervisor: branchNurs[2]?.name || branchNurs[0]?.name || '-',
+          contact_ext: hosp.contact ? `Tel: ${hosp.contact}` : '-',
           sanitization_status: 'Sterilized',
           sanitization_color: 'text-purple-700 bg-purple-50 border-purple-200',
           status: 'Active'
-        }
-      ];
+        });
+      }
+
       setWards(generatedWards);
 
-      // Generate Rooms & Beds connected with real patients
-      const generatedRooms = [
-        {
-          id: 1,
-          room_number: 'Room 101',
-          floor: 'Floor 1',
-          wing: 'Wing A',
-          room_type: 'General Multi-Bed',
-          tariff_per_day: 1200,
-          ward: 'General Male Medical Ward',
-          amenities: ['Central Oxygen', 'Nurse Call Switch', 'Ceiling Fan'],
-          beds: [
-            { id: '101-A', bed_number: 'Bed 101-A', status: branchPats[0] ? 'Occupied' : 'Available', patient_name: branchPats[0]?.patient_name || branchPats[0]?.name || '', patient_id: branchPats[0]?.patient_id || 'PID-101', doctor: branchDocs[0]?.name || 'Dr. Staff', admission_date: branchPats[0]?.admission_date || '2026-09-22' },
-            { id: '101-B', bed_number: 'Bed 101-B', status: branchPats[1] ? 'Occupied' : 'Available', patient_name: branchPats[1]?.patient_name || branchPats[1]?.name || '', patient_id: branchPats[1]?.patient_id || 'PID-102', doctor: branchDocs[1]?.name || 'Dr. Staff', admission_date: branchPats[1]?.admission_date || '2026-09-23' },
-            { id: '101-C', bed_number: 'Bed 101-C', status: 'Available', patient_name: '', patient_id: '', doctor: '', admission_date: '' },
-            { id: '101-D', bed_number: 'Bed 101-D', status: 'Cleaning', patient_name: '', patient_id: '', doctor: '', admission_date: '' }
-          ]
-        },
-        {
-          id: 2,
-          room_number: 'Room 102',
-          floor: 'Floor 1',
-          wing: 'Wing B',
-          room_type: 'Semi-Private (Twin Sharing)',
-          tariff_per_day: 2800,
-          ward: 'General Female Surgical Ward',
-          amenities: ['Attached Washroom', 'AC', 'TV', 'Motorized Bed'],
-          beds: [
-            { id: '102-A', bed_number: 'Bed 102-A', status: branchPats[2] ? 'Occupied' : 'Available', patient_name: branchPats[2]?.patient_name || branchPats[2]?.name || '', patient_id: branchPats[2]?.patient_id || 'PID-103', doctor: branchDocs[0]?.name || 'Dr. Staff', admission_date: branchPats[2]?.admission_date || '2026-09-24' },
-            { id: '102-B', bed_number: 'Bed 102-B', status: 'Available', patient_name: '', patient_id: '', doctor: '', admission_date: '' }
-          ]
-        },
-        {
-          id: 3,
-          room_number: 'Room 201',
-          floor: 'Floor 2',
-          wing: 'Wing A',
-          room_type: 'Deluxe Private Single',
-          tariff_per_day: 5500,
-          ward: 'Executive Medical Wing',
-          amenities: ['Private Washroom', 'Smart TV', 'Refrigerator', 'Attendant Couch', 'AC'],
-          beds: [
-            { id: '201-A', bed_number: 'Bed 201-A', status: branchPats[3] ? 'Occupied' : 'Reserved', patient_name: branchPats[3]?.patient_name || branchPats[3]?.name || 'Deepak Joshi', patient_id: branchPats[3]?.patient_id || 'PID-104', doctor: branchDocs[1]?.name || 'Dr. Staff', admission_date: '2026-09-24' }
-          ]
-        },
-        {
-          id: 4,
-          room_number: 'ICU-Bay 01',
-          floor: 'Floor 2',
-          wing: 'ICU Wing',
-          room_type: 'ICU Suite',
-          tariff_per_day: 12000,
-          ward: 'Intensive Coronary Care Unit (ICU)',
-          amenities: ['Multi-Para Cardiac Monitor', 'High-End Ventilator', 'Infusion Pump'],
-          beds: [
-            { id: 'ICU-01', bed_number: 'Bed ICU-01', status: 'Occupied', patient_name: branchPats[4]?.patient_name || branchPats[4]?.name || 'Admitted Patient', patient_id: 'PID-ICU-01', doctor: branchDocs[0]?.name || 'Dr. Ramesh Sethi', admission_date: '2026-09-21' },
-            { id: 'ICU-02', bed_number: 'Bed ICU-02', status: 'Available', patient_name: '', patient_id: '', doctor: '', admission_date: '' },
-            { id: 'ICU-03', bed_number: 'Bed ICU-03', status: 'Cleaning', patient_name: '', patient_id: '', doctor: '', admission_date: '' }
-          ]
+      const generatedRooms = [];
+      if (totalBedsNum > 0) {
+        const bedsPerRoom = 4;
+        const numRooms = Math.ceil(totalBedsNum / bedsPerRoom);
+        let globalBedNumber = 1;
+
+        for (let r = 0; r < numRooms; r++) {
+          const roomNum = `Room ${101 + r}`;
+          const roomBedsCount = Math.min(bedsPerRoom, totalBedsNum - (r * bedsPerRoom));
+          const roomBeds = [];
+
+          for (let b = 0; b < roomBedsCount; b++) {
+            const bedNumberText = `Bed ${globalBedNumber}`;
+            const bedId = `bed-${globalBedNumber}`;
+            const patientIndex = globalBedNumber - 1;
+            const currentPatient = branchPats[patientIndex] || null;
+
+            if (currentPatient) {
+              roomBeds.push({
+                id: bedId,
+                bed_number: bedNumberText,
+                bed_index: globalBedNumber,
+                status: 'Occupied',
+                patient_name: currentPatient.name || currentPatient.patient_name || `Patient #${globalBedNumber}`,
+                patient_id: currentPatient.patient_id ? `PID-${currentPatient.patient_id}` : (currentPatient.id ? `PID-${currentPatient.id}` : `PID-${100 + globalBedNumber}`),
+                patient_phone: currentPatient.phone || currentPatient.contact || '',
+                patient_gender: currentPatient.gender || '',
+                patient_age: currentPatient.age || '',
+                doctor: currentPatient.doctor_name || currentPatient.doctor || (branchDocs[0]?.name || '-'),
+                admission_date: currentPatient.admission_date || currentPatient.admit_date || currentPatient.created_at || new Date().toISOString().split('T')[0]
+              });
+            } else {
+              roomBeds.push({
+                id: bedId,
+                bed_number: bedNumberText,
+                bed_index: globalBedNumber,
+                status: 'Available',
+                patient_name: '',
+                patient_id: '',
+                patient_phone: '',
+                patient_gender: '',
+                patient_age: '',
+                doctor: '',
+                admission_date: ''
+              });
+            }
+
+            globalBedNumber++;
+          }
+
+          const isIcuRoom = (r * bedsPerRoom) >= genBedsNum && (r * bedsPerRoom) < (genBedsNum + icuBedsNum);
+          const isNicuRoom = (r * bedsPerRoom) >= (genBedsNum + icuBedsNum);
+
+          generatedRooms.push({
+            id: r + 1,
+            room_number: roomNum,
+            floor: `Floor ${Math.floor(r / 3) + 1}`,
+            wing: `Wing ${String.fromCharCode(65 + (r % 3))}`,
+            room_type: isIcuRoom ? 'ICU Suite' : isNicuRoom ? 'NICU Suite' : 'General Ward Room',
+            tariff_per_day: isIcuRoom ? 10000 : isNicuRoom ? 8000 : 1500,
+            ward: isIcuRoom ? 'Intensive Care Unit (ICU)' : isNicuRoom ? 'Neonatal ICU (NICU / PICU)' : 'General Medical Ward',
+            amenities: isIcuRoom ? ['Oxygen Supply', 'Cardiac Monitor', 'Ventilator'] : ['Central Oxygen', 'Nurse Call Switch'],
+            beds: roomBeds
+          });
         }
-      ];
+      }
+
       setRooms(generatedRooms);
 
     } catch (err) {
-      console.error('Error setting up hospital staff and rooms:', err);
+      console.error('Setup error:', err);
     }
   };
 
@@ -473,9 +432,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
     fetchAssignedHospitalData();
   }, [currentUser?.id, currentUser?.email, currentUser?.hospital]);
 
-  // -------------------------------------------------------------
-  // 2. ADMIN FULL CRUD OPERATIONS ON ASSIGNED HOSPITAL
-  // -------------------------------------------------------------
   const handleOpenEditDetails = () => {
     if (!hospitalData) return;
     setDetailsFormData({
@@ -485,14 +441,14 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
       area: hospitalData.area || '',
       address: hospitalData.address || '',
       contact: hospitalData.contact || '',
-      emergency_contact: hospitalData.emergency_contact || '+91 22 2680 9108',
+      emergency_contact: hospitalData.emergency_contact || hospitalData.contact || '',
       email: hospitalData.email || '',
-      total_beds: hospitalData.total_beds || 100,
-      icu_beds: hospitalData.icu_beds || 10,
-      nicu_beds: hospitalData.nicu_beds || 5,
-      operation_theatres: hospitalData.operation_theatres || 4,
-      ambulances_count: hospitalData.ambulances_count || 2,
-      restroom_for_relatives: hospitalData.restroom_for_relatives || 3,
+      total_beds: Number(hospitalData.total_beds) || 0,
+      icu_beds: Number(hospitalData.icu_beds) || 0,
+      nicu_beds: Number(hospitalData.nicu_beds) || 0,
+      operation_theatres: Number(hospitalData.operation_theatres) || 0,
+      ambulances_count: Number(hospitalData.ambulances_count) || 0,
+      restroom_for_relatives: Number(hospitalData.restroom_for_relatives) || 0,
       is_active: hospitalData.is_active !== false
     });
     setIsEditDetailsModalOpen(true);
@@ -531,23 +487,24 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
       const updatedData = await response.json();
 
       if (response.ok) {
-        alert('Assigned Hospital Details updated in backend successfully!');
+        alert('Hospital details updated successfully!');
         setHospitalData(updatedData);
         if (propSetSelectedHospital) propSetSelectedHospital(updatedData);
         localStorage.setItem('selectedHospital', JSON.stringify(updatedData));
+        await setupHospitalAndRelatedData(updatedData, updatedData.id);
         setIsEditDetailsModalOpen(false);
       } else {
-        alert('Backend Error: ' + JSON.stringify(updatedData));
+        alert('Error: ' + JSON.stringify(updatedData));
       }
     } catch (err) {
-      console.error('Error updating hospital in backend:', err);
-      alert('Network error while updating hospital in backend.');
+      console.error('Update error:', err);
+      alert('Network error while updating hospital.');
     } finally {
       setSaveLoading(false);
     }
   };
 
-  const syncDepartmentsToBackend = async (newDeptList) => {
+  const syncDepartments = async (newDeptList) => {
     if (!hospitalData || !hospitalData.id) return;
     try {
       const deptNamesString = newDeptList.map(d => d.name).join(', ');
@@ -557,7 +514,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         body: JSON.stringify({ departments: deptNamesString })
       });
     } catch (err) {
-      console.error('Failed to sync departments to backend:', err);
+      console.error('Department sync error:', err);
     }
   };
 
@@ -568,13 +525,13 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
       code: `DEPT-${Math.floor(100 + Math.random() * 900)}`,
       category: 'Clinical',
       hod: doctorsList[0]?.name || '',
-      hod_phone: doctorsList[0]?.contact || '+91 98200 00000',
+      hod_phone: doctorsList[0]?.contact || doctorsList[0]?.phone || '',
       location: '1st Floor - Wing A',
-      doctors_count: 2,
-      nurses_count: 4,
-      beds_allocated: 15,
-      equipment_count: 10,
-      status: 'Normal'
+      doctors_count: 0,
+      nurses_count: 0,
+      beds_allocated: 0,
+      equipment_count: '',
+      status: 'Active'
     });
     setIsDeptModalOpen(true);
   };
@@ -588,11 +545,11 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
       hod: dept.hod || '',
       hod_phone: dept.hod_phone || '',
       location: dept.location || '',
-      doctors_count: dept.doctors_count || 2,
-      nurses_count: dept.nurses_count || 4,
-      beds_allocated: dept.beds_allocated || 15,
-      equipment_count: dept.equipment_count || 10,
-      status: dept.status || 'Normal'
+      doctors_count: dept.doctors_count || 0,
+      nurses_count: dept.nurses_count || 0,
+      beds_allocated: dept.beds_allocated || 0,
+      equipment_count: dept.equipment_count || '',
+      status: dept.status || 'Active'
     });
     setIsDeptModalOpen(true);
   };
@@ -621,19 +578,18 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
       updatedList = [...departmentsList, newDept];
     }
     setDepartmentsList(updatedList);
-    await syncDepartmentsToBackend(updatedList);
+    await syncDepartments(updatedList);
     setIsDeptModalOpen(false);
   };
 
   const handleDeleteDept = async (id) => {
-    if (window.confirm('Are you sure you want to remove this department from your hospital?')) {
+    if (window.confirm('Are you sure you want to remove this department?')) {
       const updatedList = departmentsList.filter(d => d.id !== id);
       setDepartmentsList(updatedList);
-      await syncDepartmentsToBackend(updatedList);
+      await syncDepartments(updatedList);
     }
   };
 
-  // Ward Handlers
   const handleOpenAddWard = () => {
     setEditingWard(null);
     setWardFormData({
@@ -641,10 +597,10 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
       code: `WRD-${Math.floor(100 + Math.random() * 900)}`,
       category: 'General',
       floor: 'Floor 1 - Wing A',
-      total_beds: 20,
+      total_beds: 10,
       occupied_beds: 0,
       supervisor: nursesList[0]?.name || '',
-      contact_ext: 'Ext: 105',
+      contact_ext: hospitalData?.contact ? `Tel: ${hospitalData.contact}` : '',
       sanitization_status: 'Sanitized & Clean',
       status: 'Active'
     });
@@ -658,7 +614,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
       code: ward.code || '',
       category: ward.category || 'General',
       floor: ward.floor || '',
-      total_beds: ward.total_beds || 20,
+      total_beds: ward.total_beds || 10,
       occupied_beds: ward.occupied_beds || 0,
       supervisor: ward.supervisor || '',
       contact_ext: ward.contact_ext || '',
@@ -702,55 +658,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
     }
   };
 
-  // Room & Bed Handlers
-  const handleOpenAddRoom = () => {
-    setRoomFormData({
-      room_number: `Room ${Math.floor(100 + Math.random() * 899)}`,
-      floor: 'Floor 1',
-      wing: 'Wing A',
-      room_type: 'General Multi-Bed',
-      ward: wards[0]?.name || 'General Male Medical Ward',
-      tariff_per_day: 1500,
-      total_beds_to_add: 2,
-      amenities: 'Central Oxygen, Nurse Call Switch, AC'
-    });
-    setIsRoomModalOpen(true);
-  };
-
-  const handleSaveRoom = (e) => {
-    e.preventDefault();
-    const bedCount = Number(roomFormData.total_beds_to_add) || 1;
-    const generatedBeds = [];
-    const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
-
-    for (let i = 0; i < bedCount; i++) {
-      generatedBeds.push({
-        id: `${roomFormData.room_number}-${letters[i] || i + 1}`,
-        bed_number: `Bed ${roomFormData.room_number.replace('Room ', '')}-${letters[i] || i + 1}`,
-        status: 'Available',
-        patient_name: '',
-        patient_id: '',
-        doctor: '',
-        admission_date: ''
-      });
-    }
-
-    const newRoom = {
-      id: Date.now(),
-      room_number: roomFormData.room_number,
-      floor: roomFormData.floor,
-      wing: roomFormData.wing,
-      room_type: roomFormData.room_type,
-      tariff_per_day: Number(roomFormData.tariff_per_day) || 1500,
-      ward: roomFormData.ward,
-      amenities: (roomFormData.amenities || '').split(',').map(s => s.trim()).filter(Boolean),
-      beds: generatedBeds
-    };
-
-    setRooms(prev => [...prev, newRoom]);
-    setIsRoomModalOpen(false);
-  };
-
   const handleOpenBedStatusModal = (room, bed) => {
     setSelectedBedToUpdate({ roomId: room.id, bed });
     setBedStatusFormData({
@@ -758,6 +665,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
       patient_name: bed.patient_name || '',
       patient_id: bed.patient_id || '',
       doctor: bed.doctor || (doctorsList[0]?.name || ''),
+      admission_date: bed.admission_date || new Date().toISOString().split('T')[0],
       notes: ''
     });
     setIsBedStatusModalOpen(true);
@@ -768,6 +676,8 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
     if (!selectedBedToUpdate) return;
 
     const { roomId, bed } = selectedBedToUpdate;
+    const isOccupied = bedStatusFormData.status === 'Occupied';
+
     setRooms(prev => prev.map(r => {
       if (r.id === roomId) {
         return {
@@ -776,11 +686,11 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
             if (b.id === bed.id) {
               return {
                 ...b,
-                status: bedStatusFormData.status,
-                patient_name: bedStatusFormData.status === 'Occupied' || bedStatusFormData.status === 'Reserved' ? bedStatusFormData.patient_name : '',
-                patient_id: bedStatusFormData.status === 'Occupied' || bedStatusFormData.status === 'Reserved' ? bedStatusFormData.patient_id : '',
-                doctor: bedStatusFormData.status === 'Occupied' || bedStatusFormData.status === 'Reserved' ? bedStatusFormData.doctor : '',
-                admission_date: bedStatusFormData.status === 'Occupied' ? (b.admission_date || '2026-09-24') : ''
+                status: isOccupied ? 'Occupied' : 'Available',
+                patient_name: isOccupied ? (bedStatusFormData.patient_name || 'Admitted Patient') : '',
+                patient_id: isOccupied ? (bedStatusFormData.patient_id || `PID-${b.bed_index || 100}`) : '',
+                doctor: isOccupied ? (bedStatusFormData.doctor || (doctorsList[0]?.name || '-')) : '',
+                admission_date: isOccupied ? (bedStatusFormData.admission_date || new Date().toISOString().split('T')[0]) : ''
               };
             }
             return b;
@@ -793,16 +703,12 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
     setIsBedStatusModalOpen(false);
   };
 
-  // Computed Bed Statistics for this assigned hospital
   const allBeds = rooms.flatMap(r => r.beds.map(b => ({ ...b, room_number: r.room_number, room_type: r.room_type, floor: r.floor })));
-  const totalBedsCount = allBeds.length;
+  const totalBedsCount = allBeds.length > 0 ? allBeds.length : (Number(hospitalData?.total_beds) || 0);
   const occupiedBedsCount = allBeds.filter(b => b.status === 'Occupied').length;
-  const availableBedsCount = allBeds.filter(b => b.status === 'Available').length;
-  const reservedBedsCount = allBeds.filter(b => b.status === 'Reserved').length;
-  const cleaningBedsCount = allBeds.filter(b => b.status === 'Cleaning').length;
+  const availableBedsCount = Math.max(0, totalBedsCount - occupiedBedsCount);
   const bedOccupancyRate = totalBedsCount > 0 ? Math.round((occupiedBedsCount / totalBedsCount) * 100) : 0;
 
-  // Filtered Lists safely handling null/undefined values
   const filteredDepartments = departmentsList.filter(d => {
     const matchesSearch = (d.name || '').toLowerCase().includes(deptSearch.toLowerCase()) ||
       (d.code || '').toLowerCase().includes(deptSearch.toLowerCase()) ||
@@ -822,35 +728,25 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
   const filteredRooms = rooms.filter(r => {
     const matchesSearch = (r.room_number || '').toLowerCase().includes(roomSearch.toLowerCase()) ||
       (r.ward || '').toLowerCase().includes(roomSearch.toLowerCase()) ||
-      r.beds.some(b => (b.patient_name || '').toLowerCase().includes(roomSearch.toLowerCase()) || (b.bed_number || '').toLowerCase().includes(roomSearch.toLowerCase()));
-    const matchesFloor = roomFloorFilter === 'ALL' || r.floor === roomFloorFilter;
-    const matchesType = roomTypeFilter === 'ALL' || r.room_type === roomTypeFilter;
+      r.beds.some(b => 
+        (b.patient_name || '').toLowerCase().includes(roomSearch.toLowerCase()) || 
+        (b.bed_number || '').toLowerCase().includes(roomSearch.toLowerCase()) ||
+        (b.patient_id || '').toLowerCase().includes(roomSearch.toLowerCase())
+      );
     const matchesBedStatus = bedStatusFilter === 'ALL' || r.beds.some(b => b.status === bedStatusFilter);
-    return matchesSearch && matchesFloor && matchesType && matchesBedStatus;
+    return matchesSearch && matchesBedStatus;
   });
 
-  const filteredBedsForGrid = allBeds.filter(b => {
-    const matchesSearch = (b.bed_number || '').toLowerCase().includes(roomSearch.toLowerCase()) ||
-      (b.room_number || '').toLowerCase().includes(roomSearch.toLowerCase()) ||
-      (b.patient_name || '').toLowerCase().includes(roomSearch.toLowerCase());
-    const matchesFloor = roomFloorFilter === 'ALL' || b.floor === roomFloorFilter;
-    const matchesType = roomTypeFilter === 'ALL' || b.room_type === roomTypeFilter;
-    const matchesStatus = bedStatusFilter === 'ALL' || b.status === bedStatusFilter;
-    return matchesSearch && matchesFloor && matchesType && matchesStatus;
-  });
-
-  // Loading Screen
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <h3 className="text-base font-bold text-slate-800">Connecting to Backend...</h3>
-        <p className="text-xs text-slate-500 mt-1">Loading assigned hospital branch records and staff data.</p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <div className="w-12 h-12 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <h3 className="text-base font-bold text-slate-800">Loading...</h3>
+        <p className="text-xs text-slate-500 mt-1">Loading hospital records and staff data.</p>
       </div>
     );
   }
 
-  // No Assigned Hospital
   if (noHospitalAssigned || !hospitalData) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-12 text-center">
@@ -864,15 +760,8 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
           <div className="mt-6 flex justify-center gap-3">
             <button
               type="button"
-              onClick={fetchAssignedHospitalData}
-              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
-            >
-              Refresh Status
-            </button>
-            <button
-              type="button"
               onClick={() => setCurrentPage && setCurrentPage('admin_dashboard')}
-              className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
             >
               Back to Dashboard
             </button>
@@ -887,18 +776,19 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 sm:space-y-6">
       
-      {/* Top Banner Header */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white p-4 sm:p-6 shadow-md border border-slate-800">
-        <div className="flex flex-col md:flex-row md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-semibold border border-teal-500/30">
                 <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
-                Assigned Hospital Branch
+                Hospital Branch
               </span>
-              <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-200 text-xs font-bold border border-blue-400/30">
-                Code: {curHosp.Branch_Code || 'APEX-01'}
-              </span>
+              {curHosp.Branch_Code && (
+                <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-200 text-xs font-bold border border-blue-400/30">
+                  Code: {curHosp.Branch_Code}
+                </span>
+              )}
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${curHosp.is_active !== false ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border-rose-500/30'}`}>
                 {curHosp.is_active !== false ? 'Operational (Active)' : 'Inactive'}
               </span>
@@ -910,7 +800,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               {curHosp.Name}
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-3xl">
-              {curHosp.address ? curHosp.address : `${curHosp.area || ''}, ${curHosp.city || ''}`}
+              {curHosp.address ? curHosp.address : `${curHosp.area ? curHosp.area + ', ' : ''}${curHosp.city || ''}`}
             </p>
           </div>
 
@@ -922,24 +812,16 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
             >
               Edit & Update Details
             </button>
-            <button
-              type="button"
-              onClick={fetchAssignedHospitalData}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold shadow-sm transition cursor-pointer"
-            >
-              Refresh Data
-            </button>
           </div>
         </div>
 
-        {/* Capacity & Staff KPIs */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 mt-5 pt-4 border-t border-slate-800/80">
           <div className="bg-slate-800/60 rounded-xl p-2.5 border border-slate-700/50">
             <p className="text-[11px] font-medium text-slate-400">Total Registered Beds</p>
             <p className="text-base sm:text-lg font-bold text-white mt-0.5">{curHosp.total_beds || 0} Beds</p>
           </div>
           <div className="bg-slate-800/60 rounded-xl p-2.5 border border-slate-700/50">
-            <p className="text-[11px] font-medium text-slate-400">ICU / Critical Beds</p>
+            <p className="text-[11px] font-medium text-slate-400">ICU Beds</p>
             <p className="text-base sm:text-lg font-bold text-rose-300 mt-0.5">{curHosp.icu_beds || 0} ICU</p>
           </div>
           <div className="bg-slate-800/60 rounded-xl p-2.5 border border-slate-700/50">
@@ -956,12 +838,11 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
           </div>
           <div className="bg-slate-800/60 rounded-xl p-2.5 border border-slate-700/50">
             <p className="text-[11px] font-medium text-slate-400">Main Helpline</p>
-            <p className="text-xs sm:text-sm font-bold text-emerald-300 mt-0.5 truncate">{curHosp.contact || 'N/A'}</p>
+            <p className="text-xs sm:text-sm font-bold text-emerald-300 mt-0.5 truncate">{curHosp.contact || curHosp.email || '-'}</p>
           </div>
         </div>
       </div>
 
-      {/* 5 Main Navigation Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar border-b border-slate-200">
         <button
           type="button"
@@ -1033,82 +914,80 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         </button>
       </div>
 
-      {/* ========================================================================= */}
-      {/* TAB 1: HOSPITAL DETAILS */}
-      {/* ========================================================================= */}
       {activeTab === 'details' && (
         <div className="space-y-5 sm:space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             
-            {/* 1. Branch Identity & Address */}
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-slate-800">Branch Location & Identity</h3>
-                  </div>
+                  <h3 className="text-sm font-bold text-slate-800">Branch Location & Identity</h3>
                   <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
-                    Backend Live
+                    Active
                   </span>
                 </div>
                 <div className="mt-3.5 space-y-2.5 text-xs text-slate-600">
                   <div>
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Hospital Branch Name</span>
+                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Hospital Name</span>
                     <span className="text-sm font-bold text-slate-800">{curHosp.Name}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <span className="font-semibold text-slate-400 block text-[10px] uppercase">Branch Code</span>
-                      <span className="font-semibold text-slate-800 font-mono">{curHosp.Branch_Code || 'N/A'}</span>
+                      <span className="font-semibold text-slate-800 font-mono">{curHosp.Branch_Code || '-'}</span>
                     </div>
                     <div>
                       <span className="font-semibold text-slate-400 block text-[10px] uppercase">City / Area</span>
-                      <span className="font-semibold text-slate-800">{curHosp.area || 'Central'}, {curHosp.city}</span>
+                      <span className="font-semibold text-slate-800">{curHosp.area ? `${curHosp.area}, ` : ''}{curHosp.city || '-'}</span>
                     </div>
                   </div>
                   <div>
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Full Physical Address</span>
-                    <span className="font-medium text-slate-700 leading-relaxed block">{curHosp.address || 'Address not specified'}</span>
+                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Physical Address</span>
+                    <span className="font-medium text-slate-700 leading-relaxed block">{curHosp.address || '-'}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* 2. Communication Desk */}
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-slate-800">Communication Desk</h3>
-                  </div>
+                  <h3 className="text-sm font-bold text-slate-800">Communication Desk</h3>
                   <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
                     Active
                   </span>
                 </div>
                 <div className="mt-3.5 space-y-2.5 text-xs text-slate-600">
                   <div>
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Main Helpline / Reception</span>
-                    <span className="text-sm font-bold text-slate-800">{curHosp.contact || 'N/A'}</span>
+                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Main Contact / Reception</span>
+                    <span className="text-sm font-bold text-slate-800">{curHosp.contact || '-'}</span>
                   </div>
                   <div>
-                    <span className="font-semibold text-rose-500 block text-[10px] uppercase font-bold">24x7 Emergency Contact</span>
-                    <span className="text-sm font-bold text-rose-700">{curHosp.emergency_contact || curHosp.contact || '+91 22 2680 9108'}</span>
+                    <span className="font-semibold text-rose-500 block text-[10px] uppercase font-bold">Emergency Helpline</span>
+                    <span className="text-sm font-bold text-rose-700">{curHosp.emergency_contact || curHosp.contact || '-'}</span>
                   </div>
                   <div>
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Official Public Email</span>
-                    <span className="font-medium text-blue-700">{curHosp.email || 'info@hospital.com'}</span>
+                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Official Email</span>
+                    {curHosp.email ? (
+                      <a
+                        href={`mailto:${curHosp.email.toLowerCase()}`}
+                        title={`Send email to ${curHosp.email}`}
+                        className="font-medium text-blue-700 hover:underline block truncate"
+                      >
+                        {curHosp.email}
+                      </a>
+                    ) : (
+                      <span className="font-medium text-slate-400">-</span>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* 3. Administration & Status */}
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-slate-800">Licensure & Admin Info</h3>
-                  </div>
+                  <h3 className="text-sm font-bold text-slate-800">Administration Details</h3>
                   <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold">
                     Super Admin Linked
                   </span>
@@ -1119,8 +998,18 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                     <span className="text-sm font-bold text-slate-800">{assignedAdminInfo?.name || currentUser?.name || 'Administrator'}</span>
                   </div>
                   <div>
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Medical Superintendent</span>
-                    <span className="font-semibold text-slate-800">{doctorsList[0]?.name || 'Dr. Medical Superintendent'}</span>
+                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Admin Email</span>
+                    {(assignedAdminInfo?.email || currentUser?.email) ? (
+                      <a
+                        href={`mailto:${(assignedAdminInfo?.email || currentUser?.email).toLowerCase()}`}
+                        title={`Send email to ${assignedAdminInfo?.email || currentUser?.email}`}
+                        className="font-medium text-blue-700 hover:underline block truncate"
+                      >
+                        {assignedAdminInfo?.email || currentUser?.email}
+                      </a>
+                    ) : (
+                      <span className="font-medium text-slate-400">-</span>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -1131,8 +1020,10 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                       </span>
                     </div>
                     <div>
-                      <span className="font-semibold text-slate-400 block text-[10px] uppercase">Accreditation</span>
-                      <span className="font-semibold text-slate-800">NABH Certified</span>
+                      <span className="font-semibold text-slate-400 block text-[10px] uppercase">Admin ID</span>
+                      <span className="font-semibold text-purple-700 font-mono">
+                        {assignedAdminInfo?.employee_id || (assignedAdminInfo?.id ? `ADM-${assignedAdminInfo.id}` : (currentUser?.employee_id || (currentUser?.id ? `ADM-${currentUser.id}` : `ADM-${curHosp.id}`)))}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1141,12 +1032,11 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
           </div>
 
-          {/* Infrastructure Capacity Statistics Matrix */}
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100">
               <div>
                 <h3 className="text-sm sm:text-base font-bold text-slate-800">Hospital Capacity & Infrastructure Matrix</h3>
-                <p className="text-xs text-slate-500">Registered live capacities synchronized directly with the database</p>
+                <p className="text-xs text-slate-500">Hospital infrastructure and capacity summary</p>
               </div>
               <button
                 type="button"
@@ -1160,32 +1050,32 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-4">
               <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-100 text-center">
                 <span className="text-xs font-semibold text-slate-400 uppercase block">Total Beds</span>
-                <span className="text-lg sm:text-xl font-bold text-blue-900 mt-1 block">{curHosp.total_beds || 0}</span>
+                <span className="text-lg sm:text-xl font-bold text-blue-900 mt-1 block">{curHosp.total_beds ?? 0}</span>
                 <span className="text-[11px] font-semibold text-blue-700">Registered Beds</span>
               </div>
               <div className="p-3.5 rounded-xl bg-rose-50/70 border border-rose-100 text-center">
-                <span className="text-xs font-semibold text-slate-400 uppercase block">ICU Units</span>
-                <span className="text-lg sm:text-xl font-bold text-rose-900 mt-1 block">{curHosp.icu_beds || 0}</span>
-                <span className="text-[11px] font-semibold text-rose-700">Critical Beds</span>
+                <span className="text-xs font-semibold text-slate-400 uppercase block">ICU Beds</span>
+                <span className="text-lg sm:text-xl font-bold text-rose-900 mt-1 block">{curHosp.icu_beds ?? 0}</span>
+                <span className="text-[11px] font-semibold text-rose-700">Critical Units</span>
               </div>
               <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-100 text-center">
-                <span className="text-xs font-semibold text-slate-400 uppercase block">NICU / PICU</span>
-                <span className="text-lg sm:text-xl font-bold text-purple-900 mt-1 block">{curHosp.nicu_beds || 0}</span>
+                <span className="text-xs font-semibold text-slate-400 uppercase block">NICU Beds</span>
+                <span className="text-lg sm:text-xl font-bold text-purple-900 mt-1 block">{curHosp.nicu_beds ?? 0}</span>
                 <span className="text-[11px] font-semibold text-purple-700">Infant Units</span>
               </div>
               <div className="p-3.5 rounded-xl bg-teal-50/70 border border-teal-100 text-center">
                 <span className="text-xs font-semibold text-slate-400 uppercase block">OT Suites</span>
-                <span className="text-lg sm:text-xl font-bold text-teal-900 mt-1 block">{curHosp.operation_theatres || 0}</span>
+                <span className="text-lg sm:text-xl font-bold text-teal-900 mt-1 block">{curHosp.operation_theatres ?? 0}</span>
                 <span className="text-[11px] font-semibold text-teal-700">Operating Theatres</span>
               </div>
               <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-100 text-center">
                 <span className="text-xs font-semibold text-slate-400 uppercase block">Fleet</span>
-                <span className="text-lg sm:text-xl font-bold text-amber-900 mt-1 block">{curHosp.ambulances_count || 0}</span>
+                <span className="text-lg sm:text-xl font-bold text-amber-900 mt-1 block">{curHosp.ambulances_count ?? 0}</span>
                 <span className="text-[11px] font-semibold text-amber-700">Ambulances</span>
               </div>
               <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-100 text-center">
                 <span className="text-xs font-semibold text-slate-400 uppercase block">Restrooms</span>
-                <span className="text-lg sm:text-xl font-bold text-indigo-900 mt-1 block">{curHosp.restroom_for_relatives || 0}</span>
+                <span className="text-lg sm:text-xl font-bold text-indigo-900 mt-1 block">{curHosp.restroom_for_relatives ?? 0}</span>
                 <span className="text-[11px] font-semibold text-indigo-700">Relative Lounges</span>
               </div>
             </div>
@@ -1193,91 +1083,98 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TAB 2: HOSPITAL PROFILE */}
-      {/* ========================================================================= */}
       {activeTab === 'profile' && (
         <div className="space-y-5 sm:space-y-6">
           <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs">
             <h3 className="text-base font-bold text-slate-800 pb-3 border-b border-slate-100">Hospital Institutional Profile</h3>
+            
             <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-5">
               <div className="lg:col-span-2 space-y-4 text-xs sm:text-sm text-slate-700">
-                <div>
-                  <h4 className="font-bold text-slate-400 text-xs uppercase tracking-wider mb-1">About the Hospital</h4>
-                  <p className="leading-relaxed text-slate-600 bg-slate-50/80 p-3.5 rounded-xl border border-slate-100">
-                    {curHosp.Name} operates as a comprehensive healthcare facility in {curHosp.city}, delivering medical excellence, emergency care, and specialty clinical services.
+                <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-100 space-y-2">
+                  <h4 className="font-bold text-slate-500 text-xs uppercase tracking-wider">Facility Overview</h4>
+                  <p className="leading-relaxed text-slate-700 font-medium">
+                    <strong>{curHosp.Name}</strong> is registered under branch code <strong>{curHosp.Branch_Code || 'N/A'}</strong> located in {curHosp.city || 'Central'}.
+                  </p>
+                  <p className="text-xs text-slate-600">
+                    Physical Address: {curHosp.address || `${curHosp.area ? curHosp.area + ', ' : ''}${curHosp.city || '-'}`}
                   </p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="bg-blue-50/60 p-3.5 rounded-xl border border-blue-100">
-                    <h4 className="font-bold text-blue-900 text-xs uppercase tracking-wider mb-1">Institutional Vision</h4>
-                    <p className="text-xs text-slate-700 leading-relaxed">To deliver patient-centric clinical excellence and trusted healthcare across all specialties.</p>
+                    <span className="font-bold text-blue-900 text-xs uppercase tracking-wider block mb-1">Contact Details</span>
+                    <p className="text-xs text-slate-700"><strong>Helpline:</strong> {curHosp.contact || '-'}</p>
+                    <p className="text-xs text-slate-700 mt-0.5">
+                      <strong>Email: </strong>
+                      {curHosp.email ? (
+                        <a href={`mailto:${curHosp.email.toLowerCase()}`} title={`Send email to ${curHosp.email}`} className="text-blue-600 hover:underline font-medium">
+                          {curHosp.email}
+                        </a>
+                      ) : (
+                        '-'
+                      )}
+                    </p>
+                    <p className="text-xs text-slate-700 mt-0.5"><strong>Emergency:</strong> {curHosp.emergency_contact || curHosp.contact || '-'}</p>
                   </div>
                   <div className="bg-teal-50/60 p-3.5 rounded-xl border border-teal-100">
-                    <h4 className="font-bold text-teal-900 text-xs uppercase tracking-wider mb-1">Institutional Mission</h4>
-                    <p className="text-xs text-slate-700 leading-relaxed">Providing high quality, affordable and ethical medical treatment with continuous advancement.</p>
+                    <span className="font-bold text-teal-900 text-xs uppercase tracking-wider block mb-1">Administrator In-Charge</span>
+                    <p className="text-xs text-slate-700"><strong>Name:</strong> {assignedAdminInfo?.name || currentUser?.name || 'Administrator'}</p>
+                    <p className="text-xs text-slate-700 mt-0.5">
+                      <strong>Email: </strong>
+                      {(assignedAdminInfo?.email || currentUser?.email) ? (
+                        <a href={`mailto:${(assignedAdminInfo?.email || currentUser?.email).toLowerCase()}`} title={`Send email to ${assignedAdminInfo?.email || currentUser?.email}`} className="text-blue-600 hover:underline font-medium">
+                          {assignedAdminInfo?.email || currentUser?.email}
+                        </a>
+                      ) : (
+                        '-'
+                      )}
+                    </p>
+                    <p className="text-xs text-slate-700 mt-0.5"><strong>Status:</strong> {curHosp.is_active !== false ? 'Active Facility' : 'Inactive'}</p>
                   </div>
                 </div>
               </div>
 
               <div className="bg-gradient-to-br from-slate-900 to-blue-950 text-white p-4 sm:p-5 rounded-xl flex flex-col justify-between">
                 <div>
-                  <span className="text-xs font-semibold text-teal-300 uppercase tracking-wider">Quality Accreditations</span>
-                  <h4 className="text-sm font-bold text-white mt-1">Standards & Compliance</h4>
-                  <div className="mt-4 space-y-2.5 text-xs">
-                    <div className="flex items-center gap-2.5 bg-slate-800/80 p-2 rounded-lg border border-slate-700">
-                      <div>
-                        <p className="font-bold text-slate-100">NABH Accredited Facility</p>
-                        <p className="text-[10px] text-slate-400">Standard Clinical Protocol</p>
-                      </div>
+                  <span className="text-xs font-semibold text-teal-300 uppercase tracking-wider">Hospital Summary</span>
+                  <h4 className="text-sm font-bold text-white mt-1">Staff & Patient Overview</h4>
+                  
+                  <div className="mt-3 space-y-2 text-xs">
+                    <div className="flex items-center justify-between bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-700">
+                      <span className="text-slate-300">Registered Doctors</span>
+                      <span className="font-bold text-teal-300 text-sm">{doctorsList.length}</span>
                     </div>
-                    <div className="flex items-center gap-2.5 bg-slate-800/80 p-2 rounded-lg border border-slate-700">
-                      <div>
-                        <p className="font-bold text-slate-100">ISO 9001:2015 Certified</p>
-                        <p className="text-[10px] text-slate-400">Quality Management System</p>
-                      </div>
+                    <div className="flex items-center justify-between bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-700">
+                      <span className="text-slate-300">Registered Nurses</span>
+                      <span className="font-bold text-indigo-300 text-sm">{nursesList.length}</span>
+                    </div>
+                    <div className="flex items-center justify-between bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-700">
+                      <span className="text-slate-300">Receptionists</span>
+                      <span className="font-bold text-purple-300 text-sm">{receptionistsList.length}</span>
+                    </div>
+                    <div className="flex items-center justify-between bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-700">
+                      <span className="text-slate-300">Admitted Patients</span>
+                      <span className="font-bold text-emerald-300 text-sm">{patientsList.length}</span>
                     </div>
                   </div>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-4 pt-3 border-t border-slate-800">
-                  Assigned Branch ID: <strong className="text-slate-200">#{curHosp.id}</strong>
+
+                <p className="text-[10px] text-slate-400 mt-3 pt-2 border-t border-slate-800">
+                  Hospital ID: <strong className="text-slate-200 font-mono">{curHosp.Branch_Code || `HOSP-${curHosp.id}`}</strong>
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-                <span className="text-xl">⏰</span>
-                <h3 className="text-sm font-bold text-slate-800">Operating Timings</h3>
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-800">Clinical Departments</h3>
               </div>
-              <div className="mt-3.5 space-y-3 text-xs">
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                  <div>
-                    <p className="font-bold text-slate-800">OPD Consultation Desk</p>
-                    <p className="text-slate-500 text-[11px]">Monday to Saturday: 08:00 AM - 08:00 PM</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">Standard OPD</span>
-                </div>
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-rose-50 border border-rose-100">
-                  <div>
-                    <p className="font-bold text-rose-900">Emergency & Trauma Centre</p>
-                    <p className="text-rose-700 text-[11px]">24 Hours x 365 Days Open</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full bg-rose-200 text-rose-800 text-[10px] font-bold">24x7 Open</span>
-                </div>
-              </div>
+              <span className="text-[11px] font-semibold text-slate-400">{departmentsList.length} Registered</span>
             </div>
-
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">🩺</span>
-                  <h3 className="text-sm font-bold text-slate-800">Clinical Departments & Units</h3>
-                </div>
-                <span className="text-[11px] font-semibold text-slate-400">{departmentsList.length} Active Units</span>
-              </div>
+            
+            {departmentsList.length > 0 ? (
               <div className="mt-3.5 flex flex-wrap gap-2">
                 {departmentsList.map((dept, index) => (
                   <span
@@ -1289,14 +1186,13 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                   </span>
                 ))}
               </div>
-            </div>
+            ) : (
+              <p className="text-xs text-slate-500 mt-3">No departments registered yet.</p>
+            )}
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TAB 3: DEPARTMENTS */}
-      {/* ========================================================================= */}
       {activeTab === 'departments' && (
         <div className="space-y-4 sm:space-y-5">
           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
@@ -1330,83 +1226,81 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredDepartments.map((dept) => (
-              <div
-                key={dept.id}
-                className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-blue-300 transition flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono text-[10px] font-bold">
-                        {dept.code}
+          {filteredDepartments.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredDepartments.map((dept) => (
+                <div
+                  key={dept.id}
+                  className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-blue-300 transition flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono text-[10px] font-bold">
+                          {dept.code}
+                        </span>
+                        <h3 className="text-sm sm:text-base font-bold text-slate-800 mt-1">{dept.name}</h3>
+                        <span className="text-xs text-slate-400 font-medium">{dept.category}</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${dept.status_color || 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                        {dept.status || 'Active'}
                       </span>
-                      <h3 className="text-sm sm:text-base font-bold text-slate-800 mt-1">{dept.name}</h3>
-                      <span className="text-xs text-slate-400 font-medium">{dept.category}</span>
                     </div>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${dept.status_color || 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                      {dept.status}
-                    </span>
-                  </div>
 
-                  <div className="mt-4 space-y-2 text-xs text-slate-600 pt-3 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 font-medium">Head of Dept:</span>
-                      <span className="font-bold text-slate-800">{dept.hod || 'Senior Consultant'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 font-medium">Location:</span>
-                      <span className="font-medium text-slate-700">{dept.location}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 pt-2 text-center">
-                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span className="block text-xs font-bold text-blue-700">{dept.doctors_count || 2}</span>
-                        <span className="text-[10px] text-slate-400 font-semibold">Doctors</span>
+                    <div className="mt-4 space-y-2 text-xs text-slate-600 pt-3 border-t border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 font-medium">Head / Lead Doctor:</span>
+                        <span className="font-bold text-slate-800">{dept.hod || '-'}</span>
                       </div>
-                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span className="block text-xs font-bold text-teal-700">{dept.nurses_count || 4}</span>
-                        <span className="text-[10px] text-slate-400 font-semibold">Nurses</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 font-medium">Location:</span>
+                        <span className="font-medium text-slate-700">{dept.location || '-'}</span>
                       </div>
-                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span className="block text-xs font-bold text-purple-700">{dept.beds_allocated || 15}</span>
-                        <span className="text-[10px] text-slate-400 font-semibold">Beds</span>
+                      <div className="grid grid-cols-3 gap-2 pt-2 text-center">
+                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="block text-xs font-bold text-blue-700">{dept.doctors_count || 0}</span>
+                          <span className="text-[10px] text-slate-400 font-semibold">Doctors</span>
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="block text-xs font-bold text-teal-700">{dept.nurses_count || 0}</span>
+                          <span className="text-[10px] text-slate-400 font-semibold">Nurses</span>
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="block text-xs font-bold text-purple-700">{dept.beds_allocated || 0}</span>
+                          <span className="text-[10px] text-slate-400 font-semibold">Beds</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEditDept(dept)}
-                    className="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
-                  >
-                    Edit Department &rarr;
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteDept(dept.id)}
-                    className="text-xs font-semibold text-rose-600 hover:text-rose-800 cursor-pointer"
-                  >
-                    Remove
-                  </button>
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditDept(dept)}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
+                    >
+                      Edit Department &rarr;
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDept(dept.id)}
+                      className="text-xs font-semibold text-rose-600 hover:text-rose-800 cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {filteredDepartments.length === 0 && (
+              ))}
+            </div>
+          ) : (
             <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-500">
-              <p className="text-sm font-semibold">No departments found matching your criteria.</p>
+              <p className="text-sm font-semibold">No departments found.</p>
+              <p className="text-xs text-slate-400 mt-1">Click "+ Add Department" to add departments to this hospital branch.</p>
             </div>
           )}
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TAB 4: WARDS */}
-      {/* ========================================================================= */}
       {activeTab === 'wards' && (
         <div className="space-y-4 sm:space-y-5">
           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
@@ -1440,310 +1334,243 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredWards.map((ward) => {
-              const totalB = ward.total_beds || 1;
-              const occB = ward.occupied_beds || 0;
-              const occupancyPct = Math.round((occB / totalB) * 100);
-              const barColor = occupancyPct > 85 ? 'bg-rose-500' : occupancyPct > 65 ? 'bg-amber-500' : 'bg-emerald-500';
+          {filteredWards.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredWards.map((ward) => {
+                const totalB = ward.total_beds || 1;
+                const occB = ward.occupied_beds || 0;
+                const occupancyPct = Math.round((occB / totalB) * 100);
+                const barColor = occupancyPct > 85 ? 'bg-rose-500' : occupancyPct > 65 ? 'bg-amber-500' : 'bg-emerald-500';
 
-              return (
-                <div
-                  key={ward.id}
-                  className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-blue-300 transition flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono text-[10px] font-bold">
-                          {ward.code}
+                return (
+                  <div
+                    key={ward.id}
+                    className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-blue-300 transition flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono text-[10px] font-bold">
+                            {ward.code}
+                          </span>
+                          <h3 className="text-sm sm:text-base font-bold text-slate-800 mt-1">{ward.name}</h3>
+                          <p className="text-xs text-slate-400 font-medium">{ward.floor} • {ward.category}</p>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${ward.sanitization_color || 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                          {ward.sanitization_status}
                         </span>
-                        <h3 className="text-sm sm:text-base font-bold text-slate-800 mt-1">{ward.name}</h3>
-                        <p className="text-xs text-slate-400 font-medium">{ward.floor} • {ward.category}</p>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${ward.sanitization_color || 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                        {ward.sanitization_status}
-                      </span>
+
+                      <div className="mt-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <div className="flex items-center justify-between text-xs mb-1.5">
+                          <span className="font-semibold text-slate-600">Bed Occupancy:</span>
+                          <span className="font-bold text-slate-800">{ward.occupied_beds} / {ward.total_beds} Beds ({occupancyPct}%)</span>
+                        </div>
+                        <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
+                          <div className={`h-full ${barColor} transition-all duration-300`} style={{ width: `${Math.min(100, occupancyPct)}%` }}></div>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
+                          <span className="text-emerald-700 font-bold">{ward.available_beds} Available</span>
+                          <span className="text-rose-700 font-bold">{ward.occupied_beds} Occupied</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-3.5 space-y-1.5 text-xs text-slate-600">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 font-medium">Supervisor In-Charge:</span>
+                          <span className="font-bold text-slate-800">{ward.supervisor || '-'}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 font-medium">Contact / Extension:</span>
+                          <span className="font-semibold text-blue-700">{ward.contact_ext || '-'}</span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="mt-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      <div className="flex items-center justify-between text-xs mb-1.5">
-                        <span className="font-semibold text-slate-600">Bed Occupancy:</span>
-                        <span className="font-bold text-slate-800">{ward.occupied_beds} / {ward.total_beds} Beds ({occupancyPct}%)</span>
-                      </div>
-                      <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
-                        <div className={`h-full ${barColor} transition-all duration-300`} style={{ width: `${Math.min(100, occupancyPct)}%` }}></div>
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
-                        <span className="text-emerald-700 font-bold">{ward.available_beds} Available</span>
-                        <span className="text-rose-700 font-bold">{ward.occupied_beds} Occupied</span>
-                      </div>
-                    </div>
-
-                    <div className="mt-3.5 space-y-1.5 text-xs text-slate-600">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 font-medium">In-Charge Supervisor:</span>
-                        <span className="font-bold text-slate-800">{ward.supervisor || 'Sister In-Charge'}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 font-medium">Intercom Extension:</span>
-                        <span className="font-semibold text-blue-700">{ward.contact_ext}</span>
-                      </div>
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditWard(ward)}
+                        className="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
+                      >
+                        Configure Ward &rarr;
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteWard(ward.id)}
+                        className="text-xs font-semibold text-rose-600 hover:text-rose-800 cursor-pointer"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
-
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditWard(ward)}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
-                    >
-                      Configure Ward &rarr;
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteWard(ward.id)}
-                      className="text-xs font-semibold text-rose-600 hover:text-rose-800 cursor-pointer"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-500">
+              <p className="text-sm font-semibold">No wards configured.</p>
+              <p className="text-xs text-slate-400 mt-1">Click "+ Add New Ward" to create a new ward for this hospital branch.</p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TAB 5: ROOMS & BEDS */}
-      {/* ========================================================================= */}
       {activeTab === 'rooms_beds' && (
         <div className="space-y-4 sm:space-y-5">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
-            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs text-center">
               <span className="text-xs font-semibold text-slate-400 uppercase">Total Beds</span>
-              <p className="text-lg sm:text-xl font-extrabold text-slate-800 mt-0.5">{totalBedsCount}</p>
-              <span className="text-[10px] text-slate-500">Across {rooms.length} Rooms</span>
+              <p className="text-xl sm:text-2xl font-extrabold text-slate-800 mt-1">{totalBedsCount}</p>
+              <span className="text-[11px] text-slate-500">Across {rooms.length} Rooms</span>
             </div>
-            <div className="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-100 shadow-xs text-center">
+            <div className="bg-emerald-50/80 p-4 rounded-2xl border border-emerald-200 shadow-xs text-center">
               <span className="text-xs font-semibold text-emerald-700 uppercase">Available</span>
-              <p className="text-lg sm:text-xl font-extrabold text-emerald-800 mt-0.5">{availableBedsCount}</p>
-              <span className="text-[10px] text-emerald-600">Ready for Admission</span>
+              <p className="text-xl sm:text-2xl font-extrabold text-emerald-800 mt-1">{availableBedsCount}</p>
+              <span className="text-[11px] text-emerald-600">Ready for Admission</span>
             </div>
-            <div className="bg-rose-50/70 p-3.5 rounded-2xl border border-rose-100 shadow-xs text-center">
+            <div className="bg-rose-50/80 p-4 rounded-2xl border border-rose-200 shadow-xs text-center">
               <span className="text-xs font-semibold text-rose-700 uppercase">Occupied</span>
-              <p className="text-lg sm:text-xl font-extrabold text-rose-800 mt-0.5">{occupiedBedsCount}</p>
-              <span className="text-[10px] text-rose-600">Admitted Patients</span>
+              <p className="text-xl sm:text-2xl font-extrabold text-rose-800 mt-1">{occupiedBedsCount}</p>
+              <span className="text-[11px] text-rose-600">Admitted Patients</span>
             </div>
-            <div className="bg-amber-50/70 p-3.5 rounded-2xl border border-amber-100 shadow-xs text-center">
-              <span className="text-xs font-semibold text-amber-700 uppercase">Reserved</span>
-              <p className="text-lg sm:text-xl font-extrabold text-amber-800 mt-0.5">{reservedBedsCount}</p>
-              <span className="text-[10px] text-amber-600">Scheduled / OT</span>
-            </div>
-            <div className="bg-blue-50/70 p-3.5 rounded-2xl border border-blue-100 shadow-xs text-center">
-              <span className="text-xs font-semibold text-blue-700 uppercase">Cleaning</span>
-              <p className="text-lg sm:text-xl font-extrabold text-blue-800 mt-0.5">{cleaningBedsCount}</p>
-              <span className="text-[10px] text-blue-600">Sanitizing</span>
-            </div>
-            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 shadow-xs text-center">
-              <span className="text-xs font-semibold text-slate-500 uppercase">Occupancy</span>
-              <p className="text-lg sm:text-xl font-extrabold text-indigo-700 mt-0.5">{bedOccupancyRate}%</p>
-              <span className="text-[10px] text-slate-500">Live Hospital Rate</span>
+            <div className="bg-blue-50/80 p-4 rounded-2xl border border-blue-200 shadow-xs text-center">
+              <span className="text-xs font-semibold text-blue-700 uppercase">Occupancy</span>
+              <p className="text-xl sm:text-2xl font-extrabold text-blue-900 mt-1">{bedOccupancyRate}%</p>
+              <span className="text-[11px] text-blue-600">Live Hospital Rate</span>
             </div>
           </div>
 
           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="relative flex-1">
                 <input
                   type="text"
-                  placeholder="Search by Room Number, Patient Name, or Bed..."
+                  placeholder="Search by Room, Bed Number (e.g. Bed 1), or Patient Name..."
                   value={roomSearch}
                   onChange={(e) => setRoomSearch(e.target.value)}
                   className="w-full pl-4 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={roomFloorFilter}
-                  onChange={(e) => setRoomFloorFilter(e.target.value)}
-                  className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium"
-                >
-                  <option value="ALL">All Floors</option>
-                  <option value="Floor 1">Floor 1</option>
-                  <option value="Floor 2">Floor 2</option>
-                  <option value="Floor 3">Floor 3</option>
-                </select>
-
+              <div className="flex items-center gap-2">
                 <select
                   value={bedStatusFilter}
                   onChange={(e) => setBedStatusFilter(e.target.value)}
-                  className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium"
+                  className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-semibold"
                 >
                   <option value="ALL">All Bed Status</option>
                   <option value="Available">Available Only (Green)</option>
                   <option value="Occupied">Occupied Only (Red)</option>
-                  <option value="Reserved">Reserved Only (Yellow)</option>
-                  <option value="Cleaning">Cleaning (Blue)</option>
                 </select>
-
-                <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => setBedViewMode('rooms')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition ${bedViewMode === 'rooms' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-                  >
-                    Rooms View
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBedViewMode('grid')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition ${bedViewMode === 'grid' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-                  >
-                    Bed Grid
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleOpenAddRoom}
-                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1 cursor-pointer"
-                >
-                  <span>+</span> Add Room
-                </button>
               </div>
             </div>
           </div>
 
-          {/* ROOMS VIEW */}
-          {bedViewMode === 'rooms' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredRooms.map((room) => (
-                <div
-                  key={room.id}
-                  className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-start justify-between pb-3 border-b border-slate-100">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-base font-extrabold text-slate-800">{room.room_number}</span>
-                          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-semibold text-[10px]">
-                            {room.floor} • {room.wing}
-                          </span>
-                        </div>
-                        <p className="text-xs font-medium text-slate-500 mt-0.5">{room.room_type} — <span className="text-slate-700 font-semibold">₹{(room.tariff_per_day || 0).toLocaleString()}/day</span></p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">{room.ward}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredRooms.map((room) => (
+              <div
+                key={room.id}
+                className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base font-extrabold text-slate-800">{room.room_number}</span>
+                        <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-semibold text-[10px]">
+                          {room.floor} • {room.wing}
+                        </span>
                       </div>
-                      <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg">
-                        {room.beds.length} Total Beds
-                      </span>
+                      <p className="text-xs font-medium text-slate-500 mt-0.5">{room.room_type} — <span className="text-slate-700 font-semibold">₹{(room.tariff_per_day || 0).toLocaleString()}/day</span></p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{room.ward}</p>
                     </div>
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
+                      {room.beds.length} Total Beds
+                    </span>
+                  </div>
 
-                    <div className="mt-4 space-y-2">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Assigned Beds Matrix</span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {room.beds.map((bed) => {
-                          const statusBg = bed.status === 'Available'
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                            : bed.status === 'Occupied'
-                              ? 'bg-rose-50 border-rose-200 text-rose-800'
-                              : bed.status === 'Reserved'
-                                ? 'bg-amber-50 border-amber-200 text-amber-800'
-                                : 'bg-blue-50 border-blue-200 text-blue-800';
+                  <div className="mt-4 space-y-2">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Assigned Beds Matrix</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {room.beds.map((bed) => {
+                        const isOccupied = bed.status === 'Occupied';
+                        const statusBg = isOccupied
+                          ? 'bg-rose-50/90 border-rose-200 text-rose-900 shadow-xs'
+                          : 'bg-emerald-50/90 border-emerald-200 text-emerald-900 shadow-xs';
 
-                          return (
-                            <div
-                              key={bed.id}
-                              onClick={() => handleOpenBedStatusModal(room, bed)}
-                              className={`p-3 rounded-xl border ${statusBg} transition cursor-pointer hover:shadow-sm`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-bold text-xs">{bed.bed_number}</span>
-                                <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-white/80">
-                                  {bed.status}
-                                </span>
-                              </div>
-
-                              {bed.status === 'Occupied' && (
-                                <div className="mt-2 pt-1.5 border-t border-rose-200/60 text-[11px]">
-                                  <p className="font-bold text-slate-800 truncate">{bed.patient_name || 'Admitted Patient'}</p>
-                                  <p className="text-[10px] text-slate-500">{bed.patient_id || 'PID-N/A'} • {bed.doctor || 'Staff Doctor'}</p>
-                                </div>
-                              )}
-
-                              {bed.status === 'Available' && (
-                                <p className="text-[10px] text-emerald-700 font-semibold mt-2">
-                                  Click to Admit / Allocate &rarr;
-                                </p>
-                              )}
+                        return (
+                          <div
+                            key={bed.id}
+                            onClick={() => handleOpenBedStatusModal(room, bed)}
+                            className={`p-3.5 rounded-xl border ${statusBg} transition cursor-pointer hover:shadow-md`}
+                          >
+                            <div className="flex items-center justify-between pb-2 border-b border-black/5">
+                              <span className="font-extrabold text-xs sm:text-sm text-slate-900">{bed.bed_number}</span>
+                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                isOccupied ? 'bg-rose-200/90 text-rose-800' : 'bg-emerald-200/90 text-emerald-800'
+                              }`}>
+                                {bed.status}
+                              </span>
                             </div>
-                          );
-                        })}
-                      </div>
+
+                            {isOccupied ? (
+                              <div className="mt-2.5 space-y-1.5 text-xs">
+                                <div>
+                                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Admitted Patient</span>
+                                  <p className="font-bold text-slate-800 text-xs sm:text-sm truncate">{bed.patient_name || 'Admitted Patient'}</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1.5 pt-1 text-[11px] text-slate-600">
+                                  <div>
+                                    <span className="text-slate-400 font-semibold block text-[10px]">Patient ID</span>
+                                    <span className="font-semibold text-slate-800">{bed.patient_id || '-'}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400 font-semibold block text-[10px]">Doctor</span>
+                                    <span className="font-semibold text-slate-800 truncate block">{bed.doctor || '-'}</span>
+                                  </div>
+                                </div>
+                                {bed.admission_date && (
+                                  <div className="pt-1 text-[10px] text-slate-500">
+                                    <span>Admitted on: </span>
+                                    <span className="font-semibold text-slate-700">{bed.admission_date}</span>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="mt-4 text-center py-2">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-lg">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                  Available for Admission
+                                </span>
+                                <p className="text-[10px] text-emerald-600 mt-1">Click to Allocate Patient &rarr;</p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {/* GRID VIEW */}
-          {bedViewMode === 'grid' && (
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {filteredBedsForGrid.map((bed) => {
-                  const statusBg = bed.status === 'Available'
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100'
-                    : bed.status === 'Occupied'
-                      ? 'bg-rose-50 border-rose-300 text-rose-900 hover:bg-rose-100'
-                      : bed.status === 'Reserved'
-                        ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
-                        : 'bg-blue-50 border-blue-300 text-blue-900 hover:bg-blue-100';
-
-                  const matchingRoom = rooms.find(r => r.beds.some(b => b.id === bed.id));
-
-                  return (
-                    <div
-                      key={bed.id}
-                      onClick={() => matchingRoom && handleOpenBedStatusModal(matchingRoom, bed)}
-                      className={`p-3 rounded-xl border ${statusBg} text-center cursor-pointer transition shadow-xs flex flex-col justify-between h-28`}
-                    >
-                      <div>
-                        <span className="text-xs font-extrabold block">{bed.bed_number}</span>
-                        <span className="text-[10px] text-slate-500 block">{bed.room_number}</span>
-                      </div>
-                      <div>
-                        {bed.status === 'Occupied' ? (
-                          <p className="text-[10px] font-bold truncate text-rose-950">{bed.patient_name || 'Admitted'}</p>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-white/80">
-                            {bed.status}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[9px] text-slate-400">{bed.floor}</span>
-                    </div>
-                  );
-                })}
               </div>
+            ))}
+          </div>
+
+          {filteredRooms.length === 0 && (
+            <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-500">
+              <p className="text-sm font-semibold">No beds found matching your search.</p>
             </div>
           )}
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 1: EDIT HOSPITAL DETAILS (LIVE BACKEND PUT) */}
-      {/* ========================================================================= */}
       {isEditDetailsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div>
-                <h3 className="text-sm sm:text-base font-bold text-slate-800">Edit Assigned Hospital Details</h3>
-                <p className="text-[11px] text-slate-500">Update hospital profile information for #{hospitalData?.id}</p>
+                <h3 className="text-sm sm:text-base font-bold text-slate-800">Edit Hospital Details</h3>
+                <p className="text-[11px] text-slate-500">Update profile information for #{hospitalData?.id}</p>
               </div>
               <button
                 type="button"
@@ -1790,10 +1617,9 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                   />
                 </div>
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Area / Locality *</label>
+                  <label className="font-semibold text-slate-700 block mb-1">Area / Locality</label>
                   <input
                     type="text"
-                    required
                     value={detailsFormData.area}
                     onChange={(e) => setDetailsFormData({ ...detailsFormData, area: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -1802,10 +1628,9 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Full Physical Address *</label>
+                <label className="font-semibold text-slate-700 block mb-1">Full Physical Address</label>
                 <textarea
                   rows="2"
-                  required
                   value={detailsFormData.address}
                   onChange={(e) => setDetailsFormData({ ...detailsFormData, address: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -1814,20 +1639,18 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Main Reception Contact *</label>
+                  <label className="font-semibold text-slate-700 block mb-1">Main Reception Contact</label>
                   <input
                     type="text"
-                    required
                     value={detailsFormData.contact}
                     onChange={(e) => setDetailsFormData({ ...detailsFormData, contact: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Official Email *</label>
+                  <label className="font-semibold text-slate-700 block mb-1">Official Email</label>
                   <input
                     type="email"
-                    required
                     value={detailsFormData.email}
                     onChange={(e) => setDetailsFormData({ ...detailsFormData, email: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -1836,13 +1659,13 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               </div>
 
               <div className="border-t border-slate-200 pt-3">
-                <span className="font-bold text-slate-800 text-xs block mb-2">Hospital Capacity Management</span>
+                <span className="font-bold text-slate-800 text-xs block mb-2">Capacity Configuration</span>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="font-semibold text-slate-600 block mb-1">Total Beds</label>
                     <input
                       type="number"
-                      min="1"
+                      min="0"
                       value={detailsFormData.total_beds}
                       onChange={(e) => setDetailsFormData({ ...detailsFormData, total_beds: Number(e.target.value) })}
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl"
@@ -1914,7 +1737,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                   disabled={saveLoading}
                   className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer disabled:opacity-50"
                 >
-                  {saveLoading ? 'Saving to Backend...' : 'Save & Sync Backend'}
+                  {saveLoading ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>
@@ -1922,9 +1745,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 2: ADD / EDIT DEPARTMENT */}
-      {/* ========================================================================= */}
       {isDeptModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -1987,6 +1807,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                     onChange={(e) => setDeptFormData({ ...deptFormData, status: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl"
                   >
+                    <option value="Active">Active</option>
                     <option value="Normal">Normal</option>
                     <option value="High Alert">High Alert</option>
                     <option value="Occupied">Occupied</option>
@@ -1999,7 +1820,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                   <label className="font-semibold text-slate-700 block mb-1">Head of Department (HOD)</label>
                   <input
                     type="text"
-                    placeholder="e.g. Dr. Aditi Verma"
+                    placeholder="e.g. Dr. Name"
                     value={deptFormData.hod}
                     onChange={(e) => setDeptFormData({ ...deptFormData, hod: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl"
@@ -2037,9 +1858,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 3: ADD / EDIT WARD */}
-      {/* ========================================================================= */}
       {isWardModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -2115,7 +1933,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                   />
                 </div>
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Extension / Intercom</label>
+                  <label className="font-semibold text-slate-700 block mb-1">Extension / Contact</label>
                   <input
                     type="text"
                     value={wardFormData.contact_ext}
@@ -2145,111 +1963,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 4: ADD ROOM & BEDS */}
-      {/* ========================================================================= */}
-      {isRoomModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <h3 className="text-sm sm:text-base font-bold text-slate-800">Add New Room & Bed Matrix</h3>
-              <button
-                type="button"
-                onClick={() => setIsRoomModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center text-xs font-bold cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveRoom} className="p-4 sm:p-6 overflow-y-auto space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Room Number *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Room 105"
-                    value={roomFormData.room_number}
-                    onChange={(e) => setRoomFormData({ ...roomFormData, room_number: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Room Type</label>
-                  <select
-                    value={roomFormData.room_type}
-                    onChange={(e) => setRoomFormData({ ...roomFormData, room_type: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  >
-                    <option value="General Multi-Bed">General Multi-Bed</option>
-                    <option value="Semi-Private (Twin Sharing)">Semi-Private (Twin Sharing)</option>
-                    <option value="Deluxe Private Single">Deluxe Private Single</option>
-                    <option value="ICU Suite">ICU Suite</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Floor</label>
-                  <select
-                    value={roomFormData.floor}
-                    onChange={(e) => setRoomFormData({ ...roomFormData, floor: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  >
-                    <option value="Floor 1">Floor 1</option>
-                    <option value="Floor 2">Floor 2</option>
-                    <option value="Floor 3">Floor 3</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Daily Tariff / Rate (₹)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={roomFormData.tariff_per_day}
-                    onChange={(e) => setRoomFormData({ ...roomFormData, tariff_per_day: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Beds to Instantiate</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="6"
-                  value={roomFormData.total_beds_to_add}
-                  onChange={(e) => setRoomFormData({ ...roomFormData, total_beds_to_add: Number(e.target.value) })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsRoomModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer"
-                >
-                  Create Room & Beds
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL 5: UPDATE BED ALLOCATION & STATUS */}
-      {/* ========================================================================= */}
       {isBedStatusModalOpen && selectedBedToUpdate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -2259,7 +1972,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                   Update Bed: {selectedBedToUpdate.bed.bed_number}
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Live bed status & patient admission control
+                  Bed status & patient admission
                 </p>
               </div>
               <button
@@ -2273,41 +1986,47 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
             <form onSubmit={handleSaveBedStatus} className="p-4 sm:p-6 overflow-y-auto space-y-3.5 text-xs">
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Bed Allocation Status *</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { label: 'Available', val: 'Available' },
-                    { label: 'Occupied', val: 'Occupied' },
-                    { label: 'Reserved', val: 'Reserved' },
-                    { label: 'Cleaning', val: 'Cleaning' },
-                  ].map(opt => (
-                    <button
-                      key={opt.val}
-                      type="button"
-                      onClick={() => setBedStatusFormData({ ...bedStatusFormData, status: opt.val })}
-                      className={`py-2 px-3 rounded-xl border text-xs font-bold transition cursor-pointer text-center ${
-                        bedStatusFormData.status === opt.val
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                <label className="font-semibold text-slate-700 block mb-1.5">Bed Allocation Status *</label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setBedStatusFormData({ ...bedStatusFormData, status: 'Available' })}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                      bedStatusFormData.status === 'Available'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                        : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${bedStatusFormData.status === 'Available' ? 'bg-white' : 'bg-emerald-500'}`}></span>
+                    Available
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setBedStatusFormData({ ...bedStatusFormData, status: 'Occupied' })}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                      bedStatusFormData.status === 'Occupied'
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                        : 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${bedStatusFormData.status === 'Occupied' ? 'bg-white' : 'bg-rose-500'}`}></span>
+                    Occupied
+                  </button>
                 </div>
               </div>
 
-              {(bedStatusFormData.status === 'Occupied' || bedStatusFormData.status === 'Reserved') && (
+              {bedStatusFormData.status === 'Occupied' && (
                 <>
                   <div>
                     <label className="font-semibold text-slate-700 block mb-1">Patient Name *</label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Ramesh Chandra"
+                      placeholder="e.g. Patient Name"
                       value={bedStatusFormData.patient_name}
                       onChange={(e) => setBedStatusFormData({ ...bedStatusFormData, patient_name: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />
                   </div>
 
@@ -2316,10 +2035,10 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                       <label className="font-semibold text-slate-700 block mb-1">Patient ID</label>
                       <input
                         type="text"
-                        placeholder="PID-9082"
+                        placeholder="PID-101"
                         value={bedStatusFormData.patient_id}
                         onChange={(e) => setBedStatusFormData({ ...bedStatusFormData, patient_id: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>
                     <div>
@@ -2335,6 +2054,16 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                         {doctorsList.length === 0 && <option value="Dr. Duty Medical Officer">Dr. Duty Medical Officer</option>}
                       </select>
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Admission Date</label>
+                    <input
+                      type="date"
+                      value={bedStatusFormData.admission_date}
+                      onChange={(e) => setBedStatusFormData({ ...bedStatusFormData, admission_date: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
                   </div>
                 </>
               )}

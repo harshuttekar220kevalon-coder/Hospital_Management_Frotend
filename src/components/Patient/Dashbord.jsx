@@ -15,7 +15,6 @@ const PatientDashboard = ({ currentUser }) => {
         const email = (currentUser?.email || '').toLowerCase().trim();
         const patId = currentUser?.id;
 
-        // 1. Fetch Patient details
         const patRes = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/').catch(() => null);
         let currentPat = null;
         if (patRes && patRes.ok) {
@@ -31,7 +30,6 @@ const PatientDashboard = ({ currentUser }) => {
           setPatientInfo(currentPat || currentUser);
         }
 
-        // 2. Fetch Hospital
         const targetHospId = currentPat?.hospital || currentUser?.hospital;
         if (targetHospId) {
           const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${targetHospId}/`).catch(() => null);
@@ -41,7 +39,6 @@ const PatientDashboard = ({ currentUser }) => {
           }
         }
 
-        // 3. Fetch Doctor
         const targetDocId = currentPat?.doctor;
         if (targetDocId) {
           const docRes = await fetch('http://127.0.0.1:8000/api/super-admin/Doctors/').catch(() => null);

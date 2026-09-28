@@ -16,7 +16,6 @@ const ReceptionistDashboard = ({ currentUser }) => {
         const email = (currentUser?.email || '').toLowerCase().trim();
         const recId = currentUser?.id;
 
-        // 1. Fetch Receptionist details
         const recRes = await fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/').catch(() => null);
         let currentRec = null;
         if (recRes && recRes.ok) {
@@ -32,7 +31,6 @@ const ReceptionistDashboard = ({ currentUser }) => {
           setReceptionistInfo(currentRec || currentUser);
         }
 
-        // 2. Fetch Hospital
         const targetHospId = currentRec?.hospital || currentUser?.hospital;
         if (targetHospId) {
           const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${targetHospId}/`).catch(() => null);
@@ -42,7 +40,6 @@ const ReceptionistDashboard = ({ currentUser }) => {
           }
         }
 
-        // 3. Fetch Patient registrations
         const patRes = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/').catch(() => null);
         if (patRes && patRes.ok) {
           const allPats = await patRes.json();

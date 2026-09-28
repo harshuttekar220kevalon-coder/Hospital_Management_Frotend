@@ -71,7 +71,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
         const data = await response.json();
         setReceptionists(data);
       } else {
-        console.warn('Could not fetch receptionists from backend.');
+        console.warn('Could not fetch receptionists.');
       }
     } catch (err) {
       console.error('Error fetching receptionists:', err);
@@ -325,11 +325,10 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
         </div>
       </div>
 
-      {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto w-full">
           {loading ? (
-            <p className="text-center py-8 text-xs text-slate-500">Loading receptionists from backend...</p>
+            <p className="text-center py-8 text-xs text-slate-500">Loading receptionists...</p>
           ) : filteredReceptionists.length === 0 ? (
             <div className="text-center py-10">
               <p className="text-xs font-semibold text-slate-500">No receptionists found matching your criteria.</p>

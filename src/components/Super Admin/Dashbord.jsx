@@ -20,7 +20,6 @@ const SuperAdminDashboard = ({
   const [visibleBranchesCount, setVisibleBranchesCount] = useState(10);
   const [loading, setLoading] = useState(false);
 
-  // Real Backend Data States
   const [hospitals, setHospitals] = useState([]);
   const [admins, setAdmins] = useState([]);
   const [doctors, setDoctors] = useState([]);
@@ -28,7 +27,6 @@ const SuperAdminDashboard = ({
   const [receptionists, setReceptionists] = useState([]);
   const [patients, setPatients] = useState([]);
 
-  // Fetch all live backend data in parallel
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
@@ -293,11 +291,9 @@ const SuperAdminDashboard = ({
     };
   });
 
-  // Construct Real Live Security & Audit Logs from Backend Records
   const generateLiveAudits = () => {
     const logs = [];
 
-    // Latest Patients
     patients.slice(-3).reverse().forEach((p) => {
       logs.push({
         action: `Patient Entry: ${p.name || 'New Patient'}`,
@@ -495,9 +491,7 @@ const SuperAdminDashboard = ({
           setSelectedHospital={setSelectedHospital}
         />
       ) : (
-        /* OVERVIEW DASHBOARD VIEW (ALL REAL BACKEND DATA) */
         <div className="space-y-6">
-          {/* ALL 9 CORE METRICS CARDS IN REQUESTED SEQUENCE (3x3 GRID) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {systemStats.map((item, idx) => (
               <div
@@ -542,9 +536,7 @@ const SuperAdminDashboard = ({
             ))}
           </div>
 
-          {/* REAL HOSPITAL BRANCHES TABLE & LIVE SECURITY LOGS */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-            {/* LEFT 2-COLS: REAL BRANCHES NETWORK TABLE */}
             <div className="lg:col-span-2 rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-4">
@@ -577,7 +569,7 @@ const SuperAdminDashboard = ({
                       {dynamicBranches.length === 0 ? (
                         <tr>
                           <td colSpan={6} className="py-8 text-center text-slate-400">
-                            {loading ? 'Loading live hospital data...' : 'No hospital branches registered yet in backend.'}
+                            {loading ? 'Loading live hospital data...' : 'No hospital branches registered yet.'}
                           </td>
                         </tr>
                       ) : (
@@ -667,7 +659,17 @@ const SuperAdminDashboard = ({
                           <span className="text-[10px] text-slate-400 shrink-0">{audit.time}</span>
                         </div>
                         <div className="flex items-center justify-between text-slate-500 mt-1 text-[11px]">
-                          <span className="font-mono text-[10px] text-slate-600 truncate">{audit.user}</span>
+                          {audit.user && audit.user.includes('@') ? (
+                            <a
+                              href={`mailto:${audit.user.toLowerCase()}`}
+                              title={`Send email to ${audit.user}`}
+                              className="font-mono text-[10px] text-sky-700 hover:underline truncate max-w-[160px]"
+                            >
+                              {audit.user}
+                            </a>
+                          ) : (
+                            <span className="font-mono text-[10px] text-slate-600 truncate">{audit.user}</span>
+                          )}
                           <span
                             className={`px-1.5 py-0.2 text-[9px] font-bold rounded ${
                               audit.type === 'Patient'

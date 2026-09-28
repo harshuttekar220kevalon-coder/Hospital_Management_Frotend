@@ -10,6 +10,12 @@ const AdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser }) => 
       activeClass: 'bg-teal-500/20 text-teal-300 border-teal-400/40 font-bold shadow-xs'
     },
     {
+      id: 'admin_hospital_management',
+      label: 'Hospital Management',
+      matchPages: ['admin_hospital_management'],
+      activeClass: 'bg-teal-500/20 text-teal-300 border-teal-400/40 font-bold shadow-xs'
+    },
+    {
       id: 'admin_doctors',
       label: 'Doctors',
       matchPages: ['admin_doctors', 'admin_doctor_details'],
@@ -31,12 +37,6 @@ const AdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser }) => 
       id: 'admin_patients',
       label: 'Patients',
       matchPages: ['admin_patients', 'admin_patient_details'],
-      activeClass: 'bg-teal-500/20 text-teal-300 border-teal-400/40 font-bold shadow-xs'
-    },
-    {
-      id: 'admin_hospital_management',
-      label: 'Hospital Management',
-      matchPages: ['admin_hospital_management'],
       activeClass: 'bg-teal-500/20 text-teal-300 border-teal-400/40 font-bold shadow-xs'
     }
   ];
@@ -77,8 +77,6 @@ const AdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser }) => 
     <header className="bg-slate-900 border-b border-slate-800 text-slate-100 shadow-md sticky top-0 z-50 w-full overflow-x-hidden">
       <div className="w-full px-3 sm:px-4 lg:px-6 xl:px-8">
         <div className="flex items-center justify-between h-16 gap-2 lg:gap-3 xl:gap-6">
-          
-          {/* Logo / Branding */}
           <div
             onClick={() => handleNavClick('admin_dashboard')}
             className="flex items-center gap-2 sm:gap-2.5 cursor-pointer select-none group shrink-0"
@@ -101,7 +99,6 @@ const AdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser }) => 
             </div>
           </div>
 
-          {/* Desktop Navigation Links */}
           <nav className="hidden lg:flex items-center gap-1.5 xl:gap-2 flex-1 justify-center min-w-0 max-w-3xl px-1">
             {navItems.map((item) => {
               const active = isTabActive(item);
@@ -122,9 +119,8 @@ const AdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser }) => 
             })}
           </nav>
 
-          {/* User Profile & Logout */}
           <div className="hidden lg:flex items-center gap-2 xl:gap-3 shrink-0">
-            <div className="flex items-center gap-2 pl-2.5 py-1 pr-2.5 rounded-xl bg-slate-800/60 border border-slate-700/70">
+            <div className="flex items-center gap-2 pl-2.5 py-1 pr-2.5 rounded-xl bg-slate-800/60 border border-slate-700/70 select-none">
               <div className="w-7 h-7 xl:w-8 xl:h-8 rounded-lg bg-gradient-to-br from-teal-500 via-emerald-500 to-cyan-500 text-white font-bold flex items-center justify-center text-xs shadow-inner ring-1 ring-white/20 shrink-0">
                 {getInitials(displayName)}
               </div>
@@ -134,10 +130,19 @@ const AdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser }) => 
                 </span>
                 <span className="inline-flex items-center gap-1 text-[9px] xl:text-[10px] font-semibold text-teal-300">
                   <span className="w-1.5 h-1.5 rounded-full bg-teal-400"></span>
-                  Hospital Admin
+                  Admin
                 </span>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => handleNavClick('admin_settings')}
+              className="px-2.5 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-teal-300 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/70 hover:border-teal-500/40 transition cursor-pointer flex items-center gap-1 shadow-xs"
+              title="Admin Settings & Password"
+            >
+              <span>Settings</span>
+            </button>
 
             <button
               type="button"
@@ -149,7 +154,6 @@ const AdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser }) => 
             </button>
           </div>
 
-          {/* Mobile Menu Toggle */}
           <div className="flex lg:hidden items-center gap-2">
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-xs">
               <div className="w-6 h-6 rounded-md bg-gradient-to-br from-teal-500 to-emerald-500 text-white font-bold flex items-center justify-center text-[10px]">
@@ -167,11 +171,9 @@ const AdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser }) => 
               {isMobileMenuOpen ? 'Close' : 'Menu'}
             </button>
           </div>
-
         </div>
       </div>
 
-      {/* Mobile Menu Dropdown */}
       {isMobileMenuOpen && (
         <div className="lg:hidden border-t border-slate-800 bg-slate-900 px-4 pt-3 pb-5 space-y-2 shadow-2xl animate-in slide-in-from-top-2 duration-200">
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 mb-3">
@@ -183,17 +185,26 @@ const AdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser }) => 
                 <p className="text-xs font-bold text-slate-100">{displayName}</p>
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-teal-300">
                   <span className="w-1.5 h-1.5 rounded-full bg-teal-400"></span>
-                  Hospital Admin
+                  Admin
                 </span>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleLogoutClick}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-500/10 text-rose-300 border border-rose-500/30 cursor-pointer hover:bg-rose-500/20"
-            >
-              Logout
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleNavClick('admin_settings')}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-teal-500/10 text-teal-300 border border-teal-500/30 cursor-pointer hover:bg-teal-500/20"
+              >
+                Settings
+              </button>
+              <button
+                type="button"
+                onClick={handleLogoutClick}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-500/10 text-rose-300 border border-rose-500/30 cursor-pointer hover:bg-rose-500/20"
+              >
+                Logout
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -223,5 +234,6 @@ const AdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser }) => 
     </header>
   );
 };
+
 
 export default AdminNavbar;

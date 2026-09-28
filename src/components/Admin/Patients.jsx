@@ -266,6 +266,34 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
     }
   };
 
+  const [updatingPatientId, setUpdatingPatientId] = useState(null);
+
+  const handleUpdatePatientStatus = async (patient, newStatus) => {
+    if (!newStatus || !patient?.id) return;
+    try {
+      setUpdatingPatientId(patient.id);
+      let res = await fetch(`http://127.0.0.1:8000/api/super-admin/Patients/${patient.id}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        res = await fetch(`http://127.0.0.1:8000/api/super-admin/Patients/${patient.id}/`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...patient, status: newStatus })
+        }).catch(() => null);
+      }
+
+      setPatients(prev => prev.map(p => p.id === patient.id ? { ...p, status: newStatus } : p));
+    } catch (err) {
+      console.error('Error updating patient status:', err);
+    } finally {
+      setUpdatingPatientId(null);
+    }
+  };
+
   const handleViewPatientDetails = (pat) => {
     if (setSelectedPatient) {
       setSelectedPatient(pat);
@@ -330,13 +358,6 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
               className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md transition duration-150 cursor-pointer flex items-center justify-center gap-2"
             >
               + Register New Patient
-            </button>
-            <button
-              type="button"
-              onClick={fetchAdminPatientsAndDoctors}
-              className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition cursor-pointer"
-            >
-              Refresh
             </button>
           </div>
         </div>
@@ -457,7 +478,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
           {loading ? (
             <div className="text-center py-12">
               <div className="w-8 h-8 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-              <p className="text-xs font-semibold text-slate-500">Loading branch patients from backend...</p>
+              <p className="text-xs font-semibold text-slate-500">Loading patients...</p>
             </div>
           ) : filteredPatients.length === 0 ? (
             <div className="text-center py-10">
@@ -564,13 +585,29 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleViewPatientDetails(pat)}
-                          className="px-3.5 py-1.5 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white font-bold text-xs transition cursor-pointer border border-teal-200 inline-flex items-center justify-center gap-1"
-                        >
-                          Details &rarr;
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          <select
+                            value={statusOptions.includes(pat.status) ? pat.status : ''}
+                            onChange={(e) => handleUpdatePatientStatus(pat, e.target.value)}
+                            disabled={updatingPatientId === pat.id}
+                            className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50"
+                          >
+                            <option value="" disabled>- Select an option -</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Assigned">Assigned</option>
+                            <option value="Admitted">Admitted</option>
+                            <option value="Discharged">Discharged</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => handleViewPatientDetails(pat)}
+                            className="px-2.5 py-1 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white font-bold text-xs transition cursor-pointer border border-teal-200 inline-flex items-center justify-center gap-1"
+                          >
+                            Details &rarr;
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

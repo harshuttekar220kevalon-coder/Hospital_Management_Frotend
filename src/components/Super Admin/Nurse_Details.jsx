@@ -577,7 +577,7 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
           )}
 
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 text-xs">
-            <span className="text-slate-500 font-medium">All nurse records are synced with Super Admin backend.</span>
+            <span className="text-slate-500 font-medium">All nurse records are synchronized.</span>
             <button
               type="button"
               onClick={handleBackClick}

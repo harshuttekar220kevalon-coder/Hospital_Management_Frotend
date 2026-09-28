@@ -281,13 +281,6 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
             >
               + Register New Nurse
             </button>
-            <button
-              type="button"
-              onClick={fetchAdminAndNurses}
-              className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition cursor-pointer"
-            >
-              Refresh
-            </button>
           </div>
         </div>
       </div>
@@ -371,7 +364,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
           {loading ? (
             <div className="text-center py-12">
               <div className="w-8 h-8 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-              <p className="text-xs font-semibold text-slate-500">Loading branch nurses from backend...</p>
+              <p className="text-xs font-semibold text-slate-500">Loading nurses...</p>
             </div>
           ) : filteredNurses.length === 0 ? (
             <div className="text-center py-10">

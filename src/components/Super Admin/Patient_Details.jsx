@@ -87,14 +87,12 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
         setDoctorsList(docData);
       }
 
-      // Fetch admins
       const adminRes = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/').catch(() => null);
       if (adminRes && adminRes.ok) {
         const adminData = await adminRes.json();
         setAdminsList(adminData);
       }
 
-      // Fetch fresh patient data from backend
       if (currentPat && currentPat.id) {
         const patRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Patients/${currentPat.id}/`).catch(() => null);
         if (patRes && patRes.ok) {

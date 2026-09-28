@@ -171,7 +171,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
           }
         }
       } catch (error) {
-        console.error('Error loading admin details from backend:', error);
+        console.error('Error loading admin details:', error);
       } finally {
         if (isMounted) setIsDataFetching(false);
       }
@@ -353,7 +353,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
         setIsResetPasswordModalOpen(false);
         alert(`Password reset successfully for admin with email: ${emailToReset}`);
       } else {
-        alert('Failed to reset password. Please verify the email ID or backend server connection.');
+        alert('Failed to reset password. Please verify the email ID or network connection.');
       }
     } catch (error) {
       console.error('Error resetting password:', error);

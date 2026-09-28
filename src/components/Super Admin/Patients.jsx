@@ -100,7 +100,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
         setPatients([]);
       }
     } catch (err) {
-      console.error('Error fetching backend data:', err);
+      console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
     }
@@ -110,7 +110,6 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     fetchAllData();
   }, []);
 
-  // When doctor is selected, auto-fill consultation fee from that doctor's profile
   const handleDoctorChange = (e) => {
     const docId = e.target.value;
     const selectedDoc = doctorsList.find(d => d.id === Number(docId));
@@ -287,6 +286,34 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     } catch (error) {
       console.error('Error creating patient:', error);
       alert('Network error while registering patient.');
+    }
+  };
+
+  const [updatingPatientId, setUpdatingPatientId] = useState(null);
+
+  const handleUpdatePatientStatus = async (patient, newStatus) => {
+    if (!newStatus || !patient?.id) return;
+    try {
+      setUpdatingPatientId(patient.id);
+      let res = await fetch(`http://127.0.0.1:8000/api/super-admin/Patients/${patient.id}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        res = await fetch(`http://127.0.0.1:8000/api/super-admin/Patients/${patient.id}/`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...patient, status: newStatus })
+        }).catch(() => null);
+      }
+
+      setPatients(prev => prev.map(p => p.id === patient.id ? { ...p, status: newStatus } : p));
+    } catch (err) {
+      console.error('Error updating patient status:', err);
+    } finally {
+      setUpdatingPatientId(null);
     }
   };
 
@@ -625,13 +652,29 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleViewPatientDetails(pat)}
-                          className="px-3.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1 whitespace-nowrap shrink-0"
-                        >
-                          Details &rarr;
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          <select
+                            value={['Pending', 'Assigned', 'Admitted', 'Discharged', 'Cancelled'].includes(pat.status) ? pat.status : ''}
+                            onChange={(e) => handleUpdatePatientStatus(pat, e.target.value)}
+                            disabled={updatingPatientId === pat.id}
+                            className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer disabled:opacity-50"
+                          >
+                            <option value="" disabled>- Select an option -</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Assigned">Assigned</option>
+                            <option value="Admitted">Admitted</option>
+                            <option value="Discharged">Discharged</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => handleViewPatientDetails(pat)}
+                            className="px-3.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1 whitespace-nowrap shrink-0"
+                          >
+                            Details &rarr;
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

@@ -72,7 +72,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
     if (!raw) return [];
     if (Array.isArray(raw)) {
       return raw.map(d => typeof d === 'string' ? d.trim() : (d.name || '')).filter(Boolean);
-    }
+    } 
     if (typeof raw === 'string') {
       return raw.split(',').map(s => s.trim()).filter(Boolean);
     }
@@ -121,7 +121,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
         const data = await response.json();
         setDoctors(data);
       } else {
-        alert('Failed to fetch doctors from backend.');
+        alert('Failed to fetch doctors. Please try again.');
       }
     } catch (err) {
       console.error('Error fetching doctors:', err);
@@ -513,11 +513,10 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
         </div>
       </div>
 
-      {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto w-full">
           {loading ? (
-            <p className="text-center py-8 text-xs text-slate-500">Loading doctors registry from backend...</p>
+            <p className="text-center py-8 text-xs text-slate-500">Loading doctors...</p>
           ) : filteredDoctors.length === 0 ? (
             <div className="text-center py-10">
               <p className="text-xs font-semibold text-slate-500">No doctors found matching your criteria.</p>

@@ -37,7 +37,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
     'Emergency Receptionist'
   ];
 
-  // Exact 10 fields only: Hospital, Name, Receptionist id, Role, Shift, Languages, Contact, Email, Password, Status
   const [editFormData, setEditFormData] = useState({
     hospital: '',
     name: '',
@@ -68,14 +67,12 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         }
       }
 
-      // Fetch all hospitals
       const hospListRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/').catch(() => null);
       if (hospListRes && hospListRes.ok) {
         const allHospitals = await hospListRes.json();
         setHospitalsList(allHospitals);
       }
 
-      // Fetch fresh receptionist data from backend
       if (currentRec && currentRec.id) {
         const recRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${currentRec.id}/`).catch(() => null);
         if (recRes && recRes.ok) {
@@ -109,7 +106,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
     }
   };
 
-  // Open Edit Modal with current 10 fields data
   const handleOpenEditModal = () => {
     setEditFormData({
       hospital: activeReceptionist.hospital || '',
@@ -128,7 +124,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
     setIsEditModalOpen(true);
   };
 
-  // Save Edit Receptionist
   const handleSaveReceptionistEdit = async (e) => {
     e.preventDefault();
     if (!activeReceptionist || !activeReceptionist.id) return;
@@ -155,14 +150,12 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         is_active: editFormData.is_active
       };
 
-      // Try PUT first
       let response = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${activeReceptionist.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       }).catch(() => null);
 
-      // If PUT is not accepted, try PATCH
       if (!response || !response.ok) {
         const patchRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${activeReceptionist.id}/`, {
           method: 'PATCH',
@@ -192,7 +185,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
     }
   };
 
-  // Toggle Receptionist Active Status
   const handleToggleStatus = async () => {
     if (!activeReceptionist || !activeReceptionist.id) return;
     const newStatus = !activeReceptionist.is_active;
@@ -233,7 +225,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
     }
   };
 
-  // Delete Receptionist
   const handleConfirmDelete = async () => {
     if (!activeReceptionist || !activeReceptionist.id) return;
     try {
@@ -255,7 +246,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
     }
   };
 
-  // Assign Hospital Branch
   const handleOpenAssignModal = () => {
     setAssignHospitalId(activeReceptionist.hospital || '');
     setIsAssignModalOpen(true);
@@ -316,7 +306,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6">
-      {/* TOP NAVIGATION & BACK BUTTON */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <button
           type="button"
@@ -337,7 +326,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         </div>
       </div>
 
-      {/* HEADER HERO CARD */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-start sm:items-center gap-4">
           <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-sky-600 to-teal-400 flex items-center justify-center text-white font-black text-xl sm:text-2xl shadow-md shrink-0">
@@ -352,13 +340,12 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                 {displayRole}
               </span>
               <span
-                className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                  activeReceptionist.is_active !== false && activeReceptionist.status !== 'On Leave'
+                className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${activeReceptionist.is_active !== false && activeReceptionist.status !== 'On Leave'
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                     : activeReceptionist.status === 'On Leave'
-                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                    : 'bg-rose-50 text-rose-700 border-rose-200'
-                }`}
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                  }`}
               >
                 {activeReceptionist.is_active !== false ? activeReceptionist.status || 'Active' : 'Off Duty'}
               </span>
@@ -396,7 +383,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         </div>
       </div>
 
-      {/* TOP SUMMARY METRIC CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Role & Designation</p>
@@ -435,9 +421,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         </div>
       </div>
 
-      {/* MAIN CONTENT: 2-COLUMN PROFILE & ASSIGNED HOSPITAL */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 items-start">
-        {/* LEFT COLUMN: RECEPTIONIST CREDENTIALS & CONTACT (1 COL) */}
         <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs space-y-5 self-start">
           <div className="space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -452,7 +436,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
             </div>
 
             <div className="space-y-3 text-xs">
-              {/* 1. RECEPTIONIST ID */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-slate-400 uppercase font-bold">Receptionist id:</span>
@@ -463,13 +446,11 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                 <p className="font-mono text-sm font-bold text-amber-700 mt-0.5 select-none break-all">{activeReceptionist.receptionist_id || `REC-${activeReceptionist.id}`}</p>
               </div>
 
-              {/* 2. NAME */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Name:</span>
                 <p className="font-bold text-slate-800 text-sm mt-0.5 break-words break-all">{displayName}</p>
               </div>
 
-              {/* 3. ROLE */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Role:</span>
                 <div className="mt-1">
@@ -479,25 +460,21 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                 </div>
               </div>
 
-              {/* 4. SHIFT */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Shift:</span>
                 <p className="font-semibold text-amber-700 mt-0.5 break-words">{activeReceptionist.shift || 'Morning Shift'}</p>
               </div>
 
-              {/* 5. LANGUAGES */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Languages:</span>
                 <p className="font-semibold text-slate-800 mt-0.5 break-words break-all">{activeReceptionist.languages || 'English, Hindi'}</p>
               </div>
 
-              {/* 6. CONTACT */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Contact:</span>
                 <p className="font-mono font-bold text-slate-800 mt-0.5 break-all">{displayPhone}</p>
               </div>
 
-              {/* 7. EMAIL */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Email:</span>
                 {activeReceptionist.email ? (
@@ -515,13 +492,11 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                 )}
               </div>
 
-              {/* 8. HOSPITAL */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Hospital:</span>
                 <p className="font-semibold text-slate-800 mt-0.5 break-words break-all">{assignedHospital ? assignedHospital.Name : 'Unassigned'}</p>
               </div>
 
-              {/* 9. STATUS */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between min-w-0">
                 <div className="min-w-0 flex-1 mr-2">
                   <span className="text-[10px] text-slate-400 uppercase font-bold">Status:</span>
@@ -539,7 +514,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
           </div>
         </div>
 
-        {/* RIGHT COLUMN: ASSIGNED HOSPITAL BRANCH (2 COLS) */}
         <div className="lg:col-span-2 rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs space-y-5">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
             <div>
@@ -618,7 +592,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                 </div>
               </div>
 
-              {/* HOSPITAL QUICK STATS */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <p className="text-[10px] text-slate-400 font-bold uppercase">Total Beds</p>
@@ -641,7 +614,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
           )}
 
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 text-xs">
-            <span className="text-slate-500 font-medium">All receptionist records are synced with Super Admin backend.</span>
+            <span className="text-slate-500 font-medium">All receptionist records are synchronized.</span>
             <button
               type="button"
               onClick={handleBackClick}
@@ -653,7 +626,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         </div>
       </div>
 
-      {/* EDIT RECEPTIONIST MODAL - EXACT 10 FIELDS */}
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4 my-auto">
@@ -828,8 +800,8 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                   type="checkbox"
                   id="recActiveEditModal"
                   checked={editFormData.is_active}
-                  onChange={(e) => setEditFormData({ 
-                    ...editFormData, 
+                  onChange={(e) => setEditFormData({
+                    ...editFormData,
                     is_active: e.target.checked,
                     status: e.target.checked ? 'Active' : 'Off Duty'
                   })}
@@ -860,7 +832,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         </div>
       )}
 
-      {/* ASSIGN HOSPITAL MODAL */}
       {isAssignModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-4 sm:p-6 space-y-4">
@@ -918,7 +889,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         </div>
       )}
 
-      {/* DELETE CONFIRMATION MODAL */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-4 sm:p-6 space-y-4">

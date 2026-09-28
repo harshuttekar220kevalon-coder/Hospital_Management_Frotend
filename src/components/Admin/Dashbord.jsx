@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setSelectedDoctor, setSelectedPatient }) => {
+const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setSelectedDoctor, setSelectedPatient, setSelectedNurse, setSelectedReceptionist }) => {
   const [loading, setLoading] = useState(true);
   const [hospitalData, setHospitalData] = useState(null);
   const [adminRecord, setAdminRecord] = useState(null);
@@ -10,11 +10,11 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
   const [nursesList, setNursesList] = useState([]);
   const [receptionistsList, setReceptionistsList] = useState([]);
   const [patientsList, setPatientsList] = useState([]);
-  const [departments, setDepartments] = useState([]);
-
-  // Time Period Filter for Revenue & Patient Statistics
-  const [timePeriod, setTimePeriod] = useState('month'); // 'today' | 'month' | 'year' | 'all'
-  const [deptVisibleCount, setDeptVisibleCount] = useState(6);
+  const [timePeriod, setTimePeriod] = useState('month');
+  const [patientVisibleCount, setPatientVisibleCount] = useState(10);
+  const [docVisibleCount, setDocVisibleCount] = useState(10);
+  const [nurseVisibleCount, setNurseVisibleCount] = useState(10);
+  const [recVisibleCount, setRecVisibleCount] = useState(10);
 
   const parseSpecializations = (spec) => {
     if (!spec) return [];
@@ -37,12 +37,35 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
     return [];
   };
 
+  const handleViewDoctor = (doc) => {
+    if (setSelectedDoctor) setSelectedDoctor(doc);
+    localStorage.setItem('selectedDoctor', JSON.stringify(doc));
+    if (setCurrentPage) setCurrentPage('admin_doctor_details');
+  };
+
+  const handleViewPatient = (pat) => {
+    if (setSelectedPatient) setSelectedPatient(pat);
+    localStorage.setItem('selectedPatient', JSON.stringify(pat));
+    if (setCurrentPage) setCurrentPage('admin_patient_details');
+  };
+
+  const handleViewNurse = (nurse) => {
+    if (setSelectedNurse) setSelectedNurse(nurse);
+    localStorage.setItem('selectedNurse', JSON.stringify(nurse));
+    if (setCurrentPage) setCurrentPage('admin_nurse_details');
+  };
+
+  const handleViewReceptionist = (rec) => {
+    if (setSelectedReceptionist) setSelectedReceptionist(rec);
+    localStorage.setItem('selectedReceptionist', JSON.stringify(rec));
+    if (setCurrentPage) setCurrentPage('admin_receptionist_details');
+  };
+
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       setNoHospitalAssigned(false);
 
-      // 1. Resolve Assigned Hospital ID for this Admin
       let assignedHospitalId = currentUser?.hospital || null;
 
       try {
@@ -79,7 +102,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
         } catch {}
       }
 
-      // Fallback to first available hospital if unassigned
       if (!assignedHospitalId) {
         try {
           const allHospRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/');
@@ -100,7 +122,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
         return;
       }
 
-      // 2. Fetch Assigned Hospital
       let hosp = null;
       try {
         const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${assignedHospitalId}/`);
@@ -131,7 +152,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
         return;
       }
 
-      // 3. Fetch Doctors, Nurses, Receptionists, Patients in parallel
       const [docRes, nurRes, recRes, patRes] = await Promise.allSettled([
         fetch('http://127.0.0.1:8000/api/super-admin/Doctors/'),
         fetch('http://127.0.0.1:8000/api/super-admin/Nurses/'),
@@ -152,59 +172,20 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
       if (nurRes.status === 'fulfilled' && nurRes.value.ok) {
         const allNurs = await nurRes.value.json().catch(() => []);
         const branchNurs = allNurs.filter(n => Number(n.hospital) === Number(assignedHospitalId));
-        setNursesList(branchNurs);
+        setNursesList(branchNurs.length > 0 ? branchNurs : allNurs);
       }
 
       if (recRes.status === 'fulfilled' && recRes.value.ok) {
         const allRecs = await recRes.value.json().catch(() => []);
         const branchRecs = allRecs.filter(r => Number(r.hospital) === Number(assignedHospitalId));
-        setReceptionistsList(branchRecs);
+        setReceptionistsList(branchRecs.length > 0 ? branchRecs : allRecs);
       }
 
       if (patRes.status === 'fulfilled' && patRes.value.ok) {
         const allPats = await patRes.value.json().catch(() => []);
         const branchPats = allPats.filter(p => Number(p.hospital) === Number(assignedHospitalId));
-        setPatientsList(branchPats);
+        setPatientsList(branchPats.length > 0 ? branchPats : allPats);
       }
-
-      // 4. Parse Departments
-      const rawDepts = hosp.departments || hosp.department;
-      let parsedDepts = [];
-      if (Array.isArray(rawDepts)) {
-        parsedDepts = rawDepts.map((d, index) => {
-          const dName = typeof d === 'string' ? d.trim() : (d.name || `Department ${index + 1}`);
-          const matchingDoc = branchDocs.find(doc => (doc.department || '').toLowerCase().includes(dName.toLowerCase())) || branchDocs[index % (branchDocs.length || 1)];
-          return {
-            dept: dName,
-            head: matchingDoc ? matchingDoc.name : 'Dr. Senior Consultant',
-            activeBeds: `${Math.min(18, Math.floor((hosp.total_beds || 60) / (rawDepts.length || 1)) - 2)}/${Math.floor((hosp.total_beds || 60) / (rawDepts.length || 1))}`,
-            status: index === 0 ? 'High Alert' : 'Normal',
-            alertColor: index === 0 ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-          };
-        }).filter(d => d.dept.length > 0);
-      } else if (typeof rawDepts === 'string' && rawDepts.trim().length > 0) {
-        parsedDepts = rawDepts.split(',').map((d, index) => {
-          const dName = d.trim();
-          const matchingDoc = branchDocs.find(doc => (doc.department || '').toLowerCase().includes(dName.toLowerCase())) || branchDocs[index % (branchDocs.length || 1)];
-          return {
-            dept: dName,
-            head: matchingDoc ? matchingDoc.name : 'Dr. Senior Consultant',
-            activeBeds: `${Math.min(18, Math.floor((hosp.total_beds || 60) / (rawDepts.split(',').length || 1)) - 2)}/${Math.floor((hosp.total_beds || 60) / (rawDepts.split(',').length || 1))}`,
-            status: 'Normal',
-            alertColor: 'bg-emerald-50 text-emerald-700 border-emerald-200'
-          };
-        }).filter(d => d.dept.length > 0);
-      }
-
-      if (parsedDepts.length === 0) {
-        parsedDepts = [
-          { dept: 'Emergency & Trauma Care', head: branchDocs[0]?.name || 'Dr. Ramesh Sethi', activeBeds: '18/20', status: 'High Alert', alertColor: 'bg-rose-50 text-rose-700 border-rose-200' },
-          { dept: 'Cardiology Department', head: branchDocs[1]?.name || 'Dr. Aditi Verma', activeBeds: '24/30', status: 'Normal', alertColor: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-          { dept: 'Orthopedics & Joint Care', head: branchDocs[2]?.name || 'Dr. Rajesh Kumar', activeBeds: '15/25', status: 'Normal', alertColor: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-          { dept: 'Pediatrics & Neonatal Care', head: branchDocs[3]?.name || 'Dr. Neha Singh', activeBeds: '12/15', status: 'Occupied', alertColor: 'bg-amber-50 text-amber-700 border-amber-200' }
-        ];
-      }
-      setDepartments(parsedDepts);
 
     } catch (err) {
       console.error('Error loading admin dashboard data:', err);
@@ -246,7 +227,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
     );
   }
 
-  // Staff Counts
   const totalStaffCount = doctorsList.length + nursesList.length + receptionistsList.length;
   const activeDoctorsCount = doctorsList.filter(d => d.is_active !== false).length;
   const onLeaveDoctorsCount = doctorsList.filter(d => d.is_active === false).length;
@@ -257,7 +237,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
   const activeStaffCount = activeDoctorsCount + activeNursesCount + activeReceptionistsCount;
   const onLeaveStaffCount = onLeaveDoctorsCount + onLeaveNursesCount + onLeaveReceptionistsCount;
 
-  // Bed & Infrastructure Calculations
   const totalBedsNum = Number(hospitalData.total_beds) || 0;
   const admittedPatients = patientsList.filter(p => 
     (p.status || '').toLowerCase().includes('admit') || 
@@ -271,7 +250,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
     : Math.round(occupancyPercentRaw);
   const availableBeds = Math.max(0, totalBedsNum - occupiedBedsNum);
 
-  // Time Analysis for Patients & Revenue
   const now = new Date();
   const isDateToday = (dStr) => {
     if (!dStr) return false;
@@ -318,7 +296,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
       const isPaid = statusLower === 'paid';
       const isPartial = statusLower === 'partial';
 
-      // STRICT RULE: Only add to Doctor Fees, Hospital Revenue, and Total Collections if patient has PAID!
       if (isPaid) {
         docFees += docFee;
         hospRevenue += hospCharge;
@@ -331,7 +308,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
         }
         totalCollected += paid;
       }
-      // If Pending, Failed, Cancelled, or Unpaid -> 0 is added!
     });
 
     return {
@@ -347,7 +323,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
   const yearFin = getFinancials(yearPatients);
   const allFin = getFinancials(patientsList);
 
-  // Active Time Period Filtered values
   let activePeriodPatients = patientsList;
   let activePeriodFin = allFin;
   let activePeriodLabel = 'All-Time Record';
@@ -380,8 +355,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 sm:space-y-7">
-      
-      {/* 1. TOP WELCOME & QUICK NAV BANNER */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-6 shadow-md border border-slate-700/80">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div className="space-y-1.5">
@@ -397,47 +370,46 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
             <button
               type="button"
               onClick={() => setCurrentPage && setCurrentPage('admin_doctors')}
-              className="px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs transition cursor-pointer whitespace-nowrap"
             >
-              Doctors ({doctorsList.length})
+              Doctors
             </button>
             <button
               type="button"
               onClick={() => setCurrentPage && setCurrentPage('admin_nurses')}
-              className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold shadow-xs transition cursor-pointer whitespace-nowrap"
             >
-              Nurses ({nursesList.length})
+              Nurses
             </button>
             <button
               type="button"
               onClick={() => setCurrentPage && setCurrentPage('admin_receptionists')}
-              className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer whitespace-nowrap"
             >
-              Receptionists ({receptionistsList.length})
+              Receptionists
             </button>
             <button
               type="button"
               onClick={() => setCurrentPage && setCurrentPage('admin_patients')}
-              className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer whitespace-nowrap"
             >
-              Patients ({patientsList.length})
+              Patients
             </button>
             <button
               type="button"
               onClick={() => setCurrentPage && setCurrentPage('admin_hospital_management')}
-              className="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold shadow-sm transition cursor-pointer border border-slate-600"
+              className="px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold shadow-xs transition cursor-pointer border border-slate-600 whitespace-nowrap"
             >
-              Profile & Wards
+              Hospital Management
             </button>
           </div>
         </div>
       </div>
 
-      {/* 2. SECTION A: MEDICAL & ADMINISTRATIVE STAFF (4 CARDS) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -508,7 +480,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
         </div>
       </div>
 
-      {/* 3. SECTION B: HOSPITAL CAPACITY & CRITICAL INFRASTRUCTURE (4 CARDS) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -581,7 +552,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
         </div>
       </div>
 
-      {/* 4. SECTION C: PATIENT FLOW & FINANCIAL REVENUE ANALYTICS (WITH TIME FILTER) */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div>
@@ -596,7 +566,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
             </p>
           </div>
 
-          {/* Time Period Filter Tabs */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               type="button"
@@ -645,7 +614,6 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
           </div>
         </div>
 
-        {/* 4 Focused Analytics Cards for Selected Period */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div className="p-4 rounded-xl bg-sky-50/70 border border-sky-200/80">
             <span className="text-[10px] font-bold text-sky-800 uppercase tracking-wider">Hospital Revenue ({activePeriodLabel})</span>
@@ -674,220 +642,443 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
 
       </div>
 
-      {/* 5. SECTION D: TWO-COLUMN LAYOUT (RECENT PATIENTS QUEUE + ON-DUTY DOCTORS) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
-        
-        {/* Left Column: Recent Patients Roster */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3 flex flex-col justify-between">
+      <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-800">Recent Patients ({patientsList.length})</h3>
-                <p className="text-xs text-slate-500">Latest consultations & admissions in this branch</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCurrentPage && setCurrentPage('admin_patients')}
-                className="text-xs font-semibold text-teal-700 hover:underline cursor-pointer bg-transparent border-0"
-              >
-                View All Patients &rarr;
-              </button>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-bold text-slate-800">Doctors On-Duty & Consultants ({doctorsList.length})</h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                {activeDoctorsCount} Available
+              </span>
             </div>
-
-            <div className="overflow-x-auto w-full">
-              <table className="w-full text-center text-xs text-slate-600 min-w-[380px]">
-                <thead className="bg-slate-50 text-slate-700 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
-                  <tr>
-                    <th className="py-2.5 px-3 text-center">Patient & ID</th>
-                    <th className="py-2.5 px-3 text-center">Status</th>
-                    <th className="py-2.5 px-3 text-center">Payment</th>
-                    <th className="py-2.5 px-3 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {patientsList.slice(0, 5).map((pat) => (
-                    <tr key={pat.id} className="hover:bg-slate-50/70 transition">
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="font-bold text-slate-800 block">{pat.name}</span>
-                        <span className="font-mono text-[10px] text-slate-400">{pat.patient_id || `PAT-${pat.id}`}</span>
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                          (pat.status || '').toLowerCase().includes('admit')
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-blue-50 text-blue-700 border-blue-200'
-                        }`}>
-                          {pat.status || 'Admitted'}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-center font-bold text-slate-700">
-                        ₹{pat.amount_paid || pat.consultation_fee || 500}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (setSelectedPatient) setSelectedPatient(pat);
-                            localStorage.setItem('selectedPatient', JSON.stringify(pat));
-                            if (setCurrentPage) setCurrentPage('admin_patient_details');
-                          }}
-                          className="text-teal-700 hover:text-teal-900 font-bold text-xs cursor-pointer"
-                        >
-                          Details &rarr;
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {patientsList.length === 0 && (
-                    <tr>
-                      <td colSpan="4" className="py-6 text-center text-xs text-slate-400">
-                        No patients registered yet in this branch.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <p className="text-xs text-slate-500 mt-0.5">Active medical practitioners, clinical specialties, and OPD timings for {hospitalData.Name}</p>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setCurrentPage && setCurrentPage('admin_patients')}
-            className="w-full py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition cursor-pointer text-center"
-          >
-            + Register New Patient / View All
-          </button>
-        </div>
-
-        {/* Right Column: Doctors On-Duty & OPD Cabin Schedule */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-800">Doctors On Duty ({doctorsList.length})</h3>
-                <p className="text-xs text-slate-500">Active medical practitioners and OPD schedules</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCurrentPage && setCurrentPage('admin_doctors')}
-                className="text-xs font-semibold text-teal-700 hover:underline cursor-pointer bg-transparent border-0"
-              >
-                View All Doctors &rarr;
-              </button>
-            </div>
-
-            <div className="space-y-2.5">
-              {doctorsList.slice(0, 4).map((doc) => {
-                const specs = parseSpecializations(doc.specialization || doc.specialty || 'General');
-                return (
-                  <div
-                    key={doc.id}
-                    onClick={() => {
-                      if (setSelectedDoctor) setSelectedDoctor(doc);
-                      localStorage.setItem('selectedDoctor', JSON.stringify(doc));
-                      if (setCurrentPage) setCurrentPage('admin_doctor_details');
-                    }}
-                    className="p-2.5 rounded-xl bg-slate-50/80 hover:bg-teal-50/50 border border-slate-200/80 transition flex items-center justify-between cursor-pointer"
-                  >
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-800">{doc.name}</h4>
-                      <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                        {specs.slice(0, 2).map((s, i) => (
-                          <span key={i} className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
-                            {s}
-                          </span>
-                        ))}
-                        <span className="text-[10px] text-slate-400">• {doc.opd_timings || 'Mon - Fri (10:00 AM - 02:00 PM)'}</span>
-                      </div>
-                    </div>
-
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
-                      doc.is_active !== false
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : 'bg-rose-50 text-rose-700 border-rose-200'
-                    }`}>
-                      {doc.is_active !== false ? 'Available' : 'On Leave'}
-                    </span>
-                  </div>
-                );
-              })}
-              {doctorsList.length === 0 && (
-                <p className="py-6 text-center text-xs text-slate-400">No doctors registered yet.</p>
-              )}
-            </div>
-          </div>
-
           <button
             type="button"
             onClick={() => setCurrentPage && setCurrentPage('admin_doctors')}
-            className="w-full py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition cursor-pointer text-center"
+            className="text-xs font-semibold text-teal-700 hover:text-teal-900 cursor-pointer bg-transparent border-0 self-start sm:self-auto"
           >
-            + Register New Doctor / View Roster
-          </button>
-        </div>
-      </div>
-
-      {/* 6. SECTION E: HOSPITAL DEPARTMENT CAPACITY TABLE */}
-      <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-sm sm:text-base font-bold text-slate-800">Hospital Department Capacity</h2>
-            <p className="text-xs text-slate-500">Live operational status and bed capacity for {hospitalData.Name}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setCurrentPage && setCurrentPage('admin_hospital_management')}
-            className="text-xs font-semibold text-blue-700 hover:underline cursor-pointer bg-transparent border-0"
-          >
-            Manage Wards & Beds &rarr;
+            Manage All Doctors &rarr;
           </button>
         </div>
 
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-left text-xs text-slate-600 min-w-[550px]">
-            <thead className="bg-slate-100/80 text-slate-700 uppercase font-semibold text-[11px] tracking-wider rounded-lg">
+          <table className="w-full text-center text-xs text-slate-600 min-w-[700px]">
+            <thead className="bg-slate-50 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
               <tr>
-                <th className="py-3 px-3">Department</th>
-                <th className="py-3 px-3">Head of Dept</th>
-                <th className="py-3 px-3">Bed Allocation</th>
-                <th className="py-3 px-3">Condition</th>
-                <th className="py-3 px-3 text-right">Action</th>
+                <th className="py-3 px-3 text-center">Doctor Name & ID</th>
+                <th className="py-3 px-3 text-center">Specialization</th>
+                <th className="py-3 px-3 text-center">OPD Timings</th>
+                <th className="py-3 px-3 text-center">Contact</th>
+                <th className="py-3 px-3 text-center">Status</th>
+                <th className="py-3 px-3 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {departments.slice(0, deptVisibleCount).map((d, i) => (
-                <tr key={i} className="hover:bg-slate-50/60 transition">
-                  <td className="py-3 px-3 font-semibold text-slate-800">{d.dept}</td>
-                  <td className="py-3 px-3">{d.head}</td>
-                  <td className="py-3 px-3 font-medium">{d.activeBeds}</td>
-                  <td className="py-3 px-3">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${d.alertColor}`}>
-                      {d.status}
+              {doctorsList.slice(0, docVisibleCount).map((doc) => {
+                const specs = parseSpecializations(doc.specialization || doc.specialty || 'General');
+                return (
+                  <tr key={doc.id} className="hover:bg-slate-50/70 transition">
+                    <td className="py-3 px-3 text-center">
+                      <span className="font-bold text-slate-800 block">{doc.name || 'Doctor'}</span>
+                      <span className="font-mono text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
+                        {doc.doctor_id || `DOC-${doc.id}`}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <div className="flex flex-wrap items-center justify-center gap-1 max-w-[220px] mx-auto">
+                        {specs.slice(0, 2).map((s, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 inline-block">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-center font-medium text-slate-700">
+                      {doc.opd_timings || 'Mon - Fri (10:00 AM - 02:00 PM)'}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className="font-bold text-slate-800 block">{doc.phone || doc.contact || '-'}</span>
+                      {doc.email && (
+                        <a
+                          href={`mailto:${doc.email.toLowerCase()}`}
+                          title={`Send email to ${doc.email}`}
+                          className="text-[10px] text-teal-600 hover:text-teal-800 hover:underline block lowercase truncate max-w-[150px] mx-auto"
+                        >
+                          {doc.email}
+                        </a>
+                      )}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        doc.is_active !== false
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-rose-50 text-rose-700 border-rose-200'
+                      }`}>
+                        {doc.is_active !== false ? 'Available' : 'On Leave'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleViewDoctor(doc)}
+                        className="px-3 py-1 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white font-bold text-xs transition cursor-pointer border border-teal-200"
+                      >
+                        Details &rarr;
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {doctorsList.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="py-8 text-center text-xs text-slate-400">
+                    No doctors registered in this branch yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {docVisibleCount < doctorsList.length && (
+          <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
+            <button
+              type="button"
+              onClick={() => setDocVisibleCount((prev) => prev + 10)}
+              className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+            >
+              Show More ({doctorsList.length - docVisibleCount} remaining)
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-bold text-slate-800">Nursing Staff On-Duty ({nursesList.length})</h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">
+                {activeNursesCount} Available
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">Assigned ward duty allocations and active shift schedules for {hospitalData.Name}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCurrentPage && setCurrentPage('admin_nurses')}
+            className="text-xs font-semibold text-cyan-700 hover:text-cyan-900 cursor-pointer bg-transparent border-0 self-start sm:self-auto"
+          >
+            Manage All Nurses &rarr;
+          </button>
+        </div>
+
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-center text-xs text-slate-600 min-w-[700px]">
+            <thead className="bg-slate-50 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
+              <tr>
+                <th className="py-3 px-3 text-center">Nurse Name & ID</th>
+                <th className="py-3 px-3 text-center">Role & Ward</th>
+                <th className="py-3 px-3 text-center">Shift Timings</th>
+                <th className="py-3 px-3 text-center">Contact</th>
+                <th className="py-3 px-3 text-center">Status</th>
+                <th className="py-3 px-3 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {nursesList.slice(0, nurseVisibleCount).map((nurse) => (
+                <tr key={nurse.id} className="hover:bg-slate-50/70 transition">
+                  <td className="py-3 px-3 text-center">
+                    <span className="font-bold text-slate-800 block">{nurse.name || 'Nurse'}</span>
+                    <span className="font-mono text-[10px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200 inline-block mt-0.5">
+                      {nurse.nurse_id || `NUR-${nurse.id}`}
                     </span>
                   </td>
-                  <td className="py-3 px-3 text-right">
+                  <td className="py-3 px-3 text-center">
+                    <span className="font-semibold text-slate-800 block">{nurse.role || nurse.nurse_role || 'Staff Nurse'}</span>
+                    <span className="text-[11px] text-slate-500">{nurse.ward || 'General Ward'}</span>
+                  </td>
+                  <td className="py-3 px-3 text-center font-medium text-slate-700">
+                    {nurse.shift || 'Morning Shift'}
+                  </td>
+                  <td className="py-3 px-3 text-center">
+                    <span className="font-bold text-slate-800 block">{nurse.contact || nurse.phone || '-'}</span>
+                    {nurse.email && (
+                      <a
+                        href={`mailto:${nurse.email.toLowerCase()}`}
+                        title={`Send email to ${nurse.email}`}
+                        className="text-[10px] text-cyan-600 hover:text-cyan-800 hover:underline block lowercase truncate max-w-[150px] mx-auto"
+                      >
+                        {nurse.email}
+                      </a>
+                    )}
+                  </td>
+                  <td className="py-3 px-3 text-center">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      nurse.is_active !== false
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                    }`}>
+                      {nurse.is_active !== false ? 'Active' : 'On Leave'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-3 text-center">
                     <button
                       type="button"
-                      onClick={() => setCurrentPage && setCurrentPage('admin_hospital_management')}
-                      className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+                      onClick={() => handleViewNurse(nurse)}
+                      className="px-3 py-1 rounded-lg bg-cyan-50 text-cyan-700 hover:bg-cyan-600 hover:text-white font-bold text-xs transition cursor-pointer border border-cyan-200"
                     >
                       Details &rarr;
                     </button>
                   </td>
                 </tr>
               ))}
+              {nursesList.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="py-8 text-center text-xs text-slate-400">
+                    No nurses registered in this branch yet.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
-        {deptVisibleCount < departments.length && (
+        {nurseVisibleCount < nursesList.length && (
           <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
             <button
               type="button"
-              onClick={() => setDeptVisibleCount((prev) => prev + 6)}
-              className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+              onClick={() => setNurseVisibleCount((prev) => prev + 10)}
+              className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
             >
-              Show More
+              Show More ({nursesList.length - nurseVisibleCount} remaining)
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-bold text-slate-800">Front Desk & Receptionists ({receptionistsList.length})</h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                {activeReceptionistsCount} Available
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">Patient registration desks, appointment counters, and front-desk personnel</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCurrentPage && setCurrentPage('admin_receptionists')}
+            className="text-xs font-semibold text-indigo-700 hover:text-indigo-900 cursor-pointer bg-transparent border-0 self-start sm:self-auto"
+          >
+            Manage All Receptionists &rarr;
+          </button>
+        </div>
+
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-center text-xs text-slate-600 min-w-[700px]">
+            <thead className="bg-slate-50 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
+              <tr>
+                <th className="py-3 px-3 text-center">Receptionist Name & ID</th>
+                <th className="py-3 px-3 text-center">Desk Role</th>
+                <th className="py-3 px-3 text-center">Shift Timings</th>
+                <th className="py-3 px-3 text-center">Contact</th>
+                <th className="py-3 px-3 text-center">Status</th>
+                <th className="py-3 px-3 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {receptionistsList.slice(0, recVisibleCount).map((rec) => (
+                <tr key={rec.id} className="hover:bg-slate-50/70 transition">
+                  <td className="py-3 px-3 text-center">
+                    <span className="font-bold text-slate-800 block">{rec.name || 'Receptionist'}</span>
+                    <span className="font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 inline-block mt-0.5">
+                      {rec.receptionist_id || `REC-${rec.id}`}
+                    </span>
+                  </td>
+                  <td className="py-3 px-3 text-center">
+                    <span className="font-semibold text-slate-800 block">{rec.role || 'Front Desk'}</span>
+                    <span className="text-[10px] text-slate-400">{rec.languages || 'English, Hindi'}</span>
+                  </td>
+                  <td className="py-3 px-3 text-center font-medium text-slate-700">
+                    {rec.shift || 'General Shift'}
+                  </td>
+                  <td className="py-3 px-3 text-center">
+                    <span className="font-bold text-slate-800 block">{rec.contact || rec.phone || '-'}</span>
+                    {rec.email && (
+                      <a
+                        href={`mailto:${rec.email.toLowerCase()}`}
+                        title={`Send email to ${rec.email}`}
+                        className="text-[10px] text-indigo-600 hover:text-indigo-800 hover:underline block lowercase truncate max-w-[150px] mx-auto"
+                      >
+                        {rec.email}
+                      </a>
+                    )}
+                  </td>
+                  <td className="py-3 px-3 text-center">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      rec.is_active !== false && rec.status !== 'On Leave'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                    }`}>
+                      {rec.is_active !== false && rec.status !== 'On Leave' ? 'Active' : 'On Leave'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleViewReceptionist(rec)}
+                      className="px-3 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white font-bold text-xs transition cursor-pointer border border-indigo-200"
+                    >
+                      Details &rarr;
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {receptionistsList.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="py-8 text-center text-xs text-slate-400">
+                    No receptionists registered in this branch yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {recVisibleCount < receptionistsList.length && (
+          <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
+            <button
+              type="button"
+              onClick={() => setRecVisibleCount((prev) => prev + 10)}
+              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+            >
+              Show More ({receptionistsList.length - recVisibleCount} remaining)
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-bold text-slate-800">Patients & Inflow Queue ({patientsList.length})</h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                {admittedPatients.length} Admitted IPD
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">Live in-patient admissions, OPD triage, and billing records for {hospitalData.Name}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCurrentPage && setCurrentPage('admin_patients')}
+            className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 cursor-pointer bg-transparent border-0 self-start sm:self-auto"
+          >
+            Manage All Patients &rarr;
+          </button>
+        </div>
+
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-center text-xs text-slate-600 min-w-[700px]">
+            <thead className="bg-slate-50 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
+              <tr>
+                <th className="py-3 px-3 text-center">Patient Name & ID</th>
+                <th className="py-3 px-3 text-center">Assigned Doctor</th>
+                <th className="py-3 px-3 text-center">Symptoms / Diagnosis</th>
+                <th className="py-3 px-3 text-center">Payment</th>
+                <th className="py-3 px-3 text-center">Status</th>
+                <th className="py-3 px-3 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {patientsList.slice(0, patientVisibleCount).map((pat) => {
+                const assignedDoc = doctorsList.find(d => Number(d.id) === Number(pat.doctor));
+                return (
+                  <tr key={pat.id} className="hover:bg-slate-50/70 transition">
+                    <td className="py-3 px-3 text-center">
+                      <span className="font-bold text-slate-800 block">{pat.name || 'Patient'}</span>
+                      <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                        <span className="font-mono text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block">
+                          {pat.patient_id || pat.uhid || `PAT-${pat.id}`}
+                        </span>
+                        {pat.age && (
+                          <span className="text-[10px] text-slate-400 font-semibold">{pat.age}Y • {pat.gender || 'M'}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className="font-semibold text-slate-800 block">{assignedDoc?.name || pat.doctor_name || 'Dr. Consultant'}</span>
+                      <span className="text-[10px] text-teal-700">{assignedDoc?.specialization || 'General'}</span>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className="text-slate-700 font-medium block max-w-[180px] mx-auto truncate">
+                        {pat.symptoms_diagnosis || pat.reason || 'General Consultation'}
+                      </span>
+                      {pat.symptoms_severity && (
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border inline-block mt-0.5 ${
+                          pat.symptoms_severity === 'Emergency' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                          pat.symptoms_severity === 'Urgent' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          'bg-slate-50 text-slate-600 border-slate-200'
+                        }`}>
+                          {pat.symptoms_severity}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        pat.payment_status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        pat.payment_status === 'Partial' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                        'bg-rose-50 text-rose-700 border-rose-200'
+                      }`}>
+                        {pat.payment_status || 'Paid'} • ₹{pat.amount_paid || pat.consultation_fee || 500}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        (pat.status || '').toLowerCase().includes('admit')
+                          ? 'bg-purple-50 text-purple-700 border-purple-200'
+                          : (pat.status || '').toLowerCase().includes('discharg')
+                          ? 'bg-slate-100 text-slate-700 border-slate-300'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      }`}>
+                        {pat.status || 'Admitted'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleViewPatient(pat)}
+                        className="px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white font-bold text-xs transition cursor-pointer border border-emerald-200"
+                      >
+                        Details &rarr;
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {patientsList.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="py-8 text-center text-xs text-slate-400">
+                    No patients registered in this branch yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {patientVisibleCount < patientsList.length && (
+          <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
+            <button
+              type="button"
+              onClick={() => setPatientVisibleCount((prev) => prev + 10)}
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+            >
+              Show More ({patientsList.length - patientVisibleCount} remaining)
             </button>
           </div>
         )}

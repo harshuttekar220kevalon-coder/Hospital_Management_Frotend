@@ -89,6 +89,44 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                   My Dashboard
                 </button>
 
+                {(currentUser?.role || '').toString().toUpperCase().includes('DOCTOR') && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('doctor_appointments')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                        currentPage === 'doctor_appointments'
+                          ? 'bg-slate-800 text-rose-300 border border-rose-500/30'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      Emergency & Special
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('doctor_patients')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                        currentPage === 'doctor_patients'
+                          ? 'bg-slate-800 text-teal-300 border border-teal-500/30'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      Patients Queue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('doctor_schedule')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                        currentPage === 'doctor_schedule'
+                          ? 'bg-slate-800 text-teal-300 border border-teal-500/30'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      Regular Schedule
+                    </button>
+                  </>
+                )}
+
                 {((currentUser?.role || '').toString().toUpperCase().includes('ADMIN') && !(currentUser?.role || '').toString().toUpperCase().includes('SUPER')) && (
                   <>
                     <button
@@ -116,17 +154,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                   </>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => handleNavClick('home')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
-                    currentPage === 'home'
-                      ? 'bg-slate-800 text-blue-300 border border-blue-500/30'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                  }`}
-                >
-                  Hospital Overview
-                </button>
+                {/* User badge */}
 
                 <div className="flex items-center gap-2.5 pl-3 border-l border-slate-700">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-blue-600 text-white font-bold flex items-center justify-center text-xs shadow-inner">
@@ -204,6 +232,38 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
             My Dashboard
           </button>
 
+          {(currentUser?.role || '').toString().toUpperCase().includes('DOCTOR') && (
+            <>
+              <button
+                type="button"
+                onClick={() => handleNavClick('doctor_appointments')}
+                className={`w-full text-left px-4 py-2 rounded-lg text-xs font-semibold ${
+                  currentPage === 'doctor_appointments' ? 'bg-slate-800 text-rose-300' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                Emergency & Special
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNavClick('doctor_patients')}
+                className={`w-full text-left px-4 py-2 rounded-lg text-xs font-semibold ${
+                  currentPage === 'doctor_patients' ? 'bg-slate-800 text-teal-300' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                Patients Queue
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNavClick('doctor_schedule')}
+                className={`w-full text-left px-4 py-2 rounded-lg text-xs font-semibold ${
+                  currentPage === 'doctor_schedule' ? 'bg-slate-800 text-teal-300' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                Regular Schedule
+              </button>
+            </>
+          )}
+
           {((currentUser?.role || '').toString().toUpperCase().includes('ADMIN') && !(currentUser?.role || '').toString().toUpperCase().includes('SUPER')) && (
             <>
               <button
@@ -227,15 +287,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
             </>
           )}
 
-          <button
-            type="button"
-            onClick={() => handleNavClick('home')}
-            className={`w-full text-left px-4 py-2 rounded-lg text-xs font-semibold ${
-              currentPage === 'home' ? 'bg-slate-800 text-blue-300' : 'text-slate-300 hover:bg-slate-800'
-            }`}
-          >
-            Hospital Overview
-          </button>
+          {/* Mobile menu bottom */}
 
           <button
             type="button"

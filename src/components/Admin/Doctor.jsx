@@ -244,7 +244,7 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
       }
     } catch (err) {
       console.error('Error adding doctor:', err);
-      alert('Failed to connect to backend server.');
+      alert('Failed to connect to server. Please try again.');
     }
   };
 
@@ -337,13 +337,6 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
             >
               + Register New Doctor
             </button>
-            <button
-              type="button"
-              onClick={fetchAdminAndDoctors}
-              className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold border border-slate-600 transition cursor-pointer"
-            >
-              Refresh
-            </button>
           </div>
         </div>
       </div>
@@ -423,13 +416,12 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
         </div>
       </div>
 
-      {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto w-full">
           {loading ? (
             <div className="text-center py-12">
               <div className="w-8 h-8 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-              <p className="text-xs font-semibold text-slate-500">Loading branch doctors from backend...</p>
+              <p className="text-xs font-semibold text-slate-500">Loading doctors...</p>
             </div>
           ) : filteredDoctors.length === 0 ? (
             <div className="text-center py-10">

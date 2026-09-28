@@ -132,7 +132,6 @@ const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCur
         setHospitalsList(allHospitals);
       }
 
-      // Fetch fresh doctor data from backend
       if (currentDoc && currentDoc.id) {
         const docRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${currentDoc.id}/`).catch(() => null);
         if (docRes && docRes.ok) {
@@ -653,7 +652,7 @@ const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCur
           </div>
 
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 text-xs">
-            <span className="text-slate-500 font-medium">All hospital records are synced with Super Admin backend.</span>
+            <span className="text-slate-500 font-medium">All hospital records are synchronized.</span>
             <button
               type="button"
               onClick={handleBackClick}

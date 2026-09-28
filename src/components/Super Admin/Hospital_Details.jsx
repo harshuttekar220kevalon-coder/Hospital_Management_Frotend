@@ -338,14 +338,13 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-16 text-center">
-        <p className="text-sm font-semibold text-slate-500">Loading branch profile from backend...</p>
+        <p className="text-sm font-semibold text-slate-500">Loading branch profile...</p>
       </div>
     );
   }
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-5">
-      {/* Top Navigation & Actions Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-3">
           <button

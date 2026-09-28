@@ -63,7 +63,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
         const data = await response.json();
         setAdmins(data);
       } else {
-        alert('Failed to fetch hospital admins from backend.');
+        alert('Failed to fetch hospital admins.');
       }
     } catch (err) {
       console.error('Error fetching admins:', err);
@@ -148,8 +148,8 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
         setIsAddModalOpen(false);
         fetchAdmins();
       } else {
-        console.error('Backend validation error:', data);
-        alert('Backend Error: ' + JSON.stringify(data));
+        console.error('Validation error:', data);
+        alert('Error: ' + JSON.stringify(data));
       }
     } catch (error) {
       console.error('Network error creating admin:', error);
@@ -380,11 +380,10 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
         </div>
       </div>
 
-      {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto w-full">
           {loading ? (
-            <p className="text-center py-8 text-xs text-slate-500">Loading administrators from backend...</p>
+            <p className="text-center py-8 text-xs text-slate-500">Loading administrators...</p>
           ) : filteredAdmins.length === 0 ? (
             <div className="text-center py-10">
               <p className="text-xs font-semibold text-slate-500">No administrators found.</p>

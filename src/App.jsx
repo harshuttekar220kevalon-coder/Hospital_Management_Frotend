@@ -1,18 +1,15 @@
 import React, { useState, useEffect } from 'react';
 
 
-// Maain pages
 import Navbar from './components/Navbar';
 import SuperAdminNavbar from './components/Super Admin/Navbar';
 import AdminNavbar from './components/Admin/Navbar';
-import Home from './components/View/Home';
 import Login from './components/Login';
 import SignIn from './components/SignIn';
 import ResetPassword from './components/ResetPassword';
 
 
 
-// Super Admin Pages
 import SuperAdminDashboard from './components/Super Admin/Dashbord';
 import Hospital from './components/Super Admin/Hospital';
 import Hospital_Details from './components/Super Admin/Hospital_Details';
@@ -30,7 +27,6 @@ import Patient_Details from './components/Super Admin/Patient_Details';
 
 
 
-// Admin Pagies
 import AdminDashboard from './components/Admin/Dashbord';
 import HospitalManagement from './components/Admin/Hospital_Management';
 import AdminDoctors from './components/Admin/Doctor';
@@ -41,7 +37,11 @@ import AdminReceptionists from './components/Admin/Receptionists';
 import AdminReceptionistDetails from './components/Admin/Receptionists_Details';
 import AdminPatients from './components/Admin/Patients';
 import AdminPatientDetails from './components/Admin/Patients_Details';
+import AdminSettings from './components/Admin/setting';
 import DoctorDashboard from './components/Doctor/Dashbord';
+import DoctorAppointments from './components/Doctor/Appointments';
+import DoctorPatients from './components/Doctor/Patients';
+import DoctorRegularSchedule from './components/Doctor/Regular Schedule';
 import NurseDashboard from './components/Nurse/Dashbord';
 import ReceptionistDashboard from './components/Receptionist/Dashbord';
 import PatientDashboard from './components/Patient/Dashbord';
@@ -54,7 +54,7 @@ const getDashboardByRole = (role) => {
   if (r.includes('NURSE')) return 'nurse_dashboard';
   if (r.includes('RECEPTION')) return 'receptionist_dashboard';
   if (r.includes('PATIENT')) return 'patient_dashboard';
-  return 'home';
+  return 'login';
 };
 
 const App = () => {
@@ -146,7 +146,6 @@ const App = () => {
     }
   });
 
-  // Scroll to top and persist current page whenever currentPage changes
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     if (currentPage) {
@@ -154,7 +153,6 @@ const App = () => {
     }
   }, [currentPage]);
 
-  // Persist selectedHospital in localStorage for reload persistence
   useEffect(() => {
     if (selectedHospital) {
       localStorage.setItem('selectedHospital', JSON.stringify(selectedHospital));
@@ -163,7 +161,6 @@ const App = () => {
     }
   }, [selectedHospital]);
 
-  // Persist selectedAdmin in localStorage for reload persistence
   useEffect(() => {
     if (selectedAdmin) {
       localStorage.setItem('selectedAdmin', JSON.stringify(selectedAdmin));
@@ -172,7 +169,6 @@ const App = () => {
     }
   }, [selectedAdmin]);
 
-  // Persist selectedDoctor in localStorage for reload persistence
   useEffect(() => {
     if (selectedDoctor) {
       localStorage.setItem('selectedDoctor', JSON.stringify(selectedDoctor));
@@ -181,7 +177,6 @@ const App = () => {
     }
   }, [selectedDoctor]);
 
-  // Persist selectedNurse in localStorage for reload persistence
   useEffect(() => {
     if (selectedNurse) {
       localStorage.setItem('selectedNurse', JSON.stringify(selectedNurse));
@@ -190,7 +185,6 @@ const App = () => {
     }
   }, [selectedNurse]);
 
-  // Persist selectedReceptionist in localStorage for reload persistence
   useEffect(() => {
     if (selectedReceptionist) {
       localStorage.setItem('selectedReceptionist', JSON.stringify(selectedReceptionist));
@@ -199,7 +193,6 @@ const App = () => {
     }
   }, [selectedReceptionist]);
 
-  // Persist selectedPatient in localStorage for reload persistence
   useEffect(() => {
     if (selectedPatient) {
       localStorage.setItem('selectedPatient', JSON.stringify(selectedPatient));
@@ -404,6 +397,8 @@ const App = () => {
                 setSelectedHospital={setSelectedHospital}
                 setSelectedDoctor={setSelectedDoctor}
                 setSelectedPatient={setSelectedPatient}
+                setSelectedNurse={setSelectedNurse}
+                setSelectedReceptionist={setSelectedReceptionist}
               />
             )}
             {currentPage === 'admin_hospital_management' && (
@@ -478,8 +473,26 @@ const App = () => {
                 setCurrentPage={setCurrentPage}
               />
             )}
+            {(currentPage === 'admin_settings' || currentPage === 'setting') && (
+              <AdminSettings
+                currentUser={currentUser}
+                setCurrentUser={setCurrentUser}
+                setCurrentPage={setCurrentPage}
+                selectedHospital={selectedHospital}
+                setSelectedHospital={setSelectedHospital}
+              />
+            )}
             {currentPage === 'doctor_dashboard' && (
-              <DoctorDashboard currentUser={currentUser} />
+              <DoctorDashboard currentUser={currentUser} setCurrentPage={setCurrentPage} />
+            )}
+            {currentPage === 'doctor_appointments' && (
+              <DoctorAppointments currentUser={currentUser} setCurrentPage={setCurrentPage} />
+            )}
+            {currentPage === 'doctor_patients' && (
+              <DoctorPatients currentUser={currentUser} setCurrentPage={setCurrentPage} />
+            )}
+            {currentPage === 'doctor_schedule' && (
+              <DoctorRegularSchedule currentUser={currentUser} setCurrentPage={setCurrentPage} />
             )}
             {currentPage === 'nurse_dashboard' && (
               <NurseDashboard currentUser={currentUser} />
@@ -489,9 +502,6 @@ const App = () => {
             )}
             {currentPage === 'patient_dashboard' && (
               <PatientDashboard currentUser={currentUser} />
-            )}
-            {currentPage === 'home' && (
-              <Home currentUser={currentUser} />
             )}
           </>
         )}

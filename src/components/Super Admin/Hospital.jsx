@@ -54,11 +54,11 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
         const data = await response.json();
         setHospitals(data);
       } else {
-        alert('Failed to fetch hospitals from backend.');
+        alert('Failed to fetch hospitals. Please try again.');
       }
     } catch (error) {
       console.error('Network error:', error);
-      alert('Backend server se connect nahi ho paya.');
+      alert('Unable to connect to server. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -275,7 +275,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
       });
 
       if (response.ok || response.status === 204) {
-        alert('Hospital deleted successfully from backend.');
+        alert('Hospital deleted successfully.');
         setHospitals(hospitals.filter(h => h.id !== id));
         if (detailHospital && detailHospital.id === id) {
           setDetailHospital(null);
@@ -392,11 +392,10 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
         </div>
       </div>
 
-      {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto w-full">
           {loading ? (
-            <p className="text-center py-8 text-xs text-slate-500">Loading hospitals from backend...</p>
+            <p className="text-center py-8 text-xs text-slate-500">Loading hospitals...</p>
           ) : filteredHospitals.length === 0 ? (
             <p className="text-center py-8 text-xs text-slate-400">No hospital branches found.</p>
           ) : (

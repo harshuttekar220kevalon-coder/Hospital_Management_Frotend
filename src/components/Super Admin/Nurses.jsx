@@ -58,7 +58,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
         const data = await response.json();
         setNurses(data);
       } else {
-        alert('Failed to fetch nurses from backend.');
+        alert('Failed to fetch nurses. Please try again.');
       }
     } catch (err) {
       console.error('Error fetching nurses:', err);
@@ -311,11 +311,10 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
         </div>
       </div>
 
-      {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto w-full">
           {loading ? (
-            <p className="text-center py-8 text-xs text-slate-500">Loading nurses registry from backend...</p>
+            <p className="text-center py-8 text-xs text-slate-500">Loading nurses...</p>
           ) : filteredNurses.length === 0 ? (
             <div className="text-center py-10">
               <p className="text-xs font-semibold text-slate-500">No nurses found matching your criteria.</p>
