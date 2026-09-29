@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptionist, setSelectedHospital }) => {
   const [receptionists, setReceptionists] = useState([]);
@@ -53,7 +54,7 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
       let assignedHospitalId = currentUser?.hospital || null;
 
       try {
-        const adminsRes = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/').catch(() => null);
+        const adminsRes = await fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null);
         if (adminsRes && adminsRes.ok) {
           const adminsList = await adminsRes.json();
           const currentEmail = (currentUser?.email || '').toLowerCase().trim();
@@ -78,14 +79,14 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
 
       let hosp = null;
       if (assignedHospitalId) {
-        const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${assignedHospitalId}/`).catch(() => null);
+        const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${assignedHospitalId}/`).catch(() => null);
         if (hospRes && hospRes.ok) {
           hosp = await hospRes.json();
         }
       }
 
       if (!hosp) {
-        const allHospRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/').catch(() => null);
+        const allHospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
         if (allHospRes && allHospRes.ok) {
           const allHosp = await allHospRes.json();
           hosp = (assignedHospitalId ? allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) : null) || allHosp[0] || null;
@@ -98,7 +99,7 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
         if (setSelectedHospital) setSelectedHospital(hosp);
       }
 
-      const recRes = await fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/').catch(() => null);
+      const recRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`).catch(() => null);
       if (recRes && recRes.ok) {
         const allRecs = await recRes.json();
         if (assignedHospitalId) {
@@ -160,7 +161,7 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
         is_active: formData.is_active
       };
 
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/', {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -185,7 +186,7 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
   const handleToggleStatus = async (rec) => {
     const newStatus = !rec.is_active;
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${rec.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${rec.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: newStatus, status: newStatus ? 'Active' : 'On Leave' })
@@ -194,7 +195,7 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
       if (response.ok) {
         setReceptionists(prev => prev.map(r => r.id === rec.id ? { ...r, is_active: newStatus, status: newStatus ? 'Active' : 'On Leave' } : r));
       } else {
-        const putRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${rec.id}/`, {
+        const putRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${rec.id}/`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...rec, is_active: newStatus, status: newStatus ? 'Active' : 'On Leave' })

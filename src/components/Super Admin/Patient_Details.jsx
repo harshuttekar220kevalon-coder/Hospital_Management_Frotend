@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, setCurrentPage }) => {
   const [patientData, setPatientData] = useState(() => {
@@ -24,7 +25,8 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
   const [statusRemarks, setStatusRemarks] = useState('');
 
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
-  const severityLevels = ['Normal', 'Moderate', 'Urgent', 'Emergency'];
+  const severityLevels = ['Critical', 'Emergency', 'Urgent', 'Normal'];
+  const conditionChoices = ['Critical', 'Emergency', 'Urgent', 'Normal'];
   const statusOptions = ['Pending', 'Assigned', 'Admitted', 'Discharged', 'Cancelled'];
   const paymentStatuses = ['Paid', 'Partial', 'Pending', 'Failed'];
   const paymentMethods = ['Cash', 'UPI', 'Credit Card', 'Debit Card', 'Net Banking'];
@@ -49,7 +51,10 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
     payment_method: '',
     symptoms_diagnosis: '',
     reason_for_visit: '',
-    symptoms_severity: '',
+    Condation: 'Normal',
+    condation: 'Normal',
+    condition: 'Normal',
+    symptoms_severity: 'Normal',
     visit_date_time: '',
     status: '',
     is_active: true,
@@ -74,27 +79,27 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
       }
 
       // Fetch hospitals
-      const hospRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/').catch(() => null);
+      const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
       if (hospRes && hospRes.ok) {
         const hospData = await hospRes.json();
         setHospitalsList(hospData);
       }
 
       // Fetch doctors
-      const docRes = await fetch('http://127.0.0.1:8000/api/super-admin/Doctors/').catch(() => null);
+      const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
       if (docRes && docRes.ok) {
         const docData = await docRes.json();
         setDoctorsList(docData);
       }
 
-      const adminRes = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/').catch(() => null);
+      const adminRes = await fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null);
       if (adminRes && adminRes.ok) {
         const adminData = await adminRes.json();
         setAdminsList(adminData);
       }
 
       if (currentPat && currentPat.id) {
-        const patRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Patients/${currentPat.id}/`).catch(() => null);
+        const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/${currentPat.id}/`).catch(() => null);
         if (patRes && patRes.ok) {
           const freshPat = await patRes.json();
           setPatientData(freshPat);
@@ -188,7 +193,10 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
       payment_method: activePatient.payment_method || 'Cash',
       symptoms_diagnosis: activePatient.symptoms_diagnosis || '',
       reason_for_visit: activePatient.reason_for_visit || activePatient.symptoms_diagnosis || '',
-      symptoms_severity: activePatient.symptoms_severity || 'Normal',
+      Condation: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || 'Normal',
+      condation: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || 'Normal',
+      condition: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || 'Normal',
+      symptoms_severity: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || 'Normal',
       visit_date_time: activePatient.visit_date_time || activePatient.appointment_time || '',
       status: activePatient.status || 'Pending',
       is_active: activePatient.is_active !== undefined ? activePatient.is_active : true,
@@ -209,6 +217,8 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
     try {
       const selectedDocObj = doctorsList.find(d => d.id === Number(editFormData.doctor));
       let response;
+
+      const chosenCondition = editFormData.Condation || editFormData.condation || editFormData.condition || editFormData.symptoms_severity || 'Normal';
 
       const payloadData = {
         patient_id: displayId,
@@ -231,7 +241,11 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
         payment_method: editFormData.payment_method,
         symptoms_diagnosis: editFormData.symptoms_diagnosis || editFormData.reason_for_visit,
         reason_for_visit: editFormData.reason_for_visit || editFormData.symptoms_diagnosis,
-        symptoms_severity: editFormData.symptoms_severity,
+        Condation: chosenCondition,
+        condation: chosenCondition,
+        condition: chosenCondition,
+        Condition: chosenCondition,
+        symptoms_severity: chosenCondition,
         visit_date_time: editFormData.visit_date_time || null,
         status: editFormData.status,
         is_active: Boolean(editFormData.is_active)
@@ -246,12 +260,12 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
         });
         formData.append('attached_document', editSelectedFile);
 
-        response = await fetch(`http://127.0.0.1:8000/api/super-admin/Patients/${activePatient.id}/`, {
+        response = await fetch(`${API_BASE_URL}/super-admin/Patients/${activePatient.id}/`, {
           method: 'PATCH',
           body: formData
         }).catch(() => null);
       } else {
-        response = await fetch(`http://127.0.0.1:8000/api/super-admin/Patients/${activePatient.id}/`, {
+        response = await fetch(`${API_BASE_URL}/super-admin/Patients/${activePatient.id}/`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payloadData)
@@ -287,7 +301,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
     if (!activePatient || !activePatient.id) return;
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Patients/${activePatient.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Patients/${activePatient.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -314,7 +328,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
   const handleConfirmDelete = async () => {
     if (!activePatient || !activePatient.id) return;
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Patients/${activePatient.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Patients/${activePatient.id}/`, {
         method: 'DELETE'
       }).catch(() => null);
 
@@ -397,6 +411,17 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                   : 'bg-amber-50 text-amber-700 border-amber-200'
               }`}>
                 {activePatient.status || 'Pending'}
+              </span>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                (activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity) === 'Critical'
+                  ? 'bg-rose-100 text-rose-800 border-rose-300'
+                  : (activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity) === 'Emergency'
+                  ? 'bg-red-100 text-red-800 border-red-300'
+                  : (activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity) === 'Urgent'
+                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}>
+                Condition: {activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || 'Normal'}
               </span>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                 activePatient.payment_status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
@@ -628,8 +653,8 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                     {attachedDocVal.startsWith('data:image') || (typeof attachedDocVal === 'string' && attachedDocVal.match(/\.(jpeg|jpg|png|gif|webp)$/i)) ? (
                       <img src={attachedDocVal} alt="Document Preview" className="w-12 h-12 object-cover rounded-lg border border-slate-200 shrink-0" />
                     ) : (
-                      <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold text-lg border border-red-200 shrink-0">
-                        📄
+                      <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold text-xs border border-red-200 shrink-0">
+                        DOC
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
@@ -988,15 +1013,22 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Severity / Priority</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Patient Condition (Triage) *</label>
                   <select
-                    value={editFormData.symptoms_severity}
-                    onChange={(e) => setEditFormData({ ...editFormData, symptoms_severity: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
+                    value={editFormData.Condation || editFormData.condation || editFormData.condition || editFormData.symptoms_severity || 'Normal'}
+                    onChange={(e) => setEditFormData({
+                      ...editFormData,
+                      Condation: e.target.value,
+                      condation: e.target.value,
+                      condition: e.target.value,
+                      symptoms_severity: e.target.value
+                    })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-bold cursor-pointer"
                   >
-                    {severityLevels.map((sev, idx) => (
-                      <option key={idx} value={sev}>{sev}</option>
-                    ))}
+                    <option value="Critical">Critical</option>
+                    <option value="Emergency">Emergency</option>
+                    <option value="Urgent">Urgent</option>
+                    <option value="Normal">Normal</option>
                   </select>
                 </div>
 
@@ -1099,9 +1131,6 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-4 sm:p-6 space-y-4">
-            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto text-xl font-bold">
-              🗑️
-            </div>
             <div className="text-center space-y-1">
               <h3 className="text-base font-bold text-slate-800">Delete Patient Record?</h3>
               <p className="text-xs text-slate-500">

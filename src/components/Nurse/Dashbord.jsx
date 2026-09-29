@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const NurseDashboard = ({ currentUser }) => {
   const [visibleCount, setVisibleCount] = useState(6);
@@ -16,7 +17,7 @@ const NurseDashboard = ({ currentUser }) => {
         const email = (currentUser?.email || '').toLowerCase().trim();
         const nurseId = currentUser?.id;
 
-        const nurseRes = await fetch('http://127.0.0.1:8000/api/super-admin/Nurses/').catch(() => null);
+        const nurseRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/`).catch(() => null);
         let currentNurse = null;
         if (nurseRes && nurseRes.ok) {
           const nurses = await nurseRes.json();
@@ -33,19 +34,19 @@ const NurseDashboard = ({ currentUser }) => {
 
         const targetHospId = currentNurse?.hospital || currentUser?.hospital;
         if (targetHospId) {
-          const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${targetHospId}/`).catch(() => null);
+          const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${targetHospId}/`).catch(() => null);
           if (hospRes && hospRes.ok) {
             const hospData = await hospRes.json();
             if (isMounted) setHospitalInfo(hospData);
           }
         }
 
-        const patRes = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/').catch(() => null);
+        const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
         if (patRes && patRes.ok) {
           const allPats = await patRes.json();
-          const hospPats = targetHospId ? allPats.filter(p => Number(p.hospital) === Number(targetHospId) || Number(p.hospital?.id) === Number(targetHospId)) : allPats;
+          const hospPats = targetHospId ? allPats.filter(p => Number(typeof p.hospital === 'object' ? p.hospital?.id : p.hospital) === Number(targetHospId)) : allPats;
           if (isMounted) {
-            setPatients(hospPats.length > 0 ? hospPats : allPats.slice(0, 10));
+            setPatients(hospPats);
           }
         }
       } catch (err) {
@@ -66,10 +67,10 @@ const NurseDashboard = ({ currentUser }) => {
   const hospitalName = hospitalInfo?.Name || 'Apex Care Hospital';
 
   const nurseStats = [
-    { title: 'Assigned Ward', value: wardName, sub: `Active in ${hospitalName}`, icon: '🩺', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    { title: 'Duty Shift', value: shiftName, sub: `${roleName} Active`, icon: '🕒', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { title: 'Inpatient Count', value: `${patients.length} Patients`, sub: 'Under Ward Care', icon: '👥', color: 'bg-teal-50 text-teal-700 border-teal-200' },
-    { title: 'Nurse ID', value: nurseInfo?.nurse_id || currentUser?.nurse_id || `NUR-${currentUser?.id || '01'}`, sub: 'Verified Nursing Staff', icon: '🪪', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+    { title: 'Assigned Ward', value: wardName, sub: `Active in ${hospitalName}`, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    { title: 'Duty Shift', value: shiftName, sub: `${roleName} Active`, color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    { title: 'Inpatient Count', value: `${patients.length} Patients`, sub: 'Under Ward Care', color: 'bg-teal-50 text-teal-700 border-teal-200' },
+    { title: 'Nurse ID', value: nurseInfo?.nurse_id || currentUser?.nurse_id || `NUR-${currentUser?.id || '01'}`, sub: 'Verified Nursing Staff', color: 'bg-amber-50 text-amber-700 border-amber-200' },
   ];
 
   return (
@@ -106,7 +107,6 @@ const NurseDashboard = ({ currentUser }) => {
             className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-emerald-300 transition"
           >
             <div className="flex items-center justify-between">
-              <span className="text-2xl">{item.icon}</span>
               <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${item.color}`}>
                 Nurse {nurseName}
               </span>

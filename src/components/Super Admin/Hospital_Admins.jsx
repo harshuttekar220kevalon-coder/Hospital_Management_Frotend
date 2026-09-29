@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSelectedAdminProp }) => {
   const [admins, setAdmins] = useState([]);
@@ -45,7 +46,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
 
   const fetchHospitals = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/');
+      const response = await fetch(`${API_BASE_URL}/super-admin/Hospital/`);
       if (response.ok) {
         const data = await response.json();
         setHospitalsList(data);
@@ -58,7 +59,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
   const fetchAdmins = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/');
+      const response = await fetch(`${API_BASE_URL}/super-admin/Admins/`);
       if (response.ok) {
         const data = await response.json();
         setAdmins(data);
@@ -129,7 +130,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
         hospital: Number(formData.hospital)
       };
 
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/', {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Admins/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -187,7 +188,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
         hospital: Number(formData.hospital)
       };
 
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${selectedAdmin.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Admins/${selectedAdmin.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -225,7 +226,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
     }
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${selectedAdmin.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Admins/${selectedAdmin.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hospital: Number(assignHospitalId) })
@@ -246,7 +247,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
   const handleToggleStatus = async (admin) => {
     try {
       const updatedStatus = !admin.is_active;
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${admin.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Admins/${admin.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: updatedStatus })
@@ -267,7 +268,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
 
   const handleDeleteAdmin = async (id) => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Admins/${id}/`, {
         method: 'DELETE'
       });
 

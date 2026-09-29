@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from './Api/Api';
 
 const Login = ({ setCurrentPage, setIsLoggedIn }) => {
   const [formData, setFormData] = useState({
@@ -38,14 +39,14 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
       let authenticatedUser = null;
       let customInactiveMsg = '';
 
-      let serverLoginRes = await fetch('http://127.0.0.1:8000/api/user-login/', {
+      let serverLoginRes = await fetch(`${API_BASE_URL}/user-login/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       }).catch(() => null);
 
       if (!serverLoginRes || !serverLoginRes.ok) {
-        serverLoginRes = await fetch('http://127.0.0.1:8000/api/Login/', {
+        serverLoginRes = await fetch(`${API_BASE_URL}/Login/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData),
@@ -70,11 +71,11 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
       }
 
       const [docsRes, nursesRes, recsRes, adminsRes, patsRes] = await Promise.allSettled([
-        fetch('http://127.0.0.1:8000/api/super-admin/Doctors/'),
-        fetch('http://127.0.0.1:8000/api/super-admin/Nurses/'),
-        fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/'),
-        fetch('http://127.0.0.1:8000/api/super-admin/Admins/'),
-        fetch('http://127.0.0.1:8000/api/super-admin/Patients/')
+        fetch(`${API_BASE_URL}/super-admin/Doctors/`),
+        fetch(`${API_BASE_URL}/super-admin/Nurses/`),
+        fetch(`${API_BASE_URL}/super-admin/Receptionists/`),
+        fetch(`${API_BASE_URL}/super-admin/Admins/`),
+        fetch(`${API_BASE_URL}/super-admin/Patients/`)
       ]);
 
       const docList = docsRes.status === 'fulfilled' && docsRes.value.ok ? await docsRes.value.json().catch(() => []) : [];
@@ -292,7 +293,6 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
 
         {inactivityMessage && (
           <div className="mb-4 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 shadow-xs">
-            <span className="text-base shrink-0">⚠️</span>
             <div className="flex-1">
               <p className="font-bold text-rose-900">Account Inactive</p>
               <p className="mt-0.5 text-rose-700 leading-relaxed">{inactivityMessage}</p>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 import Hospital from './Hospital';
 import Hospital_Admins from './Hospital_Admins';
 import Doctors_Management from './Doctors_Management';
@@ -32,12 +33,12 @@ const SuperAdminDashboard = ({
       setLoading(true);
 
       const [hospRes, adminRes, docRes, nurRes, recRes, patRes] = await Promise.all([
-        fetch('http://127.0.0.1:8000/api/super-admin/Hospital/').catch(() => null),
-        fetch('http://127.0.0.1:8000/api/super-admin/Admins/').catch(() => null),
-        fetch('http://127.0.0.1:8000/api/super-admin/Doctors/').catch(() => null),
-        fetch('http://127.0.0.1:8000/api/super-admin/Nurses/').catch(() => null),
-        fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/').catch(() => null),
-        fetch('http://127.0.0.1:8000/api/super-admin/Patients/').catch(() => null)
+        fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/Nurses/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/Receptionists/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null)
       ]);
 
       if (hospRes && hospRes.ok) {

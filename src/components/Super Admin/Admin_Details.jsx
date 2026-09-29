@@ -9,18 +9,8 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
       const saved = localStorage.getItem('selectedAdmin');
       if (saved) return JSON.parse(saved);
     } catch {
-      // ignore
     }
-    return {
-      id: 1,
-      name: 'Administrator',
-      employee_id: 'ADM-001',
-      designation: 'Hospital Administrator',
-      email: 'admin@hospital.com',
-      contact: '+91 98765 43210',
-      password: '••••••••',
-      is_active: true
-    };
+
   });
 
   const [hospitalData, setHospitalData] = useState(null);
@@ -77,18 +67,17 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
         let currentAdmin = selectedAdmin || adminData;
         if (!currentAdmin || !currentAdmin.id) {
           const saved = localStorage.getItem('selectedAdmin');
-          if (saved) {
-            currentAdmin = JSON.parse(saved);
-            if (isMounted) setAdminData(currentAdmin);
-          }
+        if (saved) {
+          currentAdmin = JSON.parse(saved);
+          if (isMounted) setAdminData(currentAdmin);
         }
-
-        const hospListRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/').catch(() => null);
-        let allHospitals = [];
-        if (hospListRes && hospListRes.ok) {
-          allHospitals = await hospListRes.json();
-          if (isMounted) setHospitalsList(allHospitals);
-        }
+      }
+      const hospListRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/').catch(() => null);
+      let allHospitals = [];
+      if (hospListRes && hospListRes.ok) {
+        allHospitals = await hospListRes.json();
+        if (isMounted) setHospitalsList(allHospitals);
+      }
 
         if (currentAdmin && currentAdmin.id && !String(currentAdmin.id).startsWith('hosp-')) {
           const adminRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${currentAdmin.id}/`).catch(() => null);

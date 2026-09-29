@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const PatientDashboard = ({ currentUser }) => {
   const [patientInfo, setPatientInfo] = useState(null);
@@ -15,7 +16,7 @@ const PatientDashboard = ({ currentUser }) => {
         const email = (currentUser?.email || '').toLowerCase().trim();
         const patId = currentUser?.id;
 
-        const patRes = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/').catch(() => null);
+        const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
         let currentPat = null;
         if (patRes && patRes.ok) {
           const pats = await patRes.json();
@@ -32,7 +33,7 @@ const PatientDashboard = ({ currentUser }) => {
 
         const targetHospId = currentPat?.hospital || currentUser?.hospital;
         if (targetHospId) {
-          const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${targetHospId}/`).catch(() => null);
+          const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${targetHospId}/`).catch(() => null);
           if (hospRes && hospRes.ok) {
             const hospData = await hospRes.json();
             if (isMounted) setHospitalInfo(hospData);
@@ -41,7 +42,7 @@ const PatientDashboard = ({ currentUser }) => {
 
         const targetDocId = currentPat?.doctor;
         if (targetDocId) {
-          const docRes = await fetch('http://127.0.0.1:8000/api/super-admin/Doctors/').catch(() => null);
+          const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
           if (docRes && docRes.ok) {
             const docs = await docRes.json();
             const doc = docs.find(d => Number(d.id) === Number(targetDocId));
@@ -65,10 +66,10 @@ const PatientDashboard = ({ currentUser }) => {
   const docName = doctorInfo?.name || patientInfo?.doctor_name || 'Dr. Assigned Specialist';
 
   const patientStats = [
-    { title: 'UHID / Patient ID', value: uhid, sub: 'Registered Patient', icon: '🪪', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { title: 'Assigned Doctor', value: docName, sub: doctorInfo?.specialization || 'Clinical Specialist', icon: '🩺', color: 'bg-teal-50 text-teal-700 border-teal-200' },
-    { title: 'Payment Status', value: patientInfo?.payment_status || 'Paid', sub: `Fee: ₹${patientInfo?.consultation_fee || '500'}`, icon: '🧾', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    { title: 'Visit / Appointment', value: patientInfo?.visit_date_time ? new Date(patientInfo.visit_date_time).toLocaleDateString() : 'Scheduled', sub: hospitalName, icon: '📅', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    { title: 'UHID / Patient ID', value: uhid, sub: 'Registered Patient', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    { title: 'Assigned Doctor', value: docName, sub: doctorInfo?.specialization || 'Clinical Specialist', color: 'bg-teal-50 text-teal-700 border-teal-200' },
+    { title: 'Payment Status', value: patientInfo?.payment_status || 'Paid', sub: `Fee: ₹${patientInfo?.consultation_fee || '500'}`, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    { title: 'Visit / Appointment', value: patientInfo?.visit_date_time ? new Date(patientInfo.visit_date_time).toLocaleDateString() : 'Scheduled', sub: hospitalName, color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
   ];
 
   return (
@@ -102,7 +103,6 @@ const PatientDashboard = ({ currentUser }) => {
             className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-blue-300 transition"
           >
             <div className="flex items-center justify-between">
-              <span className="text-2xl">{item.icon}</span>
               <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${item.color}`}>
                 Patient
               </span>

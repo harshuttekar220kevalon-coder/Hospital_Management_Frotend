@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, setCurrentPage }) => {
   const [activeTab, setActiveTab] = useState('all');
@@ -58,7 +59,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
         try {
           setLoading(true);
           // 1. Fetch Specific Hospital Details
-          const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${selectedHospital.id}/`);
+          const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${selectedHospital.id}/`);
           let hospData = null;
           if (hospRes.ok) {
             hospData = await hospRes.json();
@@ -69,7 +70,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
           setSubLoading(true);
 
           // 2. Fetch Assigned Hospital Admin
-          const adminRes = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/').catch(() => null);
+          const adminRes = await fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null);
           if (adminRes && adminRes.ok) {
             const adminsList = await adminRes.json();
             const matchedAdmin = adminsList.find(a => Number(a.hospital) === Number(selectedHospital.id));
@@ -77,7 +78,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
           }
 
           // 3. Fetch Doctors assigned to this hospital
-          const docRes = await fetch('http://127.0.0.1:8000/api/super-admin/Doctors/').catch(() => null);
+          const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
           if (docRes && docRes.ok) {
             const allDocs = await docRes.json();
             const branchDocs = allDocs.filter(d => {
@@ -90,7 +91,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
           }
 
           // 4. Fetch Nurses for this Hospital Branch
-          const nurRes = await fetch('http://127.0.0.1:8000/api/super-admin/Nurses/').catch(() => null);
+          const nurRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/`).catch(() => null);
           if (nurRes && nurRes.ok) {
             const allNurs = await nurRes.json();
             const branchNurs = allNurs.filter(n => Number(n.hospital) === Number(selectedHospital.id));
@@ -98,7 +99,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
           }
 
           // 5. Fetch Receptionists for this Hospital Branch
-          const recRes = await fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/').catch(() => null);
+          const recRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`).catch(() => null);
           if (recRes && recRes.ok) {
             const allRecs = await recRes.json();
             const branchRecs = allRecs.filter(r => Number(r.hospital) === Number(selectedHospital.id));
@@ -129,7 +130,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
           }
 
           // 7. Fetch Patients for this Hospital Branch
-          const patRes = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/').catch(() => null);
+          const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
           if (patRes && patRes.ok) {
             const allPats = await patRes.json();
             const branchPats = allPats.filter(p => Number(p.hospital) === Number(selectedHospital.id));
@@ -199,7 +200,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
         hospital: activeBranch.id
       };
 
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/', {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Admins/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -249,7 +250,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
     e.preventDefault();
     if (!activeBranch || !activeBranch.id) return;
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${activeBranch.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Hospital/${activeBranch.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editHospitalFormData)
@@ -275,7 +276,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
   const handleDeleteHospital = async () => {
     if (!activeBranch || !activeBranch.id) return;
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${activeBranch.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Hospital/${activeBranch.id}/`, {
         method: 'DELETE'
       });
 

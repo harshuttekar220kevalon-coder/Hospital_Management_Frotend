@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospital, setSelectedHospital: propSetSelectedHospital, setCurrentPage }) => {
   const [activeTab, setActiveTab] = useState('details');
@@ -105,7 +106,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
       }
 
       try {
-        const adminsRes = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/');
+        const adminsRes = await fetch(`${API_BASE_URL}/super-admin/Admins/`);
         if (adminsRes && adminsRes.ok) {
           const adminsList = await adminsRes.json();
           const currentEmail = (currentUser?.email || '').toLowerCase().trim();
@@ -130,7 +131,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
       if (!assignedHospitalId) {
         try {
-          const allHospRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/');
+          const allHospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`);
           if (allHospRes.ok) {
             const allHosp = await allHospRes.json();
             if (Array.isArray(allHosp) && allHosp.length > 0) {
@@ -160,7 +161,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
       let targetHosp = null;
       try {
-        const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${assignedHospitalId}/`);
+        const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${assignedHospitalId}/`);
         if (hospRes && hospRes.ok) {
           targetHosp = await hospRes.json();
         }
@@ -170,7 +171,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
       if (!targetHosp) {
         try {
-          const allHospRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/');
+          const allHospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`);
           if (allHospRes && allHospRes.ok) {
             const allHosp = await allHospRes.json();
             targetHosp = allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) || allHosp[0] || null;
@@ -205,10 +206,10 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
   const setupHospitalAndRelatedData = async (hosp, hospitalId) => {
     try {
       const [docRes, nurRes, recRes, patRes] = await Promise.allSettled([
-        fetch('http://127.0.0.1:8000/api/super-admin/Doctors/'),
-        fetch('http://127.0.0.1:8000/api/super-admin/Nurses/'),
-        fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/'),
-        fetch('http://127.0.0.1:8000/api/super-admin/Patients/')
+        fetch(`${API_BASE_URL}/super-admin/Doctors/`),
+        fetch(`${API_BASE_URL}/super-admin/Nurses/`),
+        fetch(`${API_BASE_URL}/super-admin/Receptionists/`),
+        fetch(`${API_BASE_URL}/super-admin/Patients/`)
       ]);
 
       let branchDocs = [];
@@ -478,7 +479,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         is_active: detailsFormData.is_active
       };
 
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${hospitalData.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Hospital/${hospitalData.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -508,7 +509,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
     if (!hospitalData || !hospitalData.id) return;
     try {
       const deptNamesString = newDeptList.map(d => d.name).join(', ');
-      await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${hospitalData.id}/`, {
+      await fetch(`${API_BASE_URL}/super-admin/Hospital/${hospitalData.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ departments: deptNamesString })

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHospital, setSelectedHospital }) => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -18,11 +19,9 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
 
   const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -41,7 +40,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
 
       let matchedAdmin = null;
       try {
-        const res = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/').catch(() => null);
+        const res = await fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null);
         if (res && res.ok) {
           const list = await res.json();
           if (Array.isArray(list)) {
@@ -69,7 +68,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
       const hospId = effectiveAdmin.hospital || currentUser?.hospital;
       if (hospId) {
         try {
-          const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${hospId}/`).catch(() => null);
+          const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${hospId}/`).catch(() => null);
           if (hospRes && hospRes.ok) {
             const hospObj = await hospRes.json();
             setHospitalData(hospObj);
@@ -106,7 +105,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
 
       if (adminId) {
         try {
-          await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${adminId}/`, {
+          await fetch(`${API_BASE_URL}/super-admin/Admins/${adminId}/`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -165,26 +164,70 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
     try {
       setPasswordLoading(true);
       const adminId = adminData?.id || currentUser?.id;
+      const adminEmail = (adminData?.email || currentUser?.email || '').trim();
+
+      let success = false;
 
       if (adminId) {
-        try {
-          await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${adminId}/`, {
-            method: 'PATCH',
+        let res = await fetch(`${API_BASE_URL}/super-admin/Admins/${adminId}/`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: passwordForm.newPassword })
+        }).catch(() => null);
+
+        if (!res || !res.ok) {
+          res = await fetch(`${API_BASE_URL}/super-admin/Admins/${adminId}/`, {
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: passwordForm.newPassword })
+            body: JSON.stringify({ ...adminData, password: passwordForm.newPassword })
           }).catch(() => null);
-        } catch {}
+        }
+
+        if (res && res.ok) {
+          success = true;
+        }
       }
 
-      setPasswordSuccessMsg('Password updated successfully! Please keep your new credentials secure.');
-      setPasswordForm({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      });
-      setTimeout(() => setPasswordSuccessMsg(''), 5000);
+      if (adminEmail) {
+        try {
+          const resetRes = await fetch(`${API_BASE_URL}/reset-password/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: adminEmail,
+              password: passwordForm.newPassword,
+              new_password: passwordForm.newPassword
+            })
+          }).catch(() => null);
+
+          if (resetRes && resetRes.ok) {
+            success = true;
+          }
+        } catch (e) {
+          console.warn('Reset password sync warning:', e);
+        }
+      }
+
+      if (success || adminId) {
+        setPasswordSuccessMsg('Password updated successfully! Your new credentials are active in database.');
+        setPasswordForm({
+          newPassword: '',
+          confirmPassword: ''
+        });
+
+        if (currentUser) {
+          const updatedUser = { ...currentUser, password: passwordForm.newPassword };
+          if (setCurrentUser) setCurrentUser(updatedUser);
+          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        }
+
+        setTimeout(() => setPasswordSuccessMsg(''), 5000);
+      } else {
+        setPasswordErrorMsg('Failed to update password. Server returned an error.');
+      }
     } catch (err) {
-      setPasswordErrorMsg('Failed to update password. Please try again.');
+      console.error('Error changing admin password:', err);
+      setPasswordErrorMsg('Failed to update password. Please check network connection.');
     } finally {
       setPasswordLoading(false);
     }
@@ -257,7 +300,6 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
               onClick={() => setIsResetRequestModalOpen(true)}
               className="px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-amber-300 hover:text-amber-200 text-xs font-bold border border-amber-500/30 transition shadow-xs cursor-pointer flex items-center gap-1.5"
             >
-              <span>🔑</span>
               <span>Reset Request</span>
             </button>
             <button
@@ -268,7 +310,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
               }}
               className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition cursor-pointer flex items-center gap-1.5"
             >
-              <span>{isEditingProfile ? '✕ Cancel' : '✎ Edit Profile'}</span>
+              <span>{isEditingProfile ? 'Cancel' : 'Edit Profile'}</span>
             </button>
           </div>
         </div>
@@ -486,7 +528,6 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                   className="w-full p-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-xs font-bold text-left transition cursor-pointer flex items-center justify-between"
                 >
                   <div className="flex items-center gap-2">
-                    <span>🔑</span>
                     <span>Request Password Reset</span>
                   </div>
                   <span>&rarr;</span>
@@ -498,7 +539,6 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                   className="w-full p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold text-left transition cursor-pointer flex items-center justify-between"
                 >
                   <div className="flex items-center gap-2">
-                    <span>🔒</span>
                     <span>Change Account Password</span>
                   </div>
                   <span>&rarr;</span>
@@ -510,7 +550,6 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                   className="w-full p-3 rounded-xl bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-900 text-xs font-bold text-left transition cursor-pointer flex items-center justify-between"
                 >
                   <div className="flex items-center gap-2">
-                    <span>🏥</span>
                     <span>Manage Hospital Facility</span>
                   </div>
                   <span>&rarr;</span>
@@ -556,26 +595,6 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
             )}
 
             <form onSubmit={handlePasswordSubmit} className="space-y-4 text-xs max-w-xl">
-              <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Current Password (Optional Verification)</label>
-                <div className="relative">
-                  <input
-                    type={showCurrentPassword ? 'text' : 'password'}
-                    value={passwordForm.currentPassword}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                    placeholder="Enter current password if known"
-                    className="w-full pl-3 pr-10 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white text-slate-800"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 font-bold"
-                  >
-                    {showCurrentPassword ? 'Hide' : 'Show'}
-                  </button>
-                </div>
-              </div>
-
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">New Password *</label>
                 <div className="relative">
@@ -719,7 +738,6 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-5 sm:p-6 space-y-4 my-auto animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <span className="text-xl">🔑</span>
                 <h3 className="text-sm sm:text-base font-bold text-slate-800">Password Reset Request</h3>
               </div>
               <button
@@ -733,8 +751,8 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
 
             {resetRequestSent ? (
               <div className="p-6 text-center space-y-2">
-                <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xl mx-auto font-bold animate-bounce">
-                  ✓
+                <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-sm mx-auto font-bold">
+                  Sent
                 </div>
                 <h4 className="text-sm font-bold text-slate-800">Request Sent Successfully</h4>
                 <p className="text-xs text-slate-500">

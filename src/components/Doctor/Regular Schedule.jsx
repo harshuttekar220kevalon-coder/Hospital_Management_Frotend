@@ -1,15 +1,51 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
   const [loading, setLoading] = useState(true);
   const [doctorInfo, setDoctorInfo] = useState(null);
   const [hospitalInfo, setHospitalInfo] = useState(null);
+  const [assignedHospitals, setAssignedHospitals] = useState([]);
+  const [hospitalFilter, setHospitalFilter] = useState('ALL');
   const [patients, setPatients] = useState([]);
   const [selectedDay, setSelectedDay] = useState('Monday');
   const [isEditTimingsModalOpen, setIsEditTimingsModalOpen] = useState(false);
   const [editTimingsValue, setEditTimingsValue] = useState('');
   const [updatingDutyStatus, setUpdatingDutyStatus] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Date helper
+  const getAppointmentDateInfo = (patient) => {
+    if (!patient) return { isToday: false, timeFormatted: '--', diffDays: 999 };
+    const rawDateStr = patient.visit_date_time || patient.appointment_time || patient.visit_date;
+    if (!rawDateStr) return { isToday: false, timeFormatted: '--', diffDays: 999 };
+
+    const d = new Date(rawDateStr);
+    if (isNaN(d.getTime())) {
+      return { isToday: false, timeFormatted: '--', diffDays: 999 };
+    }
+
+    const now = new Date();
+    const isToday = d.getFullYear() === now.getFullYear() &&
+                    d.getMonth() === now.getMonth() &&
+                    d.getDate() === now.getDate();
+
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const targetMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const diffDays = Math.round((targetMidnight - todayMidnight) / (1000 * 60 * 60 * 24));
+    const timeFormatted = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    return {
+      dateObj: d,
+      isToday,
+      diffDays,
+      timeFormatted
+    };
+  };
+
+  const getPatientCondition = (p) => {
+    return p?.Condation || p?.condation || p?.condition || p?.Condition || p?.symptoms_severity || 'Normal';
+  };
 
   const loadDoctorSchedule = async () => {
     try {
@@ -18,9 +54,21 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
       const docId = currentUser?.id;
       const currentDocIdTag = currentUser?.doctor_id;
 
+      // 1. Fetch all hospitals list
+      let allHospitals = [];
+      try {
+        const hospListRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
+        if (hospListRes && hospListRes.ok) {
+          allHospitals = await hospListRes.json();
+        }
+      } catch (e) {
+        console.error('Error fetching hospitals:', e);
+      }
+
+      // 2. Fetch doctor profile
       let currentDoc = null;
       try {
-        const docRes = await fetch('http://127.0.0.1:8000/api/super-admin/Doctors/').catch(() => null);
+        const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
         if (docRes && docRes.ok) {
           const docs = await docRes.json();
           if (Array.isArray(docs)) {
@@ -40,21 +88,23 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
       setDoctorInfo(resolvedDoctor);
       setEditTimingsValue(resolvedDoctor?.opd_timings || 'Mon - Fri (10:00 AM - 02:00 PM)');
 
-      const targetHospId = resolvedDoctor?.hospital || (Array.isArray(resolvedDoctor?.hospitals) ? resolvedDoctor?.hospitals[0] : null) || currentUser?.hospital;
-      if (targetHospId) {
-        try {
-          const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${targetHospId}/`).catch(() => null);
-          if (hospRes && hospRes.ok) {
-            const hospData = await hospRes.json();
-            setHospitalInfo(hospData);
-          }
-        } catch (err) {
-          console.error('Error fetching hospital record:', err);
-        }
+      // Extract all assigned hospital IDs
+      const rawHospIds = Array.isArray(resolvedDoctor?.hospitals)
+        ? resolvedDoctor.hospitals.map(h => Number(typeof h === 'object' ? h.id : h)).filter(Boolean)
+        : (resolvedDoctor?.hospital ? [Number(typeof resolvedDoctor.hospital === 'object' ? resolvedDoctor.hospital.id : resolvedDoctor.hospital)].filter(Boolean) : []);
+
+      if (currentUser?.hospital && !rawHospIds.includes(Number(currentUser.hospital))) {
+        rawHospIds.push(Number(currentUser.hospital));
       }
 
+      const docAssignedHospitals = allHospitals.filter(h => rawHospIds.includes(Number(h.id)));
+      setAssignedHospitals(docAssignedHospitals.length > 0 ? docAssignedHospitals : (allHospitals[0] ? [allHospitals[0]] : []));
+
+      const primaryHosp = docAssignedHospitals[0] || allHospitals.find(h => Number(h.id) === Number(rawHospIds[0])) || null;
+      setHospitalInfo(primaryHosp);
+
       try {
-        const patRes = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/').catch(() => null);
+        const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
         if (patRes && patRes.ok) {
           const allPats = await patRes.json();
           if (Array.isArray(allPats)) {
@@ -95,14 +145,14 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
       const newActive = doctorInfo.is_active === false ? true : false;
       const newStatus = newActive ? 'Available' : 'On Leave';
 
-      let res = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${doctorInfo.id}/`, {
+      let res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${doctorInfo.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: newActive, status: newStatus })
       }).catch(() => null);
 
       if (!res || !res.ok) {
-        res = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${doctorInfo.id}/`, {
+        res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${doctorInfo.id}/`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...doctorInfo, is_active: newActive, status: newStatus })
@@ -123,14 +173,14 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
     e.preventDefault();
     if (!doctorInfo?.id || !editTimingsValue) return;
     try {
-      let res = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${doctorInfo.id}/`, {
+      let res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${doctorInfo.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ opd_timings: editTimingsValue })
       }).catch(() => null);
 
       if (!res || !res.ok) {
-        res = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${doctorInfo.id}/`, {
+        res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${doctorInfo.id}/`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...doctorInfo, opd_timings: editTimingsValue })
@@ -162,30 +212,83 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
     { day: 'Sunday', isWorking: false, hours: 'Emergency On-Call', room: 'Emergency Care / On-Call', slotCapacity: 'On-Demand', type: 'On-Call / Weekly Off' },
   ];
 
+  // Filter patients by hospital filter first
+  const hospitalScopedPatients = patients.filter(p => {
+    if (hospitalFilter === 'ALL') return true;
+    const patHospId = Number(typeof p.hospital === 'object' ? p.hospital?.id : p.hospital);
+    const patHospName = (p.hospital_name || (typeof p.hospital === 'object' ? p.hospital?.Name : '') || '').toLowerCase().trim();
+    const filterHosp = assignedHospitals.find(h => String(h.id) === String(hospitalFilter));
+    const filterName = filterHosp?.Name?.toLowerCase().trim() || '';
+
+    return patHospId === Number(hospitalFilter) ||
+           (filterName && patHospName === filterName) ||
+           patHospName === String(hospitalFilter).toLowerCase().trim();
+  });
+
+  // Today slots
+  const todayOnlyPatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isToday);
+
+  const getSlotForPatient = (p) => {
+    const rawDateStr = p.visit_date_time || p.appointment_time || p.visit_date;
+    if (rawDateStr) {
+      const d = new Date(rawDateStr);
+      if (!isNaN(d.getTime())) {
+        const hour = d.getHours() + d.getMinutes() / 60;
+        if (hour < 11.5) return 'slot_a';
+        if (hour >= 11.5 && hour < 13.0) return 'slot_b';
+        if (hour >= 13.0 && hour < 15.0) return 'slot_c';
+        return 'slot_d';
+      }
+    }
+    return null;
+  };
+
+  const slotAPatients = [];
+  const slotBPatients = [];
+  const slotCPatients = [];
+  const slotDPatients = [];
+  const unassignedToday = [];
+
+  todayOnlyPatients.forEach(p => {
+    const slot = getSlotForPatient(p);
+    if (slot === 'slot_a') slotAPatients.push(p);
+    else if (slot === 'slot_b') slotBPatients.push(p);
+    else if (slot === 'slot_c') slotCPatients.push(p);
+    else if (slot === 'slot_d') slotDPatients.push(p);
+    else unassignedToday.push(p);
+  });
+
+  unassignedToday.forEach((p, idx) => {
+    if (idx % 4 === 0) slotAPatients.push(p);
+    else if (idx % 4 === 1) slotBPatients.push(p);
+    else if (idx % 4 === 2) slotCPatients.push(p);
+    else slotDPatients.push(p);
+  });
+
   const todaySlots = [
     {
       time: '10:00 AM - 11:30 AM',
       name: 'Morning OPD - Slot A (General Consultations)',
       room: 'Cabin 204',
-      status: 'Active Now',
+      status: 'Morning Session',
       statusColor: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-      patientList: patients.slice(0, 4)
+      patientList: slotAPatients
     },
     {
       time: '11:30 AM - 01:00 PM',
       name: 'Midday OPD - Slot B (Special & Follow-ups)',
       room: 'Cabin 204',
-      status: 'Upcoming',
+      status: 'Midday Session',
       statusColor: 'bg-blue-100 text-blue-800 border-blue-300',
-      patientList: patients.slice(4, 8)
+      patientList: slotBPatients
     },
     {
       time: '01:00 PM - 02:00 PM',
       name: 'IPD In-Patient Ward Rounds & Observations',
       room: 'In-Patient Wards / ICU',
-      status: 'Scheduled',
+      status: 'Afternoon Rounds',
       statusColor: 'bg-purple-100 text-purple-800 border-purple-300',
-      patientList: patients.filter(p => (p.status || '').toLowerCase().includes('admit')).slice(0, 4)
+      patientList: slotCPatients
     },
     {
       time: '04:00 PM - 06:00 PM',
@@ -193,55 +296,13 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
       room: 'Cabin 204 / Video Consultation',
       status: 'Evening Session',
       statusColor: 'bg-amber-100 text-amber-800 border-amber-300',
-      patientList: patients.slice(8, 12)
+      patientList: slotDPatients
     }
   ];
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
-      {/* DOCTOR NAVIGATION BAR */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-2 sm:p-2.5 shadow-xs flex items-center justify-between gap-2 overflow-x-auto">
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap">
-          <button
-            type="button"
-            onClick={() => setCurrentPage && setCurrentPage('doctor_dashboard')}
-            className="px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-slate-100 whitespace-nowrap"
-          >
-            Dashboard Overview
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentPage && setCurrentPage('doctor_appointments')}
-            className="px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-slate-100 whitespace-nowrap"
-          >
-            Special & Emergency Cases
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentPage && setCurrentPage('doctor_patients')}
-            className="px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-slate-100 whitespace-nowrap"
-          >
-            Patient Checkup Queue ({patients.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentPage && setCurrentPage('doctor_schedule')}
-            className="px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer bg-teal-600 text-white shadow-xs whitespace-nowrap"
-          >
-            Regular OPD Schedule
-          </button>
-        </div>
-
-        <button
-          type="button"
-          onClick={loadDoctorSchedule}
-          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer shrink-0"
-        >
-          Refresh
-        </button>
-      </div>
-
-      {/* HEADER BANNER */}
+      {/* HEADER */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-5 sm:p-6 shadow-md border border-slate-800">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
@@ -262,6 +323,42 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
             <p className="text-xs text-slate-300 mt-1 max-w-2xl">
               Official regular schedule, duty hours, session capacities, and time slots for Dr. {cleanDocName}.
             </p>
+
+            {/* ASSIGNED HOSPITALS BADGES */}
+            {assignedHospitals.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap mt-2 pt-2 border-t border-slate-800/80">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                  {assignedHospitals.length > 1 ? `Affiliated Hospitals (${assignedHospitals.length} Branches):` : 'Hospital Branch:'}
+                </span>
+                {assignedHospitals.map(h => (
+                  <span
+                    key={h.id}
+                    onClick={() => setHospitalFilter(String(h.id))}
+                    className={`px-2.5 py-0.5 rounded-md text-xs font-bold border transition cursor-pointer flex items-center gap-1 ${
+                      hospitalFilter === String(h.id)
+                        ? 'bg-teal-500 text-slate-900 border-teal-300 font-black shadow-xs'
+                        : 'bg-teal-500/20 text-teal-300 border-teal-400/30 hover:bg-teal-500/30'
+                    }`}
+                  >
+                    <span>{h.Name}</span>
+                    <span className="text-[10px] opacity-80">({h.Branch_Code || `HOSP-${h.id}`})</span>
+                  </span>
+                ))}
+                {assignedHospitals.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setHospitalFilter('ALL')}
+                    className={`px-2 py-0.5 rounded-md text-xs font-bold border transition cursor-pointer ${
+                      hospitalFilter === 'ALL'
+                        ? 'bg-slate-100 text-slate-900 border-white'
+                        : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    All Branches ({patients.length})
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -310,12 +407,17 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
         </div>
       )}
 
-      {/* TODAY'S TIME SLOTS SCHEDULE */}
+      {/* TODAY SCHEDULE */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
           <div>
-            <h2 className="text-base font-bold text-slate-800">Today's Daily Schedule & Time Slot Allocation</h2>
-            <p className="text-xs text-slate-500">Live clinical consultations and sessions for Dr. {cleanDocName}</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-800">Today's Daily Schedule & Time Slot Allocation</h2>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                {todayOnlyPatients.length} Today's Patients
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">Only patients with today's scheduled visit date & time appear in these slots.</p>
           </div>
           <span className="px-3 py-1 rounded-xl bg-teal-50 text-teal-800 border border-teal-200 text-xs font-bold">
             Today: {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
@@ -333,32 +435,61 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
                   <h3 className="font-bold text-slate-800 text-sm mt-1.5">{slot.name}</h3>
                   <p className="text-[11px] text-slate-500">{slot.room} • {hospitalName}</p>
                 </div>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${slot.statusColor}`}>
-                  {slot.status}
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${slot.statusColor}`}>
+                    {slot.status}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-500">
+                    {slot.patientList.length} Scheduled
+                  </span>
+                </div>
               </div>
 
               {slot.patientList && slot.patientList.length > 0 ? (
                 <div className="pt-2 border-t border-slate-200/80">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Queued Patients for this Slot:</span>
-                  <div className="space-y-1">
-                    {slot.patientList.map((p, pIdx) => (
-                      <div key={p.id || pIdx} className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-white border border-slate-200">
-                        <span className="font-medium text-slate-800">
-                          #{pIdx + 1} {p.name}
-                        </span>
-                        <span className={`px-2 py-0.2 rounded text-[9px] font-bold border ${
-                          (p.status || '').toLowerCase().includes('complet') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
-                        }`}>
-                          {p.status || 'Pending'}
-                        </span>
-                      </div>
-                    ))}
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Today's Queued Patients for this Slot:</span>
+                  <div className="space-y-1.5">
+                    {slot.patientList.map((p, pIdx) => {
+                      const dateInfo = getAppointmentDateInfo(p);
+                      const condition = getPatientCondition(p);
+                      const isCompleted = (p.status || '').toLowerCase().includes('discharg') || (p.status || '').toLowerCase().includes('complet');
+
+                      return (
+                        <div key={p.id || pIdx} className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-xl bg-white border border-slate-200 gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-mono font-bold text-teal-700 text-[11px]">#{pIdx + 1}</span>
+                            <div className="min-w-0">
+                              <span className="font-bold text-slate-800 block truncate">{p.name || 'Patient'}</span>
+                              <span className="text-[10px] text-slate-400 font-mono">{p.patient_id || p.uhid || `PAT-${p.id}`}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                              {dateInfo.timeFormatted !== '--' ? dateInfo.timeFormatted : 'Today'}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${
+                              condition === 'Critical' ? 'bg-rose-100 text-rose-800 border-rose-300' :
+                              condition === 'Emergency' ? 'bg-red-100 text-red-800 border-red-300' :
+                              condition === 'Urgent' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                              'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}>
+                              {condition}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${
+                              isCompleted ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}>
+                              {isCompleted ? 'Done' : 'Pending'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ) : (
-                <div className="pt-2 border-t border-slate-200/80 text-[11px] text-slate-400">
-                  No scheduled patients assigned for this slot yet.
+                <div className="pt-2 border-t border-slate-200/80 text-[11px] text-slate-400 py-1 italic">
+                  No patients scheduled for today in this slot.
                 </div>
               )}
             </div>
@@ -366,7 +497,7 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
         </div>
       </div>
 
-      {/* WEEKLY WORKING SCHEDULE MATRIX */}
+      {/* WEEKLY SCHEDULE */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
           <div>
@@ -393,32 +524,32 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {weeklyScheduleMatrix.map((sched) => {
-            const isSelected = selectedDay === sched.day;
+          {weeklyScheduleMatrix.map((item) => {
+            const isCurrentSelected = selectedDay === item.day;
             return (
               <div
-                key={sched.day}
-                onClick={() => setSelectedDay(sched.day)}
+                key={item.day}
+                onClick={() => setSelectedDay(item.day)}
                 className={`p-4 rounded-xl border transition cursor-pointer space-y-2 ${
-                  isSelected
+                  isCurrentSelected
                     ? 'border-teal-500 bg-teal-50/30 ring-2 ring-teal-500/20'
-                    : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="font-extrabold text-slate-800 text-sm">{sched.day}</h3>
+                  <h4 className="font-bold text-slate-800 text-sm">{item.day}</h4>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                    sched.isWorking ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-300'
+                    item.isWorking ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-600 border-slate-300'
                   }`}>
-                    {sched.isWorking ? 'Working Day' : 'On-Call / Off'}
+                    {item.isWorking ? 'Active Working Day' : 'On-Call / Off'}
                   </span>
                 </div>
 
-                <div className="space-y-1 text-xs text-slate-600">
-                  <p><strong className="text-slate-700">Timings:</strong> <span className="font-semibold text-teal-700">{sched.hours}</span></p>
-                  <p><strong className="text-slate-700">Room:</strong> {sched.room}</p>
-                  <p><strong className="text-slate-700">Capacity:</strong> {sched.slotCapacity}</p>
-                  <p className="text-[11px] text-slate-500 italic mt-1">{sched.type}</p>
+                <p className="text-xs font-semibold text-teal-700">{item.type}</p>
+                <div className="text-[11px] text-slate-500 space-y-0.5">
+                  <p><strong>Hours:</strong> {item.hours}</p>
+                  <p><strong>Location:</strong> {item.room}</p>
+                  <p><strong>Capacity:</strong> {item.slotCapacity}</p>
                 </div>
               </div>
             );
@@ -426,7 +557,7 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
         </div>
       </div>
 
-      {/* EDIT TIMINGS MODAL */}
+      {/* MODAL */}
       {isEditTimingsModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-5 sm:p-6 space-y-4 my-auto animate-in fade-in zoom-in-95 duration-150">
@@ -444,55 +575,34 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveOpdTimings} className="space-y-3 text-xs">
+            <form onSubmit={handleSaveOpdTimings} className="space-y-4">
               <div>
-                <label className="block font-bold text-slate-700 uppercase text-[10px] mb-1">
-                  Regular OPD Timings String *
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  OPD Timings Text (e.g. Mon - Fri 10:00 AM - 02:00 PM)
                 </label>
                 <input
                   type="text"
                   required
                   value={editTimingsValue}
                   onChange={(e) => setEditTimingsValue(e.target.value)}
-                  placeholder="e.g. Mon - Fri (10:00 AM - 02:00 PM)"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white text-xs font-semibold"
+                  placeholder="e.g. Mon - Sat (09:00 AM - 01:00 PM)"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Preset Examples:</span>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {[
-                    'Mon - Fri (10:00 AM - 02:00 PM)',
-                    'Mon - Sat (09:00 AM - 01:00 PM)',
-                    'Mon - Fri (02:00 PM - 06:00 PM)',
-                    'Daily (10:00 AM - 01:00 PM & 05:00 PM - 08:00 PM)'
-                  ].map((preset, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setEditTimingsValue(preset)}
-                      className="px-2 py-1 rounded-lg bg-white hover:bg-teal-50 hover:text-teal-700 text-slate-700 border border-slate-200 text-[10px] font-semibold cursor-pointer"
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsEditTimingsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs cursor-pointer shadow-xs"
+                  className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs cursor-pointer"
                 >
-                  Save Schedule
+                  Save Timings
                 </button>
               </div>
             </form>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setSelectedDoctor, setSelectedPatient, setSelectedNurse, setSelectedReceptionist }) => {
   const [loading, setLoading] = useState(true);
@@ -69,7 +70,7 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
       let assignedHospitalId = currentUser?.hospital || null;
 
       try {
-        const adminsRes = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/');
+        const adminsRes = await fetch(`${API_BASE_URL}/super-admin/Admins/`);
         if (adminsRes && adminsRes.ok) {
           const adminsList = await adminsRes.json();
           const currentEmail = (currentUser?.email || '').toLowerCase().trim();
@@ -104,7 +105,7 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
 
       if (!assignedHospitalId) {
         try {
-          const allHospRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/');
+          const allHospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`);
           if (allHospRes.ok) {
             const allHosp = await allHospRes.json();
             if (Array.isArray(allHosp) && allHosp.length > 0) {
@@ -124,7 +125,7 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
 
       let hosp = null;
       try {
-        const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${assignedHospitalId}/`);
+        const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${assignedHospitalId}/`);
         if (hospRes && hospRes.ok) {
           hosp = await hospRes.json();
         }
@@ -134,7 +135,7 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
 
       if (!hosp) {
         try {
-          const allHospRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/');
+          const allHospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`);
           if (allHospRes && allHospRes.ok) {
             const allHosp = await allHospRes.json();
             hosp = allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) || allHosp[0] || null;
@@ -153,10 +154,10 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
       }
 
       const [docRes, nurRes, recRes, patRes] = await Promise.allSettled([
-        fetch('http://127.0.0.1:8000/api/super-admin/Doctors/'),
-        fetch('http://127.0.0.1:8000/api/super-admin/Nurses/'),
-        fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/'),
-        fetch('http://127.0.0.1:8000/api/super-admin/Patients/')
+        fetch(`${API_BASE_URL}/super-admin/Doctors/`),
+        fetch(`${API_BASE_URL}/super-admin/Nurses/`),
+        fetch(`${API_BASE_URL}/super-admin/Receptionists/`),
+        fetch(`${API_BASE_URL}/super-admin/Patients/`)
       ]);
 
       let branchDocs = [];
@@ -171,20 +172,20 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
 
       if (nurRes.status === 'fulfilled' && nurRes.value.ok) {
         const allNurs = await nurRes.value.json().catch(() => []);
-        const branchNurs = allNurs.filter(n => Number(n.hospital) === Number(assignedHospitalId));
-        setNursesList(branchNurs.length > 0 ? branchNurs : allNurs);
+        const branchNurs = allNurs.filter(n => Number(typeof n.hospital === 'object' ? n.hospital?.id : n.hospital) === Number(assignedHospitalId));
+        setNursesList(branchNurs);
       }
 
       if (recRes.status === 'fulfilled' && recRes.value.ok) {
         const allRecs = await recRes.value.json().catch(() => []);
-        const branchRecs = allRecs.filter(r => Number(r.hospital) === Number(assignedHospitalId));
-        setReceptionistsList(branchRecs.length > 0 ? branchRecs : allRecs);
+        const branchRecs = allRecs.filter(r => Number(typeof r.hospital === 'object' ? r.hospital?.id : r.hospital) === Number(assignedHospitalId));
+        setReceptionistsList(branchRecs);
       }
 
       if (patRes.status === 'fulfilled' && patRes.value.ok) {
         const allPats = await patRes.value.json().catch(() => []);
-        const branchPats = allPats.filter(p => Number(p.hospital) === Number(assignedHospitalId));
-        setPatientsList(branchPats.length > 0 ? branchPats : allPats);
+        const branchPats = allPats.filter(p => Number(typeof p.hospital === 'object' ? p.hospital?.id : p.hospital) === Number(assignedHospitalId));
+        setPatientsList(branchPats);
       }
 
     } catch (err) {
@@ -276,10 +277,10 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
   };
 
   const todayPatients = patientsList.filter(p => isDateToday(p.visit_date_time || p.created_at || p.date || p.admission_date));
-  const todayPatientsCount = todayPatients.length > 0 ? todayPatients.length : Math.min(patientsList.length, 3);
+  const todayPatientsCount = todayPatients.length;
 
   const monthPatients = patientsList.filter(p => isDateThisMonth(p.visit_date_time || p.created_at || p.date || p.admission_date));
-  const monthPatientsCount = monthPatients.length > 0 ? monthPatients.length : patientsList.length;
+  const monthPatientsCount = monthPatients.length;
 
   const yearPatients = patientsList.filter(p => isDateThisYear(p.visit_date_time || p.created_at || p.date || p.admission_date));
 
@@ -348,10 +349,11 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
   ).length;
 
   const activePeriodOPD = Math.max(0, activePeriodPatients.length - activePeriodAdmitted);
-  const activePeriodEmergency = activePeriodPatients.filter(p => 
-    (p.symptoms_severity || '').toLowerCase().includes('urgent') || 
-    (p.symptoms_severity || '').toLowerCase().includes('emergency')
-  ).length;
+  const activePeriodEmergency = activePeriodPatients.filter(p => {
+    const isDischarged = (p.status || '').toLowerCase().includes('discharg') || (p.status || '').toLowerCase().includes('complet');
+    const cond = (p.Condation || p.condation || p.condition || p.symptoms_severity || '').toLowerCase();
+    return !isDischarged && (cond.includes('critical') || cond.includes('emergency') || cond.includes('urgent'));
+  }).length;
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 sm:space-y-7">
@@ -1018,15 +1020,20 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
                       <span className="text-slate-700 font-medium block max-w-[180px] mx-auto truncate">
                         {pat.symptoms_diagnosis || pat.reason || 'General Consultation'}
                       </span>
-                      {pat.symptoms_severity && (
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border inline-block mt-0.5 ${
-                          pat.symptoms_severity === 'Emergency' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                          pat.symptoms_severity === 'Urgent' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                          'bg-slate-50 text-slate-600 border-slate-200'
-                        }`}>
-                          {pat.symptoms_severity}
-                        </span>
-                      )}
+                      {(() => {
+                        const cond = pat.Condation || pat.condation || pat.condition || pat.symptoms_severity;
+                        if (!cond) return null;
+                        return (
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border inline-block mt-0.5 ${
+                            cond === 'Critical' ? 'bg-rose-100 text-rose-800 border-rose-300' :
+                            cond === 'Emergency' ? 'bg-red-100 text-red-800 border-red-300' :
+                            cond === 'Urgent' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                            'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}>
+                            {cond}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="py-3 px-3 text-center">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${

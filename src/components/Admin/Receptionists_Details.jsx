@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelectedReceptionist, setCurrentPage }) => {
   const [receptionistData, setReceptionistData] = useState(() => {
@@ -70,7 +71,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
       let currentR = selectedReceptionist || receptionistData;
 
       if (currentR?.id) {
-        const res = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${currentR.id}/`).catch(() => null);
+        const res = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${currentR.id}/`).catch(() => null);
         if (res && res.ok) {
           const fresh = await res.json();
           currentR = fresh;
@@ -81,7 +82,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
 
       const hospId = currentR?.hospital || currentUser?.hospital;
       if (hospId) {
-        const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${hospId}/`).catch(() => null);
+        const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${hospId}/`).catch(() => null);
         if (hospRes && hospRes.ok) {
           const hosp = await hospRes.json();
           setHospitalData(hosp);
@@ -144,7 +145,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
         is_active: editFormData.is_active
       };
 
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${receptionistData.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${receptionistData.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -170,7 +171,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
   const handleToggleStatus = async () => {
     const newStatus = !receptionistData.is_active;
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${receptionistData.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${receptionistData.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: newStatus, status: newStatus ? 'Active' : 'On Leave' })
@@ -194,7 +195,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
     }
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${receptionistData.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${receptionistData.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: newPassword })
@@ -216,7 +217,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
 
   const handleDeleteReceptionist = async () => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${receptionistData.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${receptionistData.id}/`, {
         method: 'DELETE'
       });
 

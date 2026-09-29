@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) => {
   const [receptionists, setReceptionists] = useState([]);
@@ -53,7 +54,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
 
   const fetchHospitals = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/');
+      const response = await fetch(`${API_BASE_URL}/super-admin/Hospital/`);
       if (response.ok) {
         const data = await response.json();
         setHospitalsList(data);
@@ -66,7 +67,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
   const fetchReceptionists = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/').catch(() => null);
+      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`).catch(() => null);
       if (response && response.ok) {
         const data = await response.json();
         setReceptionists(data);
@@ -160,7 +161,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
         is_active: formData.is_active
       };
 
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/', {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -185,7 +186,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
   const handleToggleStatus = async (rec) => {
     try {
       const updatedStatus = !rec.is_active;
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${rec.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${rec.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: updatedStatus, status: updatedStatus ? 'Active' : 'Off Duty' })

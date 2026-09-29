@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
   const [nurses, setNurses] = useState([]);
@@ -40,7 +41,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
 
   const fetchHospitals = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/');
+      const response = await fetch(`${API_BASE_URL}/super-admin/Hospital/`);
       if (response.ok) {
         const data = await response.json();
         setHospitalsList(data);
@@ -53,7 +54,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
   const fetchNurses = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Nurses/');
+      const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/`);
       if (response.ok) {
         const data = await response.json();
         setNurses(data);
@@ -146,7 +147,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
         hospital: Number(formData.hospital)
       };
 
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Nurses/', {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -171,7 +172,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
   const handleToggleStatus = async (nurse) => {
     try {
       const updatedStatus = !nurse.is_active;
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${nurse.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${nurse.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: updatedStatus, status: updatedStatus ? 'On Duty' : 'Off Duty' })

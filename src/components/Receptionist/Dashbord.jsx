@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const ReceptionistDashboard = ({ currentUser }) => {
   const [visibleCount, setVisibleCount] = useState(6);
@@ -16,7 +17,7 @@ const ReceptionistDashboard = ({ currentUser }) => {
         const email = (currentUser?.email || '').toLowerCase().trim();
         const recId = currentUser?.id;
 
-        const recRes = await fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/').catch(() => null);
+        const recRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`).catch(() => null);
         let currentRec = null;
         if (recRes && recRes.ok) {
           const recs = await recRes.json();
@@ -33,19 +34,19 @@ const ReceptionistDashboard = ({ currentUser }) => {
 
         const targetHospId = currentRec?.hospital || currentUser?.hospital;
         if (targetHospId) {
-          const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${targetHospId}/`).catch(() => null);
+          const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${targetHospId}/`).catch(() => null);
           if (hospRes && hospRes.ok) {
             const hospData = await hospRes.json();
             if (isMounted) setHospitalInfo(hospData);
           }
         }
 
-        const patRes = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/').catch(() => null);
+        const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
         if (patRes && patRes.ok) {
           const allPats = await patRes.json();
-          const hospPats = targetHospId ? allPats.filter(p => Number(p.hospital) === Number(targetHospId) || Number(p.hospital?.id) === Number(targetHospId)) : allPats;
+          const hospPats = targetHospId ? allPats.filter(p => Number(typeof p.hospital === 'object' ? p.hospital?.id : p.hospital) === Number(targetHospId)) : allPats;
           if (isMounted) {
-            setPatients(hospPats.length > 0 ? hospPats : allPats);
+            setPatients(hospPats);
           }
         }
       } catch (err) {
@@ -65,10 +66,10 @@ const ReceptionistDashboard = ({ currentUser }) => {
   const hospitalName = hospitalInfo?.Name || 'Apex Care Hospital';
 
   const receptionistStats = [
-    { title: 'Registered Patients', value: `${patients.length} Entries`, sub: `In ${hospitalName}`, icon: '🎫', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-    { title: 'Duty Shift', value: shiftName, sub: roleTitle, icon: '🕒', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { title: 'Branch Location', value: hospitalInfo?.city || 'Main Branch', sub: hospitalName, icon: '🏥', color: 'bg-teal-50 text-teal-700 border-teal-200' },
-    { title: 'Receptionist ID', value: receptionistInfo?.receptionist_id || currentUser?.receptionist_id || `REC-${currentUser?.id || '01'}`, sub: 'Active Front Desk', icon: '🪪', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+    { title: 'Registered Patients', value: `${patients.length} Entries`, sub: `In ${hospitalName}`, color: 'bg-amber-50 text-amber-700 border-amber-200' },
+    { title: 'Duty Shift', value: shiftName, sub: roleTitle, color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    { title: 'Branch Location', value: hospitalInfo?.city || 'Main Branch', sub: hospitalName, color: 'bg-teal-50 text-teal-700 border-teal-200' },
+    { title: 'Receptionist ID', value: receptionistInfo?.receptionist_id || currentUser?.receptionist_id || `REC-${currentUser?.id || '01'}`, sub: 'Active Front Desk', color: 'bg-purple-50 text-purple-700 border-purple-200' },
   ];
 
   return (
@@ -105,7 +106,6 @@ const ReceptionistDashboard = ({ currentUser }) => {
             className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-amber-300 transition"
           >
             <div className="flex items-center justify-between">
-              <span className="text-2xl">{item.icon}</span>
               <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${item.color}`}>
                 Front Desk
               </span>

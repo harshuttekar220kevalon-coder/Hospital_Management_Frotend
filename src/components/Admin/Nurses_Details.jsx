@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCurrentPage }) => {
   const [nurseData, setNurseData] = useState(() => {
@@ -81,7 +82,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
       let currentN = selectedNurse || nurseData;
 
       if (currentN?.id) {
-        const res = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${currentN.id}/`).catch(() => null);
+        const res = await fetch(`${API_BASE_URL}/super-admin/Nurses/${currentN.id}/`).catch(() => null);
         if (res && res.ok) {
           const fresh = await res.json();
           currentN = fresh;
@@ -92,7 +93,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
 
       const hospId = currentN?.hospital || currentUser?.hospital;
       if (hospId) {
-        const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${hospId}/`).catch(() => null);
+        const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${hospId}/`).catch(() => null);
         if (hospRes && hospRes.ok) {
           const hosp = await hospRes.json();
           setHospitalData(hosp);
@@ -150,7 +151,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
         status: editFormData.is_active ? 'On Duty' : 'On Leave'
       };
 
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${nurseData.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${nurseData.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -176,7 +177,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
   const handleToggleStatus = async () => {
     const newStatus = !nurseData.is_active;
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${nurseData.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${nurseData.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: newStatus })
@@ -199,7 +200,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
     }
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${nurseData.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${nurseData.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: newPassword })
@@ -221,7 +222,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
 
   const handleDeleteNurse = async () => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${nurseData.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${nurseData.id}/`, {
         method: 'DELETE'
       });
 

@@ -124,6 +124,17 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                     >
                       Regular Schedule
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('doctor_settings')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                        currentPage === 'doctor_settings'
+                          ? 'bg-slate-800 text-teal-300 border border-teal-500/30'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      Settings
+                    </button>
                   </>
                 )}
 
@@ -260,6 +271,15 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                 }`}
               >
                 Regular Schedule
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNavClick('doctor_settings')}
+                className={`w-full text-left px-4 py-2 rounded-lg text-xs font-semibold ${
+                  currentPage === 'doctor_settings' ? 'bg-slate-800 text-teal-300' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                Settings
               </button>
             </>
           )}

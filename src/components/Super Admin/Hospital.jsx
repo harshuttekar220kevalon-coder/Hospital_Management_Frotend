@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelectedHospitalProp }) => {
   const [hospitals, setHospitals] = useState([]);
@@ -49,7 +50,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
   const fetchHospitals = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/');
+      const response = await fetch(`${API_BASE_URL}/super-admin/Hospital/`);
       if (response.ok) {
         const data = await response.json();
         setHospitals(data);
@@ -127,7 +128,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
         payload.Branch_Code = formData.Branch_Code.trim();
       }
 
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/', {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Hospital/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -199,7 +200,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
         is_active: Boolean(formData.is_active)
       };
 
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${selectedHospital.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Hospital/${selectedHospital.id}/`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -235,7 +236,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
 
     try {
       const updatedData = { ...hosp, is_active: nextStatus };
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${hosp.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Hospital/${hosp.id}/`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -270,7 +271,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
 
   const handleDeleteHospital = async (id) => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Hospital/${id}/`, {
         method: 'DELETE',
       });
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSelectedHospital }) => {
   const [patients, setPatients] = useState([]);
@@ -15,7 +16,8 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-', 'Not Known'];
-  const severityLevels = ['Normal', 'Moderate', 'Urgent', 'Emergency'];
+  const severityLevels = ['Critical', 'Emergency', 'Urgent', 'Normal'];
+  const conditionChoices = ['Critical', 'Emergency', 'Urgent', 'Normal'];
   const statusOptions = ['Pending', 'Assigned', 'Admitted', 'Discharged', 'Cancelled'];
   const paymentStatuses = ['Paid', 'Partial', 'Pending', 'Failed'];
   const paymentMethods = ['Cash', 'UPI', 'Credit Card', 'Net Banking'];
@@ -37,7 +39,10 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
     payment_status: 'Pending',
     payment_method: '',
     symptoms_diagnosis: '',
-    symptoms_severity: '',
+    Condation: 'Normal',
+    condation: 'Normal',
+    condition: 'Normal',
+    symptoms_severity: 'Normal',
     visit_date_time: '',
     status: '',
     is_active: true,
@@ -57,7 +62,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
       let assignedHospitalId = currentUser?.hospital || null;
 
       try {
-        const adminsRes = await fetch('http://127.0.0.1:8000/api/super-admin/Admins/').catch(() => null);
+        const adminsRes = await fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null);
         if (adminsRes && adminsRes.ok) {
           const adminsList = await adminsRes.json();
           const currentEmail = (currentUser?.email || '').toLowerCase().trim();
@@ -82,14 +87,14 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
 
       let hosp = null;
       if (assignedHospitalId) {
-        const hospRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${assignedHospitalId}/`).catch(() => null);
+        const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${assignedHospitalId}/`).catch(() => null);
         if (hospRes && hospRes.ok) {
           hosp = await hospRes.json();
         }
       }
 
       if (!hosp) {
-        const allHospRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/').catch(() => null);
+        const allHospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
         if (allHospRes && allHospRes.ok) {
           const allHosp = await allHospRes.json();
           hosp = (assignedHospitalId ? allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) : null) || allHosp[0] || null;
@@ -102,7 +107,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
         if (setSelectedHospital) setSelectedHospital(hosp);
       }
 
-      const docRes = await fetch('http://127.0.0.1:8000/api/super-admin/Doctors/').catch(() => null);
+      const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
       if (docRes && docRes.ok) {
         const allDocs = await docRes.json();
         if (assignedHospitalId) {
@@ -112,18 +117,21 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
               : (d.hospital ? [Number(typeof d.hospital === 'object' ? d.hospital.id : d.hospital)] : []);
             return hospIds.includes(Number(assignedHospitalId));
           });
-          setDoctorsList(branchDocs.length > 0 ? branchDocs : allDocs);
+          setDoctorsList(branchDocs);
         } else {
           setDoctorsList(allDocs);
         }
       }
 
-      const patRes = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/').catch(() => null);
+      const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
       if (patRes && patRes.ok) {
         const allPatients = await patRes.json();
         if (assignedHospitalId) {
-          const branchPatients = allPatients.filter(p => Number(p.hospital) === Number(assignedHospitalId));
-          setPatients(branchPatients.length > 0 ? branchPatients : allPatients);
+          const branchPatients = allPatients.filter(p => {
+            const patHospId = Number(typeof p.hospital === 'object' ? p.hospital?.id : p.hospital);
+            return patHospId === Number(assignedHospitalId);
+          });
+          setPatients(branchPatients);
         } else {
           setPatients(allPatients);
         }
@@ -202,6 +210,8 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
       const hospId = Number(hospitalData?.id || currentUser?.hospital || 1);
       let response;
 
+      const chosenCondition = addFormData.Condation || addFormData.condation || addFormData.condition || addFormData.symptoms_severity || 'Normal';
+
       const payloadData = {
         patient_id: generatedDocPatId,
         name: addFormData.name.trim(),
@@ -222,7 +232,11 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
         payment_status: addFormData.payment_status || 'Pending',
         payment_method: addFormData.payment_method,
         symptoms_diagnosis: addFormData.symptoms_diagnosis,
-        symptoms_severity: addFormData.symptoms_severity,
+        Condation: chosenCondition,
+        condation: chosenCondition,
+        condition: chosenCondition,
+        Condition: chosenCondition,
+        symptoms_severity: chosenCondition,
         visit_date_time: addFormData.visit_date_time || null,
         status: addFormData.status || 'Pending',
         is_active: Boolean(addFormData.is_active)
@@ -237,12 +251,12 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
         });
         formData.append('attached_document', addSelectedFile);
 
-        response = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/', {
+        response = await fetch(`${API_BASE_URL}/super-admin/Patients/`, {
           method: 'POST',
           body: formData
         }).catch(() => null);
       } else {
-        response = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/', {
+        response = await fetch(`${API_BASE_URL}/super-admin/Patients/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payloadData)
@@ -272,14 +286,14 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
     if (!newStatus || !patient?.id) return;
     try {
       setUpdatingPatientId(patient.id);
-      let res = await fetch(`http://127.0.0.1:8000/api/super-admin/Patients/${patient.id}/`, {
+      let res = await fetch(`${API_BASE_URL}/super-admin/Patients/${patient.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       }).catch(() => null);
 
       if (!res || !res.ok) {
-        res = await fetch(`http://127.0.0.1:8000/api/super-admin/Patients/${patient.id}/`, {
+        res = await fetch(`${API_BASE_URL}/super-admin/Patients/${patient.id}/`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...patient, status: newStatus })
@@ -329,8 +343,9 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
       (activeTab === 'OPD' && ((pat.status || '').toLowerCase().includes('pending') || (pat.status || '').toLowerCase().includes('assigned'))) ||
       (activeTab === 'Discharged' && (pat.status || '').toLowerCase().includes('discharg'));
 
+    const patCondition = pat.Condation || pat.condation || pat.condition || pat.symptoms_severity || 'Normal';
     const matchesDoctor = doctorFilter === 'ALL' || String(pat.doctor) === String(doctorFilter);
-    const matchesSeverity = severityFilter === 'ALL' || (pat.symptoms_severity || '').toLowerCase() === severityFilter.toLowerCase();
+    const matchesSeverity = severityFilter === 'ALL' || patCondition.toLowerCase() === severityFilter.toLowerCase();
 
     return matchesSearch && matchesTab && matchesDoctor && matchesSeverity;
   });
@@ -464,10 +479,11 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
               onChange={(e) => setSeverityFilter(e.target.value)}
               className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 focus:outline-none focus:border-teal-600 cursor-pointer"
             >
-              <option value="ALL">All Severities</option>
-              {severityLevels.map((sev) => (
-                <option key={sev} value={sev}>{sev}</option>
-              ))}
+              <option value="ALL">All Conditions</option>
+              <option value="Critical">Critical</option>
+              <option value="Emergency">Emergency</option>
+              <option value="Urgent">Urgent</option>
+              <option value="Normal">Normal</option>
             </select>
           </div>
         </div>
@@ -508,13 +524,13 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                 {filteredPatients.slice(0, visibleCount).map((pat) => {
                   const emailLower = (pat.email || '').toLowerCase();
                   const assignedDoc = doctorsList.find(d => Number(d.id) === Number(pat.doctor));
-                  const severity = pat.symptoms_severity || 'Normal';
+                  const severity = pat.Condation || pat.condation || pat.condition || pat.symptoms_severity || 'Normal';
 
                   const severityBadgeClass =
-                    severity === 'Emergency' ? 'bg-rose-100 text-rose-800 border-rose-300 font-bold' :
-                    severity === 'Urgent' ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                    severity === 'Moderate' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                    'bg-slate-100 text-slate-700 border-slate-200';
+                    severity === 'Critical' ? 'bg-rose-100 text-rose-800 border-rose-300 font-bold' :
+                    severity === 'Emergency' ? 'bg-red-100 text-red-800 border-red-300 font-bold' :
+                    severity === 'Urgent' ? 'bg-amber-100 text-amber-800 border-amber-300 font-bold' :
+                    'bg-emerald-50 text-emerald-700 border-emerald-200';
 
                   return (
                     <tr key={pat.id} className="hover:bg-slate-50/70 transition">
@@ -878,7 +894,26 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Patient Condition (Triage) *</label>
+                  <select
+                    value={addFormData.Condation || 'Normal'}
+                    onChange={(e) => setAddFormData({
+                      ...addFormData,
+                      Condation: e.target.value,
+                      condation: e.target.value,
+                      condition: e.target.value,
+                      symptoms_severity: e.target.value
+                    })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-bold focus:outline-none focus:border-teal-600 focus:bg-white cursor-pointer"
+                  >
+                    <option value="Critical">Critical</option>
+                    <option value="Emergency">Emergency</option>
+                    <option value="Urgent">Urgent</option>
+                    <option value="Normal">Normal</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Scheduled Visit Date & Time</label>
                   <input

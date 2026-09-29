@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: setSelectedDoctorProp }) => {
   const [doctors, setDoctors] = useState([]);
@@ -103,7 +104,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
 
   const fetchHospitals = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/');
+      const response = await fetch(`${API_BASE_URL}/super-admin/Hospital/`);
       if (response.ok) {
         const data = await response.json();
         setHospitalsList(data);
@@ -116,7 +117,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
   const fetchDoctors = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Doctors/');
+      const response = await fetch(`${API_BASE_URL}/super-admin/Doctors/`);
       if (response.ok) {
         const data = await response.json();
         setDoctors(data);
@@ -225,7 +226,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
       };
       delete payload.hospital;
 
-      const response = await fetch('http://127.0.0.1:8000/api/super-admin/Doctors/', {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Doctors/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -292,7 +293,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
       };
       delete payload.hospital;
 
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${selectedDoctor.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Doctors/${selectedDoctor.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -334,7 +335,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
 
     try {
       const updatedHospitals = [Number(assignHospitalId)];
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${selectedDoctor.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Doctors/${selectedDoctor.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hospitals: updatedHospitals })
@@ -355,7 +356,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
   const handleToggleStatus = async (doctor) => {
     try {
       const updatedStatus = !doctor.is_active;
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${doctor.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Doctors/${doctor.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: updatedStatus, status: updatedStatus ? 'Available' : 'On Leave' })
@@ -379,7 +380,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
 
   const handleDeleteDoctor = async (id) => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Doctors/${id}/`, {
         method: 'DELETE'
       });
 

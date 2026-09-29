@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedReceptionist, setCurrentPage }) => {
   const [receptionistData, setReceptionistData] = useState(() => {
@@ -67,14 +68,14 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         }
       }
 
-      const hospListRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/').catch(() => null);
+      const hospListRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
       if (hospListRes && hospListRes.ok) {
         const allHospitals = await hospListRes.json();
         setHospitalsList(allHospitals);
       }
 
       if (currentRec && currentRec.id) {
-        const recRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${currentRec.id}/`).catch(() => null);
+        const recRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${currentRec.id}/`).catch(() => null);
         if (recRes && recRes.ok) {
           const freshRec = await recRes.json();
           setReceptionistData(freshRec);
@@ -150,14 +151,14 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         is_active: editFormData.is_active
       };
 
-      let response = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${activeReceptionist.id}/`, {
+      let response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${activeReceptionist.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       }).catch(() => null);
 
       if (!response || !response.ok) {
-        const patchRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${activeReceptionist.id}/`, {
+        const patchRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${activeReceptionist.id}/`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -199,7 +200,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
     localStorage.setItem('selectedReceptionist', JSON.stringify(optimistic));
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${activeReceptionist.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${activeReceptionist.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: newStatus, status: newStatusText })
@@ -228,7 +229,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
   const handleConfirmDelete = async () => {
     if (!activeReceptionist || !activeReceptionist.id) return;
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${activeReceptionist.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${activeReceptionist.id}/`, {
         method: 'DELETE'
       }).catch(() => null);
 
@@ -260,7 +261,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
 
     try {
       const updatedHospitalId = Number(assignHospitalId);
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Receptionists/${activeReceptionist.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${activeReceptionist.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hospital: updatedHospitalId })
@@ -531,9 +532,6 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
 
           {!assignedHospital ? (
             <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-300 space-y-3">
-              <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto text-xl font-bold">
-                🏢
-              </div>
               <h3 className="text-sm font-bold text-slate-800">No Hospital Branch Allocated</h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
                 This receptionist is currently not assigned to any hospital branch. Assign a branch to link desk allocations and shift rosters.

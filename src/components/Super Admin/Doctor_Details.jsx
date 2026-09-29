@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCurrentPage }) => {
   const [doctorData, setDoctorData] = useState(() => {
@@ -126,14 +127,14 @@ const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCur
       }
 
       // Fetch all hospitals
-      const hospListRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/').catch(() => null);
+      const hospListRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
       if (hospListRes && hospListRes.ok) {
         const allHospitals = await hospListRes.json();
         setHospitalsList(allHospitals);
       }
 
       if (currentDoc && currentDoc.id) {
-        const docRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${currentDoc.id}/`).catch(() => null);
+        const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/${currentDoc.id}/`).catch(() => null);
         if (docRes && docRes.ok) {
           const freshDoc = await docRes.json();
           setDoctorData(freshDoc);
@@ -210,7 +211,7 @@ const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCur
       };
       delete payload.hospital;
 
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${activeDoc.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Doctors/${activeDoc.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -247,7 +248,7 @@ const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCur
     localStorage.setItem('selectedDoctor', JSON.stringify(optimistic));
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${activeDoc.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Doctors/${activeDoc.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: newStatus, status: newStatus ? 'Available' : 'On Leave' })
@@ -290,7 +291,7 @@ const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCur
     }
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${activeDoc.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Doctors/${activeDoc.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hospitals: selectedHospitalsForAssign.map(Number) })
@@ -316,7 +317,7 @@ const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCur
   const handleDeleteDoctor = async () => {
     if (!activeDoc || !activeDoc.id) return;
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Doctors/${activeDoc.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Doctors/${activeDoc.id}/`, {
         method: 'DELETE'
       });
 
@@ -1002,7 +1003,6 @@ const Doctor_Details = ({ currentUser, selectedDoctor, setSelectedDoctor, setCur
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-4 sm:p-6 space-y-4">
             <div className="flex items-center gap-3 text-rose-600">
-              <span className="p-2 rounded-full bg-rose-100 text-lg">⚠️</span>
               <h3 className="font-bold text-base text-slate-800">Delete Doctor Account?</h3>
             </div>
             <p className="text-xs text-slate-600">

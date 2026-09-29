@@ -53,10 +53,10 @@ const Home = () => {
   ];
 
   const quickActions = [
-    { title: 'New Patient Registration', desc: 'Register a new patient into the hospital registry', icon: '👤' },
-    { title: 'Book Appointment', desc: 'Schedule a doctor consultation or lab test', icon: '📅' },
-    { title: 'Emergency Admission', desc: 'Direct emergency ward admission form', icon: '🚨' },
-    { title: 'Pharmacy & Prescriptions', desc: 'Check medicines inventory and digital prescriptions', icon: '💊' },
+    { title: 'New Patient Registration', desc: 'Register a new patient into the hospital registry' },
+    { title: 'Book Appointment', desc: 'Schedule a doctor consultation or lab test' },
+    { title: 'Emergency Admission', desc: 'Direct emergency ward admission form' },
+    { title: 'Pharmacy & Prescriptions', desc: 'Check medicines inventory and digital prescriptions' },
   ];
 
   const recentAppointments = [
@@ -114,7 +114,6 @@ const Home = () => {
               className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/70 shadow-sm hover:shadow-md hover:border-blue-300 transition duration-200 cursor-pointer group flex flex-col justify-between"
             >
               <div>
-                <div className="text-2xl sm:text-3xl mb-2 sm:mb-3">{action.icon}</div>
                 <h3 className="font-semibold text-sm sm:text-base text-slate-800 group-hover:text-blue-600 transition-colors">
                   {action.title}
                 </h3>

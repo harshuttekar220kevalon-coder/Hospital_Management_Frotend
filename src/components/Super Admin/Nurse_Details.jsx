@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurrentPage }) => {
   const [nurseData, setNurseData] = useState(() => {
@@ -76,14 +77,14 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
         }
       }
 
-      const hospListRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/').catch(() => null);
+      const hospListRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
       if (hospListRes && hospListRes.ok) {
         const allHospitals = await hospListRes.json();
         setHospitalsList(allHospitals);
       }
 
       if (currentNurse && currentNurse.id) {
-        const nurseRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${currentNurse.id}/`).catch(() => null);
+        const nurseRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/${currentNurse.id}/`).catch(() => null);
         if (nurseRes && nurseRes.ok) {
           const freshNurse = await nurseRes.json();
           setNurseData(freshNurse);
@@ -158,7 +159,7 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
         hospital: Number(editFormData.hospital)
       };
 
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${activeNurse.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${activeNurse.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -194,7 +195,7 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
     localStorage.setItem('selectedNurse', JSON.stringify(optimistic));
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${activeNurse.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${activeNurse.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: newStatus, status: newStatus ? 'On Duty' : 'On Leave' })
@@ -225,7 +226,7 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
   const handleConfirmDelete = async () => {
     if (!activeNurse || !activeNurse.id) return;
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${activeNurse.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${activeNurse.id}/`, {
         method: 'DELETE'
       });
 
@@ -257,7 +258,7 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
 
     try {
       const updatedHospitalId = Number(assignHospitalId);
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Nurses/${activeNurse.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${activeNurse.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hospital: updatedHospitalId })
