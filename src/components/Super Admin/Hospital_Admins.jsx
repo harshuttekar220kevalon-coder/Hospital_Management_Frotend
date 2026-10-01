@@ -534,16 +534,16 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone (Numbers only) *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    maxLength={10}
+                    maxLength={15}
                     required
                     value={formData.contact}
-                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '') })}
-                    placeholder="e.g. 9876543210"
+                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                    placeholder="e.g. 9876543210 / 02212345678"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>

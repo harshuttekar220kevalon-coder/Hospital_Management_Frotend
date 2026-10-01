@@ -74,7 +74,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
             </div>
           </div>
 
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2 lg:gap-3">
             {isLoggedIn && (
               <>
                 <button
@@ -127,13 +127,50 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                     <button
                       type="button"
                       onClick={() => handleNavClick('doctor_settings')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer flex items-center gap-1.5 ${
                         currentPage === 'doctor_settings'
-                          ? 'bg-slate-800 text-teal-300 border border-teal-500/30'
+                          ? 'bg-teal-500/20 text-teal-300 border border-teal-400/50 font-bold shadow-xs'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/60 border border-transparent'
+                      }`}
+                      title="Doctor Profile & Settings"
+                    >
+                      <svg className="w-3.5 h-3.5 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span>Settings</span>
+                    </button>
+                  </>
+                )}
+
+                {(currentUser?.role || '').toString().toUpperCase().includes('NURSE') && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('nurse_patients')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer flex items-center gap-1.5 ${
+                        currentPage === 'nurse_patients'
+                          ? 'bg-slate-800 text-emerald-300 border border-emerald-500/30'
                           : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                       }`}
                     >
-                      Settings
+                      Inpatients & Vitals
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('nurse_settings')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer flex items-center gap-1.5 ${
+                        currentPage === 'nurse_settings'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/50 font-bold shadow-xs'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/60 border border-transparent'
+                      }`}
+                      title="Nurse Profile & Settings"
+                    >
+                      <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span>Settings</span>
                     </button>
                   </>
                 )}
@@ -168,11 +205,11 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                 {/* User badge */}
 
                 <div className="flex items-center gap-2.5 pl-3 border-l border-slate-700">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-blue-600 text-white font-bold flex items-center justify-center text-xs shadow-inner">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-blue-600 text-white font-bold flex items-center justify-center text-xs shadow-inner shrink-0">
                     {getInitials(currentUser?.name)}
                   </div>
                   <div className="flex flex-col text-left">
-                    <span className="text-xs font-semibold text-slate-200 leading-tight">
+                    <span className="text-xs font-semibold text-slate-200 leading-tight truncate max-w-[130px]">
                       {currentUser?.name || 'User'}
                     </span>
                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -180,6 +217,11 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                         <span className={`w-1.5 h-1.5 rounded-full ${roleInfo.dot}`}></span>
                         {roleInfo.label}
                       </span>
+                      {(currentUser?.hospital_name || currentUser?.hospital_data?.Name) && (
+                        <span className="text-[10px] font-semibold text-teal-300 truncate max-w-[90px]" title={currentUser?.hospital_name || currentUser?.hospital_data?.Name}>
+                          {currentUser?.hospital_name || currentUser?.hospital_data?.Name}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -187,7 +229,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                 <button
                   type="button"
                   onClick={handleLogoutClick}
-                  className="ml-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 border border-rose-500/30 transition duration-150 cursor-pointer flex items-center gap-1.5"
+                  className="ml-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 border border-rose-500/30 transition duration-150 cursor-pointer flex items-center gap-1.5 shrink-0"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -203,6 +245,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
               type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 focus:outline-none cursor-pointer"
+              aria-label="Toggle Navigation Menu"
             >
               {isMobileMenuOpen ? (
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -219,25 +262,32 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
       </div>
 
       {isMobileMenuOpen && isLoggedIn && (
-        <div className="md:hidden border-t border-slate-800 bg-slate-900 px-4 pt-3 pb-4 space-y-3 shadow-lg">
-          <div className="flex items-center gap-3 p-2 rounded-xl bg-slate-800/80 border border-slate-700">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-teal-500 to-blue-600 text-white font-bold flex items-center justify-center text-xs">
+        <div className="md:hidden border-t border-slate-800 bg-slate-900 px-4 pt-3 pb-4 space-y-2.5 shadow-lg animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-800/80 border border-slate-700">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-teal-500 to-blue-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
               {getInitials(currentUser?.name)}
             </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-100">{currentUser?.name || 'User'}</p>
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border mt-0.5 ${roleInfo.color}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${roleInfo.dot}`}></span>
-                {roleInfo.label}
-              </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-slate-100 truncate">{currentUser?.name || 'User'}</p>
+              <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${roleInfo.color}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${roleInfo.dot}`}></span>
+                  {roleInfo.label}
+                </span>
+                {(currentUser?.hospital_name || currentUser?.hospital_data?.Name) && (
+                  <span className="text-[10px] font-semibold text-teal-300">
+                    {currentUser?.hospital_name || currentUser?.hospital_data?.Name}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
           <button
             type="button"
             onClick={() => handleNavClick(roleInfo.page)}
-            className={`w-full text-left px-4 py-2 rounded-lg text-xs font-semibold ${
-              currentPage === roleInfo.page ? 'bg-slate-800 text-teal-300' : 'text-slate-300 hover:bg-slate-800'
+            className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
+              currentPage === roleInfo.page ? 'bg-slate-800 text-teal-300 border border-teal-500/30' : 'text-slate-300 hover:bg-slate-800'
             }`}
           >
             My Dashboard
@@ -248,8 +298,8 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
               <button
                 type="button"
                 onClick={() => handleNavClick('doctor_appointments')}
-                className={`w-full text-left px-4 py-2 rounded-lg text-xs font-semibold ${
-                  currentPage === 'doctor_appointments' ? 'bg-slate-800 text-rose-300' : 'text-slate-300 hover:bg-slate-800'
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  currentPage === 'doctor_appointments' ? 'bg-slate-800 text-rose-300 border border-rose-500/30' : 'text-slate-300 hover:bg-slate-800'
                 }`}
               >
                 Emergency & Special
@@ -257,8 +307,8 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
               <button
                 type="button"
                 onClick={() => handleNavClick('doctor_patients')}
-                className={`w-full text-left px-4 py-2 rounded-lg text-xs font-semibold ${
-                  currentPage === 'doctor_patients' ? 'bg-slate-800 text-teal-300' : 'text-slate-300 hover:bg-slate-800'
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  currentPage === 'doctor_patients' ? 'bg-slate-800 text-teal-300 border border-teal-500/30' : 'text-slate-300 hover:bg-slate-800'
                 }`}
               >
                 Patients Queue
@@ -266,8 +316,8 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
               <button
                 type="button"
                 onClick={() => handleNavClick('doctor_schedule')}
-                className={`w-full text-left px-4 py-2 rounded-lg text-xs font-semibold ${
-                  currentPage === 'doctor_schedule' ? 'bg-slate-800 text-teal-300' : 'text-slate-300 hover:bg-slate-800'
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  currentPage === 'doctor_schedule' ? 'bg-slate-800 text-teal-300 border border-teal-500/30' : 'text-slate-300 hover:bg-slate-800'
                 }`}
               >
                 Regular Schedule
@@ -275,11 +325,42 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
               <button
                 type="button"
                 onClick={() => handleNavClick('doctor_settings')}
-                className={`w-full text-left px-4 py-2 rounded-lg text-xs font-semibold ${
-                  currentPage === 'doctor_settings' ? 'bg-slate-800 text-teal-300' : 'text-slate-300 hover:bg-slate-800'
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center gap-2 ${
+                  currentPage === 'doctor_settings' ? 'bg-teal-500/20 text-teal-300 border border-teal-400/50 font-bold' : 'text-slate-300 hover:bg-slate-800'
                 }`}
               >
-                Settings
+                <svg className="w-4 h-4 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>Doctor Settings & Profile</span>
+              </button>
+            </>
+          )}
+
+          {(currentUser?.role || '').toString().toUpperCase().includes('NURSE') && (
+            <>
+              <button
+                type="button"
+                onClick={() => handleNavClick('nurse_patients')}
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  currentPage === 'nurse_patients' ? 'bg-slate-800 text-emerald-300 border border-emerald-500/30' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                Inpatients & Vitals Chart
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNavClick('nurse_settings')}
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center gap-2 ${
+                  currentPage === 'nurse_settings' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/50 font-bold' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>Nurse Settings & Profile</span>
               </button>
             </>
           )}
@@ -289,8 +370,8 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
               <button
                 type="button"
                 onClick={() => handleNavClick('admin_doctors')}
-                className={`w-full text-left px-4 py-2 rounded-lg text-xs font-semibold ${
-                  currentPage === 'admin_doctors' || currentPage === 'admin_doctor_details' ? 'bg-slate-800 text-teal-300' : 'text-slate-300 hover:bg-slate-800'
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  currentPage === 'admin_doctors' || currentPage === 'admin_doctor_details' ? 'bg-slate-800 text-teal-300 border border-teal-500/30' : 'text-slate-300 hover:bg-slate-800'
                 }`}
               >
                 Doctors
@@ -298,8 +379,8 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
               <button
                 type="button"
                 onClick={() => handleNavClick('admin_hospital_management')}
-                className={`w-full text-left px-4 py-2 rounded-lg text-xs font-semibold ${
-                  currentPage === 'admin_hospital_management' ? 'bg-slate-800 text-teal-300' : 'text-slate-300 hover:bg-slate-800'
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  currentPage === 'admin_hospital_management' ? 'bg-slate-800 text-teal-300 border border-teal-500/30' : 'text-slate-300 hover:bg-slate-800'
                 }`}
               >
                 Hospital Management
@@ -312,7 +393,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
           <button
             type="button"
             onClick={handleLogoutClick}
-            className="w-full text-left px-4 py-2 rounded-lg text-xs font-semibold bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 flex items-center gap-2"
+            className="w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 flex items-center gap-2 border border-rose-500/20"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

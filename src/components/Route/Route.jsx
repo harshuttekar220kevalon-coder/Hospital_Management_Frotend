@@ -47,6 +47,8 @@ import DoctorSettings from '../Doctor/setting';
 
 // Nurse, Receptionist, Patient Pages
 import NurseDashboard from '../Nurse/Dashbord';
+import NursePatients from '../Nurse/Patient';
+import NurseSettings from '../Nurse/Setting';
 import ReceptionistDashboard from '../Receptionist/Dashbord';
 import PatientDashboard from '../Patient/Dashbord';
 
@@ -247,7 +249,7 @@ const AppRoutes = () => {
   const isAdmin = (currentUser?.role || '').toString().toUpperCase().includes('ADMIN') && !isSuperAdmin;
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans antialiased">
+    <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans antialiased w-full overflow-x-hidden">
       {isLoggedIn && (
         isSuperAdmin ? (
           <SuperAdminNavbar
@@ -276,7 +278,7 @@ const AppRoutes = () => {
         )
       )}
 
-      <main className="flex-1">
+      <main className="flex-1 w-full overflow-x-hidden">
         {!isLoggedIn ? (
           currentPage === 'signin' ? (
             <SignIn
@@ -514,7 +516,19 @@ const AppRoutes = () => {
               />
             )}
             {currentPage === 'nurse_dashboard' && (
-              <NurseDashboard currentUser={currentUser} />
+              <NurseDashboard currentUser={currentUser} setCurrentPage={setCurrentPage} />
+            )}
+            {currentPage === 'nurse_patients' && (
+              <NursePatients currentUser={currentUser} setCurrentPage={setCurrentPage} />
+            )}
+            {(currentPage === 'nurse_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('NURSE'))) && (
+              <NurseSettings
+                currentUser={currentUser}
+                setCurrentUser={setCurrentUser}
+                setCurrentPage={setCurrentPage}
+                selectedHospital={selectedHospital}
+                setSelectedHospital={setSelectedHospital}
+              />
             )}
             {currentPage === 'receptionist_dashboard' && (
               <ReceptionistDashboard currentUser={currentUser} />

@@ -996,16 +996,16 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone (Numbers only) *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    maxLength={10}
+                    maxLength={15}
                     required
                     value={adminFormData.contact}
-                    onChange={(e) => setAdminFormData({ ...adminFormData, contact: e.target.value.replace(/\D/g, '') })}
-                    placeholder="10-digit mobile number"
+                    onChange={(e) => setAdminFormData({ ...adminFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                    placeholder="e.g. 9876543210 / 02212345678"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -1152,16 +1152,16 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone (Numbers only) *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    maxLength={10}
+                    maxLength={15}
                     required
                     value={editHospitalFormData.contact}
-                    onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, contact: e.target.value.replace(/\D/g, '') })}
-                    placeholder="10-digit phone number"
+                    onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                    placeholder="e.g. 9876543210 / 02212345678"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>

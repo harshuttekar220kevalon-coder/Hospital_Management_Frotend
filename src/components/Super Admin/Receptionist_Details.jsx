@@ -48,7 +48,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
     contact: '',
     email: '',
     password: 'Reception@123',
-    status: 'Active',
+    status: 'On_Duty',
     is_active: true
   });
 
@@ -118,7 +118,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
       contact: activeReceptionist.contact || activeReceptionist.phone_number || '',
       email: activeReceptionist.email || '',
       password: activeReceptionist.password || 'Reception@123',
-      status: activeReceptionist.status || (activeReceptionist.is_active ? 'Active' : 'Off Duty'),
+      status: activeReceptionist.status === 'Off_Duty' ? 'Off_Duty' : (activeReceptionist.status === 'On_Duty' ? 'On_Duty' : (activeReceptionist.is_active !== false ? 'On_Duty' : 'Off_Duty')),
       is_active: activeReceptionist.is_active !== false
     });
     setShowEditPassword(false);
@@ -147,8 +147,8 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         password: passwordToSend,
         desk: activeReceptionist.desk || 'Main Lobby Desk 1',
         extension: activeReceptionist.extension || 'Ext. 101',
-        status: editFormData.is_active ? 'Active' : 'Off Duty',
-        is_active: editFormData.is_active
+        status: editFormData.status || 'On_Duty',
+        is_active: editFormData.is_active !== undefined ? editFormData.is_active : true
       };
 
       let response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${activeReceptionist.id}/`, {
@@ -188,11 +188,10 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
 
   const handleToggleStatus = async () => {
     if (!activeReceptionist || !activeReceptionist.id) return;
-    const newStatus = !activeReceptionist.is_active;
-    const newStatusText = newStatus ? 'Active' : 'Off Duty';
+    const isCurrentlyOnDuty = activeReceptionist.status === 'On_Duty' || activeReceptionist.status === 'On Duty';
+    const newStatusText = isCurrentlyOnDuty ? 'Off_Duty' : 'On_Duty';
     const optimistic = {
       ...activeReceptionist,
-      is_active: newStatus,
       status: newStatusText
     };
     setReceptionistData(optimistic);
@@ -203,7 +202,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
       const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${activeReceptionist.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: newStatus, status: newStatusText })
+        body: JSON.stringify({ status: newStatusText })
       }).catch(() => null);
 
       if (response && response.ok) {
@@ -341,14 +340,12 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                 {displayRole}
               </span>
               <span
-                className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${activeReceptionist.is_active !== false && activeReceptionist.status !== 'On Leave'
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : activeReceptionist.status === 'On Leave'
-                      ? 'bg-amber-50 text-amber-700 border-amber-200'
-                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${activeReceptionist.status === 'Off_Duty'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   }`}
               >
-                {activeReceptionist.is_active !== false ? activeReceptionist.status || 'Active' : 'Off Duty'}
+                {activeReceptionist.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty'}
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 tracking-tight mt-1">
@@ -363,7 +360,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
             onClick={handleToggleStatus}
             className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 transition cursor-pointer flex items-center gap-1.5"
           >
-            {activeReceptionist.is_active !== false && activeReceptionist.status !== 'On Leave' ? 'Mark Off Duty' : 'Set Active'}
+            {activeReceptionist.status === 'Off_Duty' ? 'Set On Duty' : 'Mark Off Duty'}
           </button>
 
           <button
@@ -764,16 +761,16 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact: (Numbers only) *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    maxLength={10}
+                    maxLength={15}
                     required
                     value={editFormData.contact}
-                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '') })}
-                    placeholder="e.g. 9876543210"
+                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                    placeholder="e.g. 9876543210 / 02212345678"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
@@ -793,21 +790,19 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
               </div>
 
               {/* 10. STATUS */}
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="recActiveEditModal"
-                  checked={editFormData.is_active}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Duty Status *</label>
+                <select
+                  value={editFormData.status || 'On_Duty'}
                   onChange={(e) => setEditFormData({
                     ...editFormData,
-                    is_active: e.target.checked,
-                    status: e.target.checked ? 'Active' : 'Off Duty'
+                    status: e.target.value
                   })}
-                  className="w-4 h-4 text-sky-600 rounded cursor-pointer"
-                />
-                <label htmlFor="recActiveEditModal" className="font-semibold text-slate-700 cursor-pointer">
-                  Status: Active & On Duty
-                </label>
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                >
+                  <option value="On_Duty">On_Duty</option>
+                  <option value="Off_Duty">Off_Duty</option>
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">

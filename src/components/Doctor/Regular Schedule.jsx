@@ -142,24 +142,24 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
     if (!doctorInfo?.id) return;
     try {
       setUpdatingDutyStatus(true);
-      const newActive = doctorInfo.is_active === false ? true : false;
-      const newStatus = newActive ? 'Available' : 'On Leave';
+      const currentStatus = doctorInfo?.status === 'Off_Duty' ? 'Off_Duty' : (doctorInfo?.status === 'On_Duty' ? 'On_Duty' : 'On_Duty');
+      const newStatus = currentStatus === 'On_Duty' ? 'Off_Duty' : 'On_Duty';
 
       let res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${doctorInfo.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: newActive, status: newStatus })
+        body: JSON.stringify({ status: newStatus })
       }).catch(() => null);
 
       if (!res || !res.ok) {
         res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${doctorInfo.id}/`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...doctorInfo, is_active: newActive, status: newStatus })
+          body: JSON.stringify({ ...doctorInfo, status: newStatus })
         }).catch(() => null);
       }
 
-      setDoctorInfo(prev => ({ ...prev, is_active: newActive, status: newStatus }));
+      setDoctorInfo(prev => ({ ...prev, status: newStatus }));
       setSuccessMsg(`Duty status changed to: ${newStatus}`);
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
@@ -203,13 +203,13 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
   const docDepartment = doctorInfo?.department || doctorInfo?.specialization || 'Clinical Department';
 
   const weeklyScheduleMatrix = [
-    { day: 'Monday', isWorking: true, hours: opdTimings, room: 'OPD Cabin 204', slotCapacity: '25 Patients', type: 'Morning OPD & IPD Rounds' },
-    { day: 'Tuesday', isWorking: true, hours: opdTimings, room: 'OPD Cabin 204', slotCapacity: '25 Patients', type: 'Morning OPD & Follow-ups' },
-    { day: 'Wednesday', isWorking: true, hours: opdTimings, room: 'OPD Cabin 204', slotCapacity: '20 Patients', type: 'Clinical Consultation & Special' },
-    { day: 'Thursday', isWorking: true, hours: opdTimings, room: 'OPD Cabin 204', slotCapacity: '25 Patients', type: 'General OPD & Minor Procedures' },
-    { day: 'Friday', isWorking: true, hours: opdTimings, room: 'OPD Cabin 204', slotCapacity: '25 Patients', type: 'OPD & Clinical Case Reviews' },
-    { day: 'Saturday', isWorking: true, hours: '10:00 AM - 01:00 PM', room: 'OPD Cabin 204', slotCapacity: '15 Patients', type: 'Half-Day OPD & Emergency Cover' },
-    { day: 'Sunday', isWorking: false, hours: 'Emergency On-Call', room: 'Emergency Care / On-Call', slotCapacity: 'On-Demand', type: 'On-Call / Weekly Off' },
+    { day: 'Monday', isWorking: true, hours: opdTimings, slotCapacity: '25 Patients', type: 'Morning OPD & IPD Rounds' },
+    { day: 'Tuesday', isWorking: true, hours: opdTimings, slotCapacity: '25 Patients', type: 'Morning OPD & Follow-ups' },
+    { day: 'Wednesday', isWorking: true, hours: opdTimings, slotCapacity: '20 Patients', type: 'Clinical Consultation & Special' },
+    { day: 'Thursday', isWorking: true, hours: opdTimings, slotCapacity: '25 Patients', type: 'General OPD & Minor Procedures' },
+    { day: 'Friday', isWorking: true, hours: opdTimings, slotCapacity: '25 Patients', type: 'OPD & Clinical Case Reviews' },
+    { day: 'Saturday', isWorking: true, hours: '10:00 AM - 01:00 PM', slotCapacity: '15 Patients', type: 'Half-Day OPD & Emergency Cover' },
+    { day: 'Sunday', isWorking: false, hours: 'Emergency On-Call', slotCapacity: 'On-Demand', type: 'On-Call / Weekly Off' },
   ];
 
   // Filter patients by hospital filter first
@@ -269,7 +269,6 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
     {
       time: '10:00 AM - 11:30 AM',
       name: 'Morning OPD - Slot A (General Consultations)',
-      room: 'Cabin 204',
       status: 'Morning Session',
       statusColor: 'bg-emerald-100 text-emerald-800 border-emerald-300',
       patientList: slotAPatients
@@ -277,7 +276,6 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
     {
       time: '11:30 AM - 01:00 PM',
       name: 'Midday OPD - Slot B (Special & Follow-ups)',
-      room: 'Cabin 204',
       status: 'Midday Session',
       statusColor: 'bg-blue-100 text-blue-800 border-blue-300',
       patientList: slotBPatients
@@ -285,7 +283,6 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
     {
       time: '01:00 PM - 02:00 PM',
       name: 'IPD In-Patient Ward Rounds & Observations',
-      room: 'In-Patient Wards / ICU',
       status: 'Afternoon Rounds',
       statusColor: 'bg-purple-100 text-purple-800 border-purple-300',
       patientList: slotCPatients
@@ -293,7 +290,6 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
     {
       time: '04:00 PM - 06:00 PM',
       name: 'Evening Special Consultations & Tele-OPD',
-      room: 'Cabin 204 / Video Consultation',
       status: 'Evening Session',
       statusColor: 'bg-amber-100 text-amber-800 border-amber-300',
       patientList: slotDPatients
@@ -314,7 +310,7 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
                 Dr. {cleanDocName}
               </span>
               <span className="text-xs text-slate-400">
-                {hospitalName} • Room 204
+                {hospitalName}
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-2 text-slate-100 tracking-tight">
@@ -354,26 +350,26 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
                         : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:text-white'
                     }`}
                   >
-                    All Branches ({patients.length})
+                    All Branches
                   </button>
                 )}
               </div>
             )}
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap shrink-0">
             <button
               type="button"
               disabled={updatingDutyStatus}
               onClick={handleToggleDutyStatus}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center gap-2 ${
-                doctorInfo?.is_active !== false
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30'
-                  : 'bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30'
+                doctorInfo?.status === 'Off_Duty'
+                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30'
+                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30'
               }`}
             >
-              <span className={`w-2 h-2 rounded-full ${doctorInfo?.is_active !== false ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></span>
-              {doctorInfo?.is_active !== false ? 'Status: On Duty / Available' : 'Status: On Leave / Off Duty'}
+              <span className={`w-2 h-2 rounded-full ${doctorInfo?.status === 'Off_Duty' ? 'bg-rose-400' : 'bg-emerald-400 animate-pulse'}`}></span>
+              {doctorInfo?.status === 'Off_Duty' ? 'Status: Off_Duty' : 'Status: On_Duty'}
             </button>
 
             <button
@@ -383,6 +379,19 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
             >
               Edit Regular Hours
             </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage && setCurrentPage('doctor_settings')}
+              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-teal-300 hover:text-white text-xs font-bold border border-teal-500/30 hover:border-teal-400/60 transition-all duration-200 cursor-pointer flex items-center gap-2 shadow-sm group"
+              title="Doctor Profile & Settings"
+            >
+              <svg className="w-4 h-4 text-teal-400 group-hover:rotate-45 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>Settings</span>
+            </button>
           </div>
         </div>
 
@@ -391,8 +400,6 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
             <span><strong>Department:</strong> {docDepartment}</span>
             <span>•</span>
             <span><strong>Official Hours:</strong> <span className="text-teal-300 font-bold">{opdTimings}</span></span>
-            <span>•</span>
-            <span><strong>Cabin / Room:</strong> OPD Room 204</span>
           </div>
         </div>
       </div>
@@ -433,7 +440,7 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
                     {slot.time}
                   </span>
                   <h3 className="font-bold text-slate-800 text-sm mt-1.5">{slot.name}</h3>
-                  <p className="text-[11px] text-slate-500">{slot.room} • {hospitalName}</p>
+                  <p className="text-[11px] text-slate-500">{hospitalName}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${slot.statusColor}`}>
@@ -548,7 +555,6 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
                 <p className="text-xs font-semibold text-teal-700">{item.type}</p>
                 <div className="text-[11px] text-slate-500 space-y-0.5">
                   <p><strong>Hours:</strong> {item.hours}</p>
-                  <p><strong>Location:</strong> {item.room}</p>
                   <p><strong>Capacity:</strong> {item.slotCapacity}</p>
                 </div>
               </div>

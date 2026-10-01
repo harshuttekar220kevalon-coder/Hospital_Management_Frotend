@@ -47,7 +47,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
     contact: '',
     email: '',
     password: '',
-    status: 'On Duty',
+    status: 'On_Duty',
     is_active: true
   };
 
@@ -159,7 +159,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
 
     try {
       const generatedNurseId = generateNurseId();
-      const nurseRole = formData.role || formData.nurse_role || 'Staff Nurse';
+      const currentStatus = formData.status || 'On_Duty';
       const payload = {
         ...formData,
         role: nurseRole,
@@ -170,8 +170,8 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
         contact: formData.contact.trim(),
         password: formData.password || '',
         hospital: Number(hospitalData?.id),
-        status: formData.is_active ? 'On Duty' : 'On Leave',
-        is_active: formData.is_active
+        status: currentStatus,
+        is_active: formData.is_active !== undefined ? formData.is_active : true
       };
 
       const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/`, {
@@ -184,7 +184,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
 
       if (response.ok) {
         const createdId = data.nurse_id || generatedNurseId;
-        alert(`Nurse registered successfully!\nNurse ID: ${createdId}`);
+        alert(`Nurse registered successfully!\nNurse ID: ${createdId}\nDuty Status: ${currentStatus}`);
         setIsAddModalOpen(false);
         fetchAdminAndNurses();
       } else {
@@ -197,24 +197,26 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
   };
 
   const handleToggleStatus = async (nurse) => {
-    const newStatus = !nurse.is_active;
+    const currentStatus = nurse.status === 'Off_Duty' ? 'Off_Duty' : (nurse.status === 'On_Duty' ? 'On_Duty' : 'On_Duty');
+    const newStatusStr = currentStatus === 'On_Duty' ? 'Off_Duty' : 'On_Duty';
+
     try {
       const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${nurse.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: newStatus })
+        body: JSON.stringify({ status: newStatusStr })
       });
 
       if (response.ok) {
-        setNurses(prev => prev.map(n => n.id === nurse.id ? { ...n, is_active: newStatus } : n));
+        setNurses(prev => prev.map(n => n.id === nurse.id ? { ...n, status: newStatusStr } : n));
       } else {
         const putRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/${nurse.id}/`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...nurse, is_active: newStatus })
+          body: JSON.stringify({ ...nurse, status: newStatusStr })
         });
         if (putRes.ok) {
-          setNurses(prev => prev.map(n => n.id === nurse.id ? { ...n, is_active: newStatus } : n));
+          setNurses(prev => prev.map(n => n.id === nurse.id ? { ...n, status: newStatusStr } : n));
         }
       }
     } catch (err) {
@@ -434,14 +436,14 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
                         <button
                           type="button"
                           onClick={() => handleToggleStatus(nurse)}
-                          title="Click to toggle active/inactive status"
+                          title="Click to toggle Duty Status (On_Duty / Off_Duty)"
                           className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${
-                            nurse.is_active !== false
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                              : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                            nurse.status === 'Off_Duty'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                           }`}
                         >
-                          {nurse.is_active !== false ? 'Active' : 'Inactive'}
+                          {nurse.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty'}
                         </button>
                       </td>
 
@@ -520,16 +522,16 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone (Numbers only) *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    maxLength={10}
+                    maxLength={15}
                     required
                     value={formData.contact}
-                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '') })}
-                    placeholder="e.g. 9876543210"
+                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                    placeholder="e.g. 9876543210 / 02212345678"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
@@ -628,17 +630,20 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="nurseActiveCreate"
-                  checked={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  className="w-4 h-4 text-sky-600 rounded cursor-pointer"
-                />
-                <label htmlFor="nurseActiveCreate" className="font-semibold text-slate-700 cursor-pointer">
-                  Nurse is Currently On Duty & Active
-                </label>
+              {/* DUTY STATUS */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Duty Status *</label>
+                <select
+                  value={formData.status || 'On_Duty'}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    status: e.target.value
+                  })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                >
+                  <option value="On_Duty">On_Duty</option>
+                  <option value="Off_Duty">Off_Duty</option>
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">

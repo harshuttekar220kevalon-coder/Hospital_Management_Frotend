@@ -72,7 +72,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
     email: '',
     password: '',
     hospital: '',
-    status: 'On Duty',
+    status: 'On_Duty',
     is_active: true
   });
 
@@ -91,13 +91,30 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
         }
       }
 
-      const hospId = currentN?.hospital || currentUser?.hospital;
-      if (hospId) {
+      const hospId = typeof currentN?.hospital === 'object' ? currentN?.hospital?.id : (currentN?.hospital || currentUser?.hospital);
+      
+      const hospListRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
+      let matchedHosp = null;
+      if (hospListRes && hospListRes.ok) {
+        const hospitals = await hospListRes.json();
+        if (Array.isArray(hospitals)) {
+          matchedHosp = hospitals.find(h => 
+            (hospId && Number(h.id) === Number(hospId)) ||
+            (currentN?.hospital_name && h.Name && h.Name.toLowerCase() === currentN.hospital_name.toLowerCase()) ||
+            (typeof currentN?.hospital === 'string' && h.Name && h.Name.toLowerCase() === currentN.hospital.toLowerCase())
+          );
+        }
+      }
+
+      if (!matchedHosp && hospId) {
         const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${hospId}/`).catch(() => null);
         if (hospRes && hospRes.ok) {
-          const hosp = await hospRes.json();
-          setHospitalData(hosp);
+          matchedHosp = await hospRes.json();
         }
+      }
+
+      if (matchedHosp) {
+        setHospitalData(matchedHosp);
       }
     } catch (err) {
       console.error('Error loading nurse details:', err);
@@ -119,11 +136,11 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
       shift: nurseData.shift || 'Morning (08:00 AM - 04:00 PM)',
       qualification: nurseData.qualification || '',
       experience: nurseData.experience || '',
-      contact: (nurseData.contact || nurseData.phone || '').replace(/\D/g, '').slice(0, 10),
+      contact: (nurseData.contact || nurseData.phone || '').replace(/\D/g, '').slice(0, 15),
       email: nurseData.email || '',
       password: nurseData.password || 'Nurse@123',
       hospital: nurseData.hospital || currentUser?.hospital || (hospitalData ? hospitalData.id : ''),
-      status: nurseData.status || (nurseData.is_active ? 'On Duty' : 'On Leave'),
+      status: nurseData.status === 'Off_Duty' ? 'Off_Duty' : (nurseData.status === 'On_Duty' ? 'On_Duty' : (nurseData.is_active !== false ? 'On_Duty' : 'Off_Duty')),
       is_active: nurseData.is_active !== false
     });
     setShowEditPassword(false);
@@ -138,6 +155,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
       const nurseRole = editFormData.role || editFormData.nurse_role || nurseData.role || 'Staff Nurse';
       const hospId = Number(editFormData.hospital || nurseData.hospital || currentUser?.hospital || (hospitalData ? hospitalData.id : 1));
       
+      const currentStatus = editFormData.status || 'On_Duty';
       const payload = {
         ...editFormData,
         nurse_id: nurseIdToSend,
@@ -148,7 +166,8 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
         contact: editFormData.contact.trim(),
         password: nurseData.password || editFormData.password || 'Nurse@123',
         hospital: hospId,
-        status: editFormData.is_active ? 'On Duty' : 'On Leave'
+        status: currentStatus,
+        is_active: editFormData.is_active !== undefined ? editFormData.is_active : true
       };
 
       const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${nurseData.id}/`, {
@@ -175,17 +194,20 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
   };
 
   const handleToggleStatus = async () => {
-    const newStatus = !nurseData.is_active;
+    const currentStatus = nurseData.status === 'Off_Duty' ? 'Off_Duty' : (nurseData.status === 'On_Duty' ? 'On_Duty' : 'On_Duty');
+    const newStatusStr = currentStatus === 'On_Duty' ? 'Off_Duty' : 'On_Duty';
+
     try {
       const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${nurseData.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: newStatus })
+        body: JSON.stringify({ status: newStatusStr })
       });
 
       if (response.ok) {
-        setNurseData(prev => ({ ...prev, is_active: newStatus }));
-        localStorage.setItem('selectedNurse', JSON.stringify({ ...nurseData, is_active: newStatus }));
+        const updated = { ...nurseData, status: newStatusStr };
+        setNurseData(updated);
+        localStorage.setItem('selectedNurse', JSON.stringify(updated));
       }
     } catch (err) {
       console.error('Error toggling status:', err);
@@ -263,12 +285,12 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
             type="button"
             onClick={handleToggleStatus}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
-              nurseData.is_active !== false
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+              nurseData.status === 'Off_Duty'
+                ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
             }`}
           >
-            Status: {nurseData.is_active !== false ? 'Active (On Duty)' : 'Inactive (On Leave)'}
+            Duty: {nurseData.status === 'Off_Duty' ? 'Off Duty' : 'On Duty'}
           </button>
 
           <button
@@ -560,16 +582,16 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    maxLength={10}
+                    maxLength={15}
                     required
                     value={editFormData.contact}
-                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
-                    placeholder="e.g. 9876543210"
+                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                    placeholder="e.g. 9876543210 / 02212345678"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white font-mono"
                   />
                 </div>
@@ -622,21 +644,20 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="nurseActiveEditModal"
-                  checked={editFormData.is_active}
+              {/* DUTY STATUS */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Duty Status *</label>
+                <select
+                  value={editFormData.status || 'On_Duty'}
                   onChange={(e) => setEditFormData({ 
                     ...editFormData, 
-                    is_active: e.target.checked,
-                    status: e.target.checked ? 'On Duty' : 'On Leave'
+                    status: e.target.value
                   })}
-                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
-                />
-                <label htmlFor="nurseActiveEditModal" className="font-semibold text-slate-700 cursor-pointer">
-                  Nurse Active & On Duty
-                </label>
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                >
+                  <option value="On_Duty">On_Duty</option>
+                  <option value="Off_Duty">Off_Duty</option>
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">

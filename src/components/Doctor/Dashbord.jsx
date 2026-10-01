@@ -26,6 +26,11 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
     return patient?.Condation || patient?.condation || patient?.condition || patient?.Condition || patient?.symptoms_severity || 'Normal';
   };
 
+  // Blood Group helper
+  const getPatientBloodGroup = (patient) => {
+    return patient?.Blood_Group || patient?.blood_group || patient?.BloodGroup || patient?.bloodGroup || patient?.blood || patient?.Blood || '-';
+  };
+
   // Completed today
   const getTodayKey = () => `doc_completed_today_${new Date().toISOString().split('T')[0]}`;
 
@@ -507,7 +512,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                           : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:text-white'
                       }`}
                     >
-                      All Branches ({patients.length})
+                      All Branches
                     </button>
                   )}
                 </div>
@@ -515,13 +520,18 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
             <button
               type="button"
               onClick={() => setCurrentPage && setCurrentPage('doctor_settings')}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-teal-300 text-xs font-bold border border-teal-500/30 transition cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-teal-300 hover:text-white text-xs font-bold border border-teal-500/30 hover:border-teal-400/60 transition-all duration-200 cursor-pointer flex items-center gap-2 shadow-sm hover:shadow-teal-500/10 group"
+              title="Open Doctor Settings & Profile"
             >
-              Doctor Settings
+              <svg className="w-4 h-4 text-teal-400 group-hover:rotate-45 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>Doctor Settings</span>
             </button>
           </div>
         </div>
@@ -639,7 +649,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                 onChange={(e) => setHospitalFilter(e.target.value)}
                 className="px-3 py-1.5 rounded-xl border border-teal-300 bg-teal-50/50 text-xs font-bold text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
               >
-                <option value="ALL">All Branches ({patients.length})</option>
+                <option value="ALL">All Branches</option>
                 {assignedHospitals.map(h => {
                   const countForHosp = patients.filter(p => Number(p.hospital) === Number(h.id) || p.hospital_name === h.Name).length;
                   return (
@@ -785,9 +795,16 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
 
                       <td className="py-3 px-3 text-center">
                         <div className="font-bold text-slate-800">{pat.name || 'Patient'}</div>
-                        <span className="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
-                          {patientIdDisplay}
-                        </span>
+                        <div className="flex items-center justify-center gap-1 flex-wrap mt-0.5">
+                          <span className="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block">
+                            {patientIdDisplay}
+                          </span>
+                          {pat.bed_number ? (
+                            <span className="text-[9px] font-mono font-bold bg-teal-100 text-teal-900 px-1.5 py-0.5 rounded border border-teal-300 inline-block">
+                              Bed #{pat.bed_number} ({pat.floor || `Floor ${Math.floor((pat.bed_number - 1) / 100) + 1}`})
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
 
                       <td className="py-3 px-3 text-center">
@@ -932,7 +949,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <span className="text-slate-400 uppercase font-bold text-[10px]">Blood Group</span>
-                  <p className="font-bold text-rose-700 mt-0.5">{selectedPatientModal.blood_group || '-'}</p>
+                  <p className="font-bold text-rose-700 mt-0.5">{getPatientBloodGroup(selectedPatientModal)}</p>
                 </div>
               </div>
 
@@ -941,9 +958,11 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                   <span className="text-slate-400 uppercase font-bold text-[10px]">Condition Severity</span>
                   <p className="font-bold text-slate-800 mt-0.5">{getPatientCondition(selectedPatientModal)}</p>
                 </div>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-slate-400 uppercase font-bold text-[10px]">Contact Phone</span>
-                  <p className="font-semibold text-slate-800 mt-0.5">{selectedPatientModal.contact || selectedPatientModal.phone || '-'}</p>
+                <div className="p-3 bg-teal-50/60 rounded-xl border border-teal-200">
+                  <span className="text-teal-800 uppercase font-bold text-[10px]">Inpatient Location</span>
+                  <p className="font-bold text-teal-950 font-mono mt-0.5">
+                    {selectedPatientModal.bed_number ? `Bed #${selectedPatientModal.bed_number} (${selectedPatientModal.floor || `Floor ${Math.floor((selectedPatientModal.bed_number - 1) / 100) + 1}`})` : 'Outpatient / OPD'}
+                  </p>
                 </div>
               </div>
 

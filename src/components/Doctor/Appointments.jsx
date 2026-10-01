@@ -26,6 +26,11 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
     return pat?.Condation || pat?.condation || pat?.condition || pat?.Condition || pat?.symptoms_severity || 'Normal';
   };
 
+  // Blood Group helper
+  const getPatientBloodGroup = (pat) => {
+    return pat?.Blood_Group || pat?.blood_group || pat?.BloodGroup || pat?.bloodGroup || pat?.blood || pat?.Blood || '-';
+  };
+
   // Completed today
   const getTodayKey = () => `doc_completed_today_${new Date().toISOString().split('T')[0]}`;
 
@@ -565,20 +570,35 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
                         : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:text-white'
                     }`}
                   >
-                    All Branches ({activeEmergencyList.length})
+                    All Branches
                   </button>
                 )}
               </div>
             )}
           </div>
 
-          <div className="flex items-center gap-3 bg-slate-800/80 px-4 py-3 rounded-2xl border border-slate-700 shrink-0">
-            <div>
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Active Emergency Cases</span>
-              <span className="text-lg sm:text-xl font-extrabold text-rose-300 font-mono">
-                {criticalCount} Critical • {emergencyCount} Emergency • {urgentCount} Urgent
-              </span>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
+            <div className="flex items-center gap-3 bg-slate-800/80 px-4 py-3 rounded-2xl border border-slate-700">
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Active Emergency Cases</span>
+                <span className="text-sm sm:text-base font-extrabold text-rose-300 font-mono">
+                  {criticalCount} Critical • {emergencyCount} Emergency • {urgentCount} Urgent
+                </span>
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage && setCurrentPage('doctor_settings')}
+              className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-teal-300 hover:text-white text-xs font-bold border border-teal-500/30 hover:border-teal-400/60 transition-all duration-200 cursor-pointer flex items-center gap-2 shadow-sm group whitespace-nowrap"
+              title="Doctor Profile & Settings"
+            >
+              <svg className="w-4 h-4 text-teal-400 group-hover:rotate-45 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>Settings</span>
+            </button>
           </div>
         </div>
       </div>
@@ -644,7 +664,7 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
                 onChange={(e) => setHospitalFilter(e.target.value)}
                 className="px-3 py-1.5 rounded-xl border border-rose-300 bg-rose-50/50 text-xs font-bold text-rose-900 focus:outline-none focus:ring-2 focus:ring-rose-500 cursor-pointer"
               >
-                <option value="ALL">All Branches ({activeEmergencyList.length})</option>
+                <option value="ALL">All Branches</option>
                 {assignedHospitals.map(h => {
                   const countForHosp = patients.filter(p => isEmergencyCase(p) && (Number(p.hospital) === Number(h.id) || p.hospital_name === h.Name)).length;
                   return (
@@ -873,7 +893,7 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <span className="text-slate-400 uppercase font-bold text-[10px]">Blood Group</span>
-                  <p className="font-bold text-rose-700 mt-0.5">{selectedPatientModal.blood_group || '-'}</p>
+                  <p className="font-bold text-rose-700 mt-0.5">{getPatientBloodGroup(selectedPatientModal)}</p>
                 </div>
               </div>
 

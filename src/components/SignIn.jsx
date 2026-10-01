@@ -78,7 +78,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
           <p className="text-xs text-slate-500 mt-1 font-medium">Join Apex Care Hospital Management Portal</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -87,6 +87,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
               <input
                 type="text"
                 name="firstName"
+                autoComplete="off"
                 value={formData.firstName}
                 onChange={handleChange}
                 placeholder="First name"
@@ -101,6 +102,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
               <input
                 type="text"
                 name="lastName"
+                autoComplete="off"
                 value={formData.lastName}
                 onChange={handleChange}
                 placeholder="Last name"
@@ -136,6 +138,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
             <input
               type="email"
               name="email"
+              autoComplete="off"
               value={formData.email}
               onChange={handleChange}
               placeholder="name@hospital.com"
@@ -151,10 +154,12 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
             <input
               type="password"
               name="password"
+              autoComplete="new-password"
               value={formData.password}
               onChange={handleChange}
               placeholder="••••••••"
               required
+              minLength={6}
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150"
             />
           </div>

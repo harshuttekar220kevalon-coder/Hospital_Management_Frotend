@@ -6,6 +6,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
   const [hospitalsList, setHospitalsList] = useState([]);
   const [doctorsList, setDoctorsList] = useState([]);
   const [adminsList, setAdminsList] = useState([]);
+  const [nursesList, setNursesList] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState('ALL');
@@ -13,6 +14,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
   const [hospitalFilter, setHospitalFilter] = useState('ALL');
   const [specializationFilter, setSpecializationFilter] = useState('ALL');
   const [severityFilter, setSeverityFilter] = useState('ALL');
+  const [floorFilter, setFloorFilter] = useState('ALL');
   const [visibleCount, setVisibleCount] = useState(10);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -35,6 +37,9 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     address: '',
     hospital: '',
     doctor: '',
+    bed_number: '',
+    nurse: '',
+    nurse_name: '',
     consultation_fee: 0.00,
     Hospitals_Chargies: 0.00,
     amount_paid: 0.00,
@@ -57,7 +62,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
 
   useEffect(() => {
     setVisibleCount(10);
-  }, [searchTerm, activeTab, hospitalFilter, specializationFilter, severityFilter]);
+  }, [searchTerm, activeTab, hospitalFilter, specializationFilter, severityFilter, floorFilter]);
 
   const generatePatientId = () => {
     const randomNum = Math.floor(1000 + Math.random() * 9000);
@@ -95,6 +100,12 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
       if (adminRes && adminRes.ok) {
         const adminData = await adminRes.json();
         setAdminsList(adminData);
+      }
+
+      const nurseRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/`).catch(() => null);
+      if (nurseRes && nurseRes.ok) {
+        const nurseData = await nurseRes.json();
+        setNursesList(nurseData);
       }
 
       const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
@@ -188,6 +199,8 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
       (patient.email || '').toLowerCase().includes(term) ||
       (patient.address || '').toLowerCase().includes(term) ||
       (patient.doctor_name || '').toLowerCase().includes(term) ||
+      (patient.nurse_name || '').toLowerCase().includes(term) ||
+      (patient.bed_number ? `bed ${patient.bed_number}` : '').toLowerCase().includes(term) ||
       hospName.toLowerCase().includes(term) ||
       (patient.symptoms_diagnosis || patient.reason_for_visit || '').toLowerCase().includes(term);
 
@@ -207,7 +220,16 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
         ? true
         : patCondition.toLowerCase() === severityFilter.toLowerCase();
 
-    return matchesSearch && matchesHospital && matchesSpec && matchesSeverity;
+    const patBed = patient.bed_number;
+    const patFloor = getFloorNumber(patBed);
+    const matchesFloor =
+      floorFilter === 'ALL'
+        ? true
+        : floorFilter === 'UNASSIGNED'
+          ? (!patBed || patBed === null)
+          : patFloor === Number(floorFilter);
+
+    return matchesSearch && matchesHospital && matchesSpec && matchesSeverity && matchesFloor;
   });
 
   const handleOpenAddModal = () => {
@@ -229,9 +251,15 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     try {
       const generatedDocPatId = generatePatientId();
       const selectedDocObj = doctorsList.find(d => d.id === Number(addFormData.doctor));
+      const selectedNurseObj = nursesList.find(n => n.id === Number(addFormData.nurse));
+      const autoNurse = getAssignedNurseForPatientBed(addFormData.bed_number, nursesList, addFormData.hospital);
+      const finalNurseId = addFormData.nurse ? Number(addFormData.nurse) : (autoNurse?.nurseId || null);
+      const finalNurseName = selectedNurseObj ? selectedNurseObj.name : (addFormData.nurse_name || autoNurse?.nurseName || '');
+
       let response;
 
       const chosenCondition = addFormData.Condation || addFormData.condation || addFormData.condition || addFormData.symptoms_severity || 'Normal';
+      const parsedBedNum = addFormData.bed_number ? Number(addFormData.bed_number) : null;
 
       const payloadData = {
         patient_id: generatedDocPatId,
@@ -241,11 +269,15 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
         age: addFormData.age ? Number(addFormData.age) : null,
         gender: addFormData.gender,
         blood_group: addFormData.blood_group,
+        Blood_Group: addFormData.blood_group,
         address: (addFormData.address || '').trim(),
         hospital: Number(addFormData.hospital),
         doctor: addFormData.doctor ? Number(addFormData.doctor) : null,
         doctor_name: selectedDocObj ? selectedDocObj.name : '',
         doctor_specialization: selectedDocObj ? (selectedDocObj.specialization || selectedDocObj.specialty || '') : '',
+        bed_number: parsedBedNum,
+        nurse: finalNurseId,
+        nurse_name: finalNurseName,
         consultation_fee: Number(addFormData.consultation_fee) || 0.00,
         Hospitals_Chargies: Number(addFormData.Hospitals_Chargies) || 0.00,
         hospital_charges: Number(addFormData.Hospitals_Chargies) || 0.00,
@@ -287,7 +319,8 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
       if (response && response.ok) {
         const resData = await response.json().catch(() => ({}));
         const createdId = resData.patient_id || generatedDocPatId;
-        alert(`Patient registered successfully with payment details!\nPatient ID: ${createdId}`);
+        const floorInfo = parsedBedNum ? `Floor ${Math.floor((parsedBedNum - 1) / 100) + 1}` : 'Not Assigned';
+        alert(`Patient registered successfully!\nPatient ID: ${createdId}\n${parsedBedNum ? `Bed: #${parsedBedNum} (${floorInfo})\nAssigned Nurse: ${finalNurseName || 'Assigned'}` : 'Bed: Not Assigned'}`);
         setAddSelectedFile(null);
         setIsAddModalOpen(false);
         fetchAllData();
@@ -506,6 +539,20 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
           <select
+            value={floorFilter}
+            onChange={(e) => setFloorFilter(e.target.value)}
+            className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-medium focus:outline-none focus:border-sky-600 cursor-pointer"
+          >
+            <option value="ALL">All Floors</option>
+            <option value="1">Floor 1 (Beds 1 - 100)</option>
+            <option value="2">Floor 2 (Beds 101 - 200)</option>
+            <option value="3">Floor 3 (Beds 201 - 300)</option>
+            <option value="4">Floor 4 (Beds 301 - 400)</option>
+            <option value="5">Floor 5 (Beds 401 - 500)</option>
+            <option value="UNASSIGNED">Unassigned Beds</option>
+          </select>
+
+          <select
             value={hospitalFilter}
             onChange={(e) => setHospitalFilter(e.target.value)}
             className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-medium focus:outline-none focus:border-sky-600 cursor-pointer"
@@ -557,16 +604,17 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
               <p className="text-[11px] text-slate-400 mt-1">Click "+ Register Patient" to add a new record.</p>
             </div>
           ) : (
-            <table className="w-full text-center text-xs text-slate-600 min-w-[760px]">
+            <table className="w-full text-center text-xs text-slate-600 min-w-[850px]">
               <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                 <tr>
-                  <th className="py-3.5 px-4 text-center">Patient Name & ID</th>
-                  <th className="py-3.5 px-4 text-center">Hospital & Doctor</th>
-                  <th className="py-3.5 px-4 text-center">Visit Time</th>
-                  <th className="py-3.5 px-4 text-center">CONTACT & EMAIL</th>
-                  <th className="py-3.5 px-4 text-center">Payment</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
-                  <th className="py-3.5 px-4 text-center">Actions</th>
+                  <th className="py-3.5 px-3 text-center">Patient Name & ID</th>
+                  <th className="py-3.5 px-3 text-center">Hospital & Doctor</th>
+                  <th className="py-3.5 px-3 text-center">Bed & Floor</th>
+                  <th className="py-3.5 px-3 text-center">Visit Time</th>
+                  <th className="py-3.5 px-3 text-center">CONTACT & EMAIL</th>
+                  <th className="py-3.5 px-3 text-center">Payment</th>
+                  <th className="py-3.5 px-3 text-center">Status</th>
+                  <th className="py-3.5 px-3 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -607,13 +655,36 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3.5 px-3 text-center">
                         <p className="font-semibold text-slate-800">
                           {displayHospital}
                         </p>
                         <p className="text-[11px] text-slate-500">
                           {displayDoctor}
                         </p>
+                      </td>
+
+                      <td className="py-3.5 px-3 text-center">
+                        {pat.bed_number ? (
+                          <div className="flex flex-col items-center justify-center gap-0.5">
+                            <span className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                              Bed #{pat.bed_number}
+                            </span>
+                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-100">
+                              {pat.floor || `Floor ${Math.floor((pat.bed_number - 1) / 100) + 1}`}
+                            </span>
+                            {pat.nurse_name && (
+                              <span className="text-[9px] text-emerald-700 font-semibold truncate max-w-[130px]" title={`Assigned Nurse: ${pat.nurse_name}`}>
+                                {pat.nurse_name}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center">
+                            <span className="text-xs text-slate-400 font-medium">Unassigned</span>
+                            <span className="text-[9px] text-slate-400">No Bed Allocated</span>
+                          </div>
+                        )}
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
@@ -790,16 +861,16 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    maxLength={10}
+                    maxLength={15}
                     required
-                    placeholder="10-digit number"
+                    placeholder="e.g. 9876543210 / 02212345678"
                     value={addFormData.contact}
-                    onChange={(e) => setAddFormData({ ...addFormData, contact: e.target.value.replace(/\D/g, '') })}
+                    onChange={(e) => setAddFormData({ ...addFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
@@ -897,6 +968,89 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                           No doctors are currently affiliated with this hospital branch.
                         </p>
                       ) : null}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* BED & FLOOR ALLOCATION & NURSE CARE SECTION */}
+              {(() => {
+                const hospActiveNurses = nursesList.filter(n => Number(typeof n.hospital === 'object' ? n.hospital?.id : n.hospital) === Number(addFormData.hospital));
+                const currentBed = addFormData.bed_number ? Number(addFormData.bed_number) : null;
+                const floorDisplay = currentBed ? `Floor ${Math.floor((currentBed - 1) / 100) + 1}` : 'Not Assigned';
+
+                return (
+                  <div className="p-3.5 bg-sky-50/60 rounded-xl border border-sky-200 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-bold text-sky-900 uppercase text-[11px]">Bed & Floor Allocation</p>
+                      </div>
+                      <span className="text-[10px] font-bold text-sky-700 bg-sky-100/80 px-2 py-0.5 rounded-full border border-sky-200">
+                        {floorDisplay}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-semibold text-slate-700 uppercase mb-1">
+                          Bed Number
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 45 or 150"
+                          value={addFormData.bed_number}
+                          onChange={(e) => {
+                            const bedVal = e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : '';
+                            setAddFormData(prev => ({
+                              ...prev,
+                              bed_number: bedVal
+                            }));
+                          }}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono font-bold focus:outline-none focus:border-sky-600 shadow-2xs"
+                        />
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {currentBed ? `Allocated: Bed #${currentBed} • ${floorDisplay}` : 'Enter patient bed number'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 uppercase mb-1">
+                          Assigned Nurse {addFormData.hospital ? `(${hospActiveNurses.length} active in branch)` : ''}
+                        </label>
+                        <select
+                          disabled={!addFormData.hospital}
+                          value={addFormData.nurse}
+                          onChange={(e) => {
+                            const nId = e.target.value;
+                            const selNurse = nursesList.find(n => n.id === Number(nId));
+                            setAddFormData(prev => ({
+                              ...prev,
+                              nurse: nId,
+                              nurse_name: selNurse ? selNurse.name : ''
+                            }));
+                          }}
+                          className={`w-full px-3 py-2 rounded-xl border border-slate-300 font-medium ${!addFormData.hospital
+                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                              : 'bg-white text-slate-800 focus:outline-none focus:border-sky-600 cursor-pointer shadow-2xs'
+                            }`}
+                        >
+                          {!addFormData.hospital ? (
+                            <option value="">-- Select Target Hospital First --</option>
+                          ) : hospActiveNurses.length === 0 ? (
+                            <option value="">-- No Active Nurses in this Branch --</option>
+                          ) : (
+                            <>
+                              <option value="">-- Select Nurse --</option>
+                              {hospActiveNurses.map(n => (
+                                <option key={n.id} value={n.id}>
+                                  {n.name} ({n.ward || 'Ward Staff'}) - Shift: {n.shift || 'General'}
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </select>
+                      </div>
                     </div>
                   </div>
                 );

@@ -19,6 +19,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
 
   const [passwordForm, setPasswordForm] = useState({
+    email: '',
     newPassword: '',
     confirmPassword: ''
   });
@@ -146,6 +147,19 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
     setPasswordErrorMsg('');
     setPasswordSuccessMsg('');
 
+    const enteredEmail = (passwordForm.email || '').toLowerCase().trim();
+    const actualEmail = (adminData?.email || currentUser?.email || '').toLowerCase().trim();
+
+    if (!enteredEmail) {
+      setPasswordErrorMsg('Please enter your registered email address.');
+      return;
+    }
+
+    if (enteredEmail !== actualEmail) {
+      setPasswordErrorMsg('Entered email does not match your registered admin email. Password cannot be changed.');
+      return;
+    }
+
     if (!passwordForm.newPassword) {
       setPasswordErrorMsg('New password is required.');
       return;
@@ -164,7 +178,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
     try {
       setPasswordLoading(true);
       const adminId = adminData?.id || currentUser?.id;
-      const adminEmail = (adminData?.email || currentUser?.email || '').trim();
+      const adminEmail = actualEmail;
 
       let success = false;
 
@@ -211,6 +225,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
       if (success || adminId) {
         setPasswordSuccessMsg('Password updated successfully! Your new credentials are active in database.');
         setPasswordForm({
+          email: '',
           newPassword: '',
           confirmPassword: ''
         });
@@ -595,6 +610,21 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
             )}
 
             <form onSubmit={handlePasswordSubmit} className="space-y-4 text-xs max-w-xl">
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Registered Login Email *</label>
+                <input
+                  type="email"
+                  required
+                  value={passwordForm.email}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, email: e.target.value })}
+                  placeholder="Type your registered email address"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white text-slate-800"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  You must enter your registered email address to verify and change password.
+                </p>
+              </div>
+
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">New Password *</label>
                 <div className="relative">

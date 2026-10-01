@@ -64,12 +64,14 @@ const PatientDashboard = ({ currentUser }) => {
   const uhid = patientInfo?.patient_id || patientInfo?.uhid || currentUser?.patient_id || `PAT-${currentUser?.id || '01'}`;
   const hospitalName = hospitalInfo?.Name || 'Apex Care Hospital';
   const docName = doctorInfo?.name || patientInfo?.doctor_name || 'Dr. Assigned Specialist';
+  const bedNum = patientInfo?.bed_number;
+  const floorName = patientInfo?.floor || (bedNum ? `Floor ${Math.floor((bedNum - 1) / 100) + 1}` : 'Not Assigned');
 
   const patientStats = [
     { title: 'UHID / Patient ID', value: uhid, sub: 'Registered Patient', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { title: 'Assigned Doctor', value: docName, sub: doctorInfo?.specialization || 'Clinical Specialist', color: 'bg-teal-50 text-teal-700 border-teal-200' },
-    { title: 'Payment Status', value: patientInfo?.payment_status || 'Paid', sub: `Fee: ₹${patientInfo?.consultation_fee || '500'}`, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    { title: 'Visit / Appointment', value: patientInfo?.visit_date_time ? new Date(patientInfo.visit_date_time).toLocaleDateString() : 'Scheduled', sub: hospitalName, color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    { title: 'Inpatient Bed & Ward', value: bedNum ? `Bed #${bedNum}` : 'Outpatient / OPD', sub: floorName, color: 'bg-teal-50 text-teal-700 border-teal-200' },
+    { title: 'Assigned Doctor', value: docName, sub: doctorInfo?.specialization || 'Clinical Specialist', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    { title: 'Payment Status', value: patientInfo?.payment_status || 'Paid', sub: `Status: ${patientInfo?.payment_status || 'Paid'}`, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   ];
 
   return (
@@ -90,7 +92,7 @@ const PatientDashboard = ({ currentUser }) => {
           </div>
           <div className="flex items-center gap-3">
             <span className="px-3 py-2 rounded-xl bg-slate-700 text-slate-200 text-xs font-mono font-semibold border border-slate-600">
-              UHID: {uhid}
+              {bedNum ? `Bed #${bedNum} (${floorName})` : `UHID: ${uhid}`}
             </span>
           </div>
         </div>
@@ -124,6 +126,17 @@ const PatientDashboard = ({ currentUser }) => {
             <span className="text-xs font-semibold text-blue-700">{patientInfo?.status || 'Confirmed'}</span>
           </div>
           <div className="space-y-3 text-xs">
+            {bedNum && (
+              <div className="p-3.5 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-teal-700">Assigned Inpatient Location</p>
+                  <p className="text-sm font-extrabold text-teal-900 mt-0.5">Bed #{bedNum} • {floorName}</p>
+                </div>
+                <span className="px-3 py-1 rounded-full bg-teal-100 text-teal-800 text-xs font-bold border border-teal-300">
+                  Floor {((bedNum - 1) % 100) + 1 ? Math.floor((bedNum - 1) / 100) + 1 : 1}
+                </span>
+              </div>
+            )}
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
               <p className="font-semibold text-slate-700">Symptoms / Chief Complaint:</p>
               <p className="text-slate-800 mt-1">{patientInfo?.symptoms_diagnosis || 'Regular health check-up & OPD consultation.'}</p>
@@ -135,7 +148,7 @@ const PatientDashboard = ({ currentUser }) => {
               </div>
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                 <p className="text-slate-500 text-[10px] uppercase">Blood Group</p>
-                <p className="font-bold text-slate-800 mt-0.5">{patientInfo?.blood_group || 'Not Known'}</p>
+                <p className="font-bold text-slate-800 mt-0.5">{patientInfo?.Blood_Group || patientInfo?.blood_group || 'Not Known'}</p>
               </div>
             </div>
           </div>

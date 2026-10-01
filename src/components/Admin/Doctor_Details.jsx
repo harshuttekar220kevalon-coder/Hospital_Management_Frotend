@@ -38,6 +38,7 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
 
   const [newPassword, setNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [customDeptInput, setCustomDeptInput] = useState('');
 
   const [editFormData, setEditFormData] = useState({
     name: '',
@@ -55,25 +56,47 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
 
   const [specializationsList, setSpecializationsList] = useState([]);
 
-  const parseSpecializations = (spec) => {
-    if (!spec) return [];
-    if (Array.isArray(spec)) {
-      return spec
-        .flatMap(item => {
-          if (typeof item === 'string') return item.split(',');
-          if (item?.name && typeof item.name === 'string') return item.name.split(',');
-          return [];
-        })
-        .map(s => s.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim())
-        .filter(Boolean);
-    }
-    if (typeof spec === 'string') {
-      return spec
-        .split(',')
-        .map(s => s.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim())
-        .filter(Boolean);
+  const parseDoctorDepartments = (deptVal) => {
+    if (!deptVal) return [];
+    if (Array.isArray(deptVal)) return deptVal.map(d => typeof d === 'string' ? d.trim() : (d.name || '')).filter(Boolean);
+    if (typeof deptVal === 'string') {
+      return deptVal.split(',').map(d => d.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim()).filter(Boolean);
     }
     return [];
+  };
+
+  const getHospitalDepartments = () => {
+    const raw = hospitalData?.departments || hospitalData?.department;
+    if (!raw) return [];
+    if (Array.isArray(raw)) {
+      return raw.map(d => typeof d === 'string' ? d.trim() : (d.name || '')).filter(Boolean);
+    }
+    if (typeof raw === 'string') {
+      return raw.split(',').map(s => s.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim()).filter(Boolean);
+    }
+    return [];
+  };
+
+  const handleToggleDepartment = (deptName) => {
+    const current = parseDoctorDepartments(editFormData.department);
+    let updated;
+    if (current.includes(deptName)) {
+      updated = current.filter(d => d !== deptName);
+    } else {
+      updated = [...current, deptName];
+    }
+    setEditFormData(prev => ({ ...prev, department: updated.join(', ') }));
+  };
+
+  const handleAddCustomDepartment = () => {
+    const trimmed = customDeptInput.trim();
+    if (!trimmed) return;
+    const current = parseDoctorDepartments(editFormData.department);
+    if (!current.includes(trimmed)) {
+      const updated = [...current, trimmed];
+      setEditFormData(prev => ({ ...prev, department: updated.join(', ') }));
+    }
+    setCustomDeptInput('');
   };
 
   const opdTimingsList = [
@@ -186,7 +209,7 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
       email: doctorData.email || '',
       password: doctorData.password || 'Doctor@123',
       hospitals: hospitalData?.id ? [hospitalData.id] : (doctorData.hospitals || []),
-      status: doctorData.status || (doctorData.is_active ? 'Available' : 'On Leave'),
+      status: doctorData.status === 'Off_Duty' ? 'Off_Duty' : (doctorData.status === 'On_Duty' ? 'On_Duty' : (doctorData.is_active !== false ? 'On_Duty' : 'Off_Duty')),
       is_active: doctorData.is_active !== false
     });
     setIsEditModalOpen(true);
@@ -205,8 +228,8 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
         name: editFormData.name.startsWith('Dr.') ? editFormData.name : `Dr. ${editFormData.name}`,
         consultation_fee: Number(editFormData.consultation_fee) || 0.00,
         hospitals: assignedHospId ? [Number(assignedHospId)] : (Array.isArray(editFormData.hospitals) ? editFormData.hospitals.map(Number) : []),
-        status: editFormData.is_active ? 'Available' : 'On Leave',
-        is_active: Boolean(editFormData.is_active)
+        status: editFormData.status || 'On_Duty',
+        is_active: editFormData.is_active !== undefined ? editFormData.is_active : true
       };
       delete payload.hospital;
 
@@ -248,17 +271,19 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
   };
 
   const handleToggleStatus = async () => {
-    const newStatus = !doctorData.is_active;
+    const currentStatus = doctorData.status === 'Off_Duty' ? 'Off_Duty' : (doctorData.status === 'On_Duty' ? 'On_Duty' : 'On_Duty');
+    const newStatusStr = currentStatus === 'On_Duty' ? 'Off_Duty' : 'On_Duty';
+
     try {
       const response = await fetch(`${API_BASE_URL}/super-admin/Doctors/${doctorData.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: newStatus })
+        body: JSON.stringify({ status: newStatusStr })
       });
 
       if (response.ok) {
-        setDoctorData(prev => ({ ...prev, is_active: newStatus }));
-        localStorage.setItem('selectedDoctor', JSON.stringify({ ...doctorData, is_active: newStatus }));
+        setDoctorData(prev => ({ ...prev, status: newStatusStr }));
+        localStorage.setItem('selectedDoctor', JSON.stringify({ ...doctorData, status: newStatusStr }));
       }
     } catch (err) {
       console.error('Error toggling status:', err);
@@ -336,12 +361,12 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
             type="button"
             onClick={handleToggleStatus}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
-              doctorData.is_active !== false
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+              doctorData.status === 'Off_Duty'
+                ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
             }`}
           >
-            Status: {doctorData.is_active !== false ? 'Active (Working)' : 'Inactive (On Leave)'}
+            Duty: {doctorData.status === 'Off_Duty' ? 'Off Duty' : 'On Duty'}
           </button>
 
           <button
@@ -426,7 +451,7 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">OPD Timings</p>
           <p className="text-sm font-bold text-slate-800 mt-1 truncate">{doctorData.opd_timings || '09:00 AM - 02:00 PM'}</p>
-          <p className="text-xs text-emerald-600 mt-0.5">Active Cabin Schedule</p>
+          <p className="text-xs text-emerald-600 mt-0.5">Active OPD Schedule</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
@@ -520,8 +545,17 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
                 <p className="text-slate-500 mt-0.5">{hospitalData?.city} • {hospitalData?.address || 'Medical Facility Road'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-[10px] uppercase font-bold text-slate-400">Department</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">{doctorData.department || 'Outpatient Department (OPD)'}</p>
+                <p className="text-[10px] uppercase font-bold text-slate-400">Clinical Departments</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {parseDoctorDepartments(doctorData.department).map((dept, idx) => (
+                    <span key={idx} className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200 inline-block">
+                      {dept}
+                    </span>
+                  ))}
+                  {parseDoctorDepartments(doctorData.department).length === 0 && (
+                    <p className="text-sm font-bold text-slate-800 mt-0.5">{doctorData.department || 'General'}</p>
+                  )}
+                </div>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Duty Shift & Timings</p>
@@ -663,28 +697,105 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Department</label>
-                  <input
-                    type="text"
-                    value={editFormData.department}
-                    onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
-                    placeholder="e.g. Cardiology Department"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
-                  />
+              <div className="space-y-2 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                <div className="flex items-center justify-between flex-wrap gap-1">
+                  <label className="block font-semibold text-slate-700 uppercase text-xs">
+                    Clinical Departments (Multi-Select) *
+                  </label>
+                  {getHospitalDepartments().length > 0 && (
+                    <span className="text-[10px] text-teal-700 font-medium">
+                      Showing departments from {hospitalData?.Name || 'assigned hospital'}
+                    </span>
+                  )}
                 </div>
 
+                {/* Selected badges */}
+                <div className="flex items-center gap-1.5 flex-wrap min-h-[32px] p-2 bg-white rounded-xl border border-slate-200">
+                  {parseDoctorDepartments(editFormData.department).length > 0 ? (
+                    parseDoctorDepartments(editFormData.department).map((dept, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-teal-600 text-white shadow-xs"
+                      >
+                        <span>{dept}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleDepartment(dept)}
+                          className="w-4 h-4 rounded-full hover:bg-teal-700 flex items-center justify-center text-[10px] cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-slate-400 text-xs italic">No department selected. Click below to add.</span>
+                  )}
+                </div>
+
+                {/* Available departments from assigned hospital */}
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Additional Skills / Expertise</label>
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                    Available Departments:
+                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {(getHospitalDepartments().length > 0
+                      ? getHospitalDepartments()
+                      : specializationsList
+                    ).map((dept, idx) => {
+                      const isSelected = parseDoctorDepartments(editFormData.department).includes(dept);
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleToggleDepartment(dept)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer flex items-center gap-1 ${
+                            isSelected
+                              ? 'bg-teal-50 border-teal-500 text-teal-800 ring-1 ring-teal-500 font-bold'
+                              : 'bg-white border-slate-300 text-slate-700 hover:border-teal-400 hover:bg-teal-50/40'
+                          }`}
+                        >
+                          <span>{isSelected ? '✓' : '+'}</span>
+                          <span>{dept}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Add other/custom department */}
+                <div className="flex items-center gap-2 pt-1 border-t border-slate-200">
                   <input
                     type="text"
-                    value={editFormData.additional_skills}
-                    onChange={(e) => setEditFormData({ ...editFormData, additional_skills: e.target.value })}
-                    placeholder="e.g. Interventional Cardiology, Echocardiography"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
+                    value={customDeptInput}
+                    onChange={(e) => setCustomDeptInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCustomDepartment();
+                      }
+                    }}
+                    placeholder="Type custom department name and click Add..."
+                    className="flex-1 px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 focus:outline-none focus:border-teal-600"
                   />
+                  <button
+                    type="button"
+                    onClick={handleAddCustomDepartment}
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer transition"
+                  >
+                    + Add
+                  </button>
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Additional Skills / Expertise</label>
+                <input
+                  type="text"
+                  value={editFormData.additional_skills}
+                  onChange={(e) => setEditFormData({ ...editFormData, additional_skills: e.target.value })}
+                  placeholder="e.g. Interventional Cardiology, Echocardiography"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -742,18 +853,18 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone (Numbers only)</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    maxLength={10}
+                    maxLength={15}
                     value={editFormData.phone}
                     onChange={(e) => {
-                      const numbersOnly = e.target.value.replace(/\D/g, '');
+                      const numbersOnly = e.target.value.replace(/\D/g, '').slice(0, 15);
                       setEditFormData({ ...editFormData, phone: numbersOnly });
                     }}
-                    placeholder="e.g. 9876543210"
+                    placeholder="e.g. 9876543210 / 02212345678"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
@@ -777,21 +888,22 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="adminDoctorActiveStatus"
-                  checked={editFormData.is_active}
-                  onChange={(e) => setEditFormData({ 
-                    ...editFormData, 
-                    is_active: e.target.checked,
-                    status: e.target.checked ? 'Available' : 'On Leave'
-                  })}
-                  className="w-4 h-4 text-sky-600 rounded cursor-pointer"
-                />
-                <label htmlFor="adminDoctorActiveStatus" className="font-semibold text-slate-700 cursor-pointer">
-                  Doctor Available on Duty (Active Status)
-                </label>
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Duty Status *</label>
+                <select
+                  value={editFormData.status || 'On_Duty'}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEditFormData(prev => ({
+                      ...prev,
+                      status: val
+                    }));
+                  }}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-bold focus:outline-none focus:border-sky-600 focus:bg-white cursor-pointer"
+                >
+                  <option value="On_Duty">On_Duty</option>
+                  <option value="Off_Duty">Off_Duty</option>
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">

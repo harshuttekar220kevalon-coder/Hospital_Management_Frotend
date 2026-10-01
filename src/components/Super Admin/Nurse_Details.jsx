@@ -57,7 +57,7 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
     email: '',
     password: '',
     hospital: '',
-    status: 'On Duty',
+    status: 'On_Duty',
     is_active: true
   });
 
@@ -104,7 +104,8 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
   }, [selectedNurse?.id]);
 
   const activeNurse = nurseData || {};
-  const assignedHospital = hospitalsList.find(h => h.id === Number(activeNurse.hospital));
+  const activeHospId = typeof activeNurse.hospital === 'object' ? activeNurse.hospital?.id : activeNurse.hospital;
+  const assignedHospital = hospitalsList.find(h => Number(h.id) === Number(activeHospId)) || hospitalsList.find(h => h.Name && activeNurse.hospital_name && h.Name.toLowerCase() === activeNurse.hospital_name.toLowerCase());
 
   const displayName = activeNurse.name || 'Nurse';
   const displayRole = activeNurse.role || 'Staff Nurse';
@@ -129,7 +130,7 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
       email: activeNurse.email || '',
       password: activeNurse.password || 'Nurse@123',
       hospital: activeNurse.hospital || '',
-      status: activeNurse.status || (activeNurse.is_active ? 'On Duty' : 'On Leave'),
+      status: activeNurse.status === 'Off_Duty' ? 'Off_Duty' : (activeNurse.status === 'On_Duty' ? 'On_Duty' : (activeNurse.is_active !== false ? 'On_Duty' : 'Off_Duty')),
       is_active: activeNurse.is_active !== false
     });
     setShowEditPassword(false);
@@ -146,7 +147,7 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
 
     try {
       const nurseIdToSend = editFormData.nurse_id || activeNurse.nurse_id || `NUR-${activeNurse.id}`;
-      const nurseRole = editFormData.role || editFormData.nurse_role || activeNurse.role || 'Staff Nurse';
+      const currentStatus = editFormData.status || 'On_Duty';
       const payload = {
         ...editFormData,
         nurse_id: nurseIdToSend,
@@ -156,7 +157,9 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
         name: editFormData.name.trim(),
         contact: editFormData.contact.trim(),
         password: activeNurse.password || editFormData.password || 'Nurse@123',
-        hospital: Number(editFormData.hospital)
+        hospital: Number(editFormData.hospital),
+        status: currentStatus,
+        is_active: editFormData.is_active !== undefined ? editFormData.is_active : true
       };
 
       const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${activeNurse.id}/`, {
@@ -184,11 +187,11 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
 
   const handleToggleStatus = async () => {
     if (!activeNurse || !activeNurse.id) return;
-    const newStatus = !activeNurse.is_active;
+    const isCurrentlyOnDuty = activeNurse.status === 'On_Duty' || activeNurse.status === 'On Duty';
+    const newStatusStr = isCurrentlyOnDuty ? 'Off_Duty' : 'On_Duty';
     const optimistic = {
       ...activeNurse,
-      is_active: newStatus,
-      status: newStatus ? 'On Duty' : 'On Leave'
+      status: newStatusStr
     };
     setNurseData(optimistic);
     if (setSelectedNurse) setSelectedNurse(optimistic);
@@ -198,7 +201,7 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
       const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${activeNurse.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: newStatus, status: newStatus ? 'On Duty' : 'On Leave' })
+        body: JSON.stringify({ status: newStatusStr })
       });
 
       if (response.ok) {
@@ -317,11 +320,11 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
                 {displayRole}
               </span>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                activeNurse.is_active !== false 
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                  : 'bg-rose-50 text-rose-700 border-rose-200'
+                activeNurse.status === 'Off_Duty'
+                  ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
               }`}>
-                {activeNurse.is_active !== false ? 'On Duty (Active)' : 'On Leave (Inactive)'}
+                {activeNurse.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty'}
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 tracking-tight mt-1">
@@ -336,7 +339,7 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
             onClick={handleToggleStatus}
             className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 transition cursor-pointer flex items-center gap-1.5"
           >
-            {activeNurse.is_active !== false ? 'Mark On Leave' : 'Set On Duty'}
+            {activeNurse.status === 'Off_Duty' ? 'Set On Duty' : 'Mark Off Duty'}
           </button>
 
           <button
@@ -707,16 +710,16 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    maxLength={10}
+                    maxLength={15}
                     required
                     value={editFormData.contact}
-                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '') })}
-                    placeholder="e.g. 9876543210"
+                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                    placeholder="e.g. 9876543210 / 02212345678"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white font-mono"
                   />
                 </div>
@@ -774,21 +777,20 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
                 </select>
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="nurseActiveEditModal"
-                  checked={editFormData.is_active}
+              {/* DUTY STATUS */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Duty Status *</label>
+                <select
+                  value={editFormData.status || 'On_Duty'}
                   onChange={(e) => setEditFormData({ 
                     ...editFormData, 
-                    is_active: e.target.checked,
-                    status: e.target.checked ? 'On Duty' : 'On Leave'
+                    status: e.target.value
                   })}
-                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
-                />
-                <label htmlFor="nurseActiveEditModal" className="font-semibold text-slate-700 cursor-pointer">
-                  Nurse Active & On Duty
-                </label>
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                >
+                  <option value="On_Duty">On_Duty</option>
+                  <option value="Off_Duty">Off_Duty</option>
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">

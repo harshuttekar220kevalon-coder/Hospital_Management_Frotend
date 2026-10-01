@@ -15,6 +15,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
   const [hospitalsList, setHospitalsList] = useState([]);
   const [doctorsList, setDoctorsList] = useState([]);
   const [adminsList, setAdminsList] = useState([]);
+  const [nursesList, setNursesList] = useState([]);
   const [isDataFetching, setIsDataFetching] = useState(false);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -44,6 +45,9 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
     doctor: '',
     doctor_name: '',
     doctor_specialization: '',
+    bed_number: '',
+    nurse: '',
+    nurse_name: '',
     consultation_fee: 0.00,
     Hospitals_Chargies: 0.00,
     amount_paid: 0.00,
@@ -96,6 +100,12 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
       if (adminRes && adminRes.ok) {
         const adminData = await adminRes.json();
         setAdminsList(adminData);
+      }
+
+      const nurseRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/`).catch(() => null);
+      if (nurseRes && nurseRes.ok) {
+        const nurseData = await nurseRes.json();
+        setNursesList(nurseData);
       }
 
       if (currentPat && currentPat.id) {
@@ -178,7 +188,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
       name: activePatient.name || '',
       age: activePatient.age || '',
       gender: activePatient.gender || 'Male',
-      blood_group: activePatient.blood_group || 'O+',
+      blood_group: activePatient.Blood_Group || activePatient.blood_group || 'O+',
       contact: activePatient.contact || activePatient.phone || '',
       email: activePatient.email || '',
       address: activePatient.address || '',
@@ -186,6 +196,9 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
       doctor: activePatient.doctor || (assignedDoctor ? assignedDoctor.id : ''),
       doctor_name: activePatient.doctor_name || displayDoctor,
       doctor_specialization: activePatient.doctor_specialization || (assignedDoctor?.specialization || ''),
+      bed_number: activePatient.bed_number !== undefined && activePatient.bed_number !== null ? activePatient.bed_number : '',
+      nurse: activePatient.nurse || '',
+      nurse_name: activePatient.nurse_name || '',
       consultation_fee: docFee,
       Hospitals_Chargies: hospCharge,
       amount_paid: amountPaid,
@@ -216,9 +229,15 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
 
     try {
       const selectedDocObj = doctorsList.find(d => d.id === Number(editFormData.doctor));
+      const selectedNurseObj = nursesList.find(n => n.id === Number(editFormData.nurse));
+      const autoNurse = getAssignedNurseForPatientBed(editFormData.bed_number, nursesList, editFormData.hospital);
+      const finalNurseId = editFormData.nurse ? Number(editFormData.nurse) : (autoNurse?.nurseId || null);
+      const finalNurseName = selectedNurseObj ? selectedNurseObj.name : (editFormData.nurse_name || autoNurse?.nurseName || '');
+
       let response;
 
       const chosenCondition = editFormData.Condation || editFormData.condation || editFormData.condition || editFormData.symptoms_severity || 'Normal';
+      const parsedBedNum = editFormData.bed_number ? Number(editFormData.bed_number) : null;
 
       const payloadData = {
         patient_id: displayId,
@@ -228,11 +247,15 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
         age: editFormData.age ? Number(editFormData.age) : null,
         gender: editFormData.gender,
         blood_group: editFormData.blood_group,
+        Blood_Group: editFormData.blood_group,
         address: editFormData.address,
         hospital: Number(editFormData.hospital),
         doctor: editFormData.doctor ? Number(editFormData.doctor) : null,
         doctor_name: selectedDocObj ? selectedDocObj.name : editFormData.doctor_name,
         doctor_specialization: selectedDocObj ? (selectedDocObj.specialization || selectedDocObj.specialty || '') : editFormData.doctor_specialization,
+        bed_number: parsedBedNum,
+        nurse: finalNurseId,
+        nurse_name: finalNurseName,
         consultation_fee: Number(editFormData.consultation_fee) || 0.00,
         Hospitals_Chargies: Number(editFormData.Hospitals_Chargies) || 0.00,
         hospital_charges: Number(editFormData.Hospitals_Chargies) || 0.00,
@@ -274,7 +297,8 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
 
       if (response && response.ok) {
         const updated = await response.json();
-        alert('Patient record and payment details updated successfully!');
+        const floorInfo = parsedBedNum ? `Floor ${Math.floor((parsedBedNum - 1) / 100) + 1}` : 'Not Assigned';
+        alert(`Patient record updated successfully!\n${parsedBedNum ? `Bed: #${parsedBedNum} (${floorInfo})\nAssigned Nurse: ${finalNurseName || 'Assigned'}` : 'Bed: Not Assigned'}`);
         setPatientData(updated);
         if (setSelectedPatient) setSelectedPatient(updated);
         localStorage.setItem('selectedPatient', JSON.stringify(updated));
@@ -542,7 +566,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Blood Group</span>
-                <p className="font-mono font-bold text-rose-700 mt-0.5 break-words">{activePatient.Blood_Group || ''}</p>
+                <p className="font-mono font-bold text-rose-700 mt-0.5 break-words">{activePatient.Blood_Group || activePatient.blood_group || '-'}</p>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
@@ -686,6 +710,40 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
               )}
             </div>
 
+            {/* INPATIENT BED, FLOOR & NURSE ASSIGNMENT CARD */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-teal-500/10 via-sky-500/5 to-transparent border border-teal-200 min-w-0 space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-teal-900 uppercase font-bold">Inpatient Bed & Ward Allocation</span>
+                </div>
+                <span className="text-[10px] font-bold text-teal-800 bg-teal-100/80 px-2.5 py-0.5 rounded-full border border-teal-200">
+                  {activePatient.floor || (activePatient.bed_number ? `Floor ${Math.floor((activePatient.bed_number - 1) / 100) + 1}` : 'Not Assigned')}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div className="p-3 bg-white rounded-xl border border-teal-100 shadow-2xs">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Assigned Bed</span>
+                  <span className="font-mono text-base font-black text-teal-800">
+                    {activePatient.bed_number ? `Bed #${activePatient.bed_number}` : 'Unassigned'}
+                  </span>
+                </div>
+                <div className="p-3 bg-white rounded-xl border border-teal-100 shadow-2xs">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Hospital Floor</span>
+                  <span className="text-sm font-bold text-sky-800">
+                    {activePatient.floor || (activePatient.bed_number ? `Floor ${Math.floor((activePatient.bed_number - 1) / 100) + 1}` : 'Not Assigned')}
+                  </span>
+                </div>
+                <div className="p-3 bg-white rounded-xl border border-teal-100 shadow-2xs">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Assigned Nurse</span>
+                  <span className="text-sm font-bold text-emerald-800 truncate block">
+                    {activePatient.nurse_name || 'Assigned Nurse'}
+                  </span>
+                  <span className="text-[9px] text-emerald-600 font-medium block">Active Floor Care</span>
+                </div>
+              </div>
+            </div>
+
             {/* TARGET HOSPITAL BRANCH */}
             <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-200 min-w-0">
               <div className="flex items-center justify-between">
@@ -800,15 +858,16 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    maxLength={10}
+                    maxLength={15}
                     required
+                    placeholder="e.g. 9876543210 / 02212345678"
                     value={editFormData.contact}
-                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '') })}
+                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
@@ -898,6 +957,89 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                           </option>
                         ))}
                       </select>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* BED & FLOOR ALLOCATION & NURSE CARE SECTION IN EDIT MODAL */}
+              {(() => {
+                const hospActiveNurses = nursesList.filter(n => Number(typeof n.hospital === 'object' ? n.hospital?.id : n.hospital) === Number(editFormData.hospital));
+                const currentBed = editFormData.bed_number ? Number(editFormData.bed_number) : null;
+                const floorDisplay = currentBed ? `Floor ${Math.floor((currentBed - 1) / 100) + 1}` : 'Not Assigned';
+
+                return (
+                  <div className="p-3.5 bg-sky-50/60 rounded-xl border border-sky-200 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-bold text-sky-900 uppercase text-[11px]">Bed & Floor Allocation</p>
+                      </div>
+                      <span className="text-[10px] font-bold text-sky-700 bg-sky-100/80 px-2 py-0.5 rounded-full border border-sky-200">
+                        {floorDisplay}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-semibold text-slate-700 uppercase mb-1">
+                          Bed Number
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 45 or 150"
+                          value={editFormData.bed_number}
+                          onChange={(e) => {
+                            const bedVal = e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : '';
+                            setEditFormData(prev => ({
+                              ...prev,
+                              bed_number: bedVal
+                            }));
+                          }}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono font-bold focus:outline-none focus:border-sky-600 shadow-2xs"
+                        />
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {currentBed ? `Assigned to: Bed #${currentBed} • ${floorDisplay}` : 'Enter bed number'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 uppercase mb-1">
+                          Assigned Nurse {editFormData.hospital ? `(${hospActiveNurses.length} active in branch)` : ''}
+                        </label>
+                        <select
+                          disabled={!editFormData.hospital}
+                          value={editFormData.nurse}
+                          onChange={(e) => {
+                            const nId = e.target.value;
+                            const selNurse = nursesList.find(n => n.id === Number(nId));
+                            setEditFormData(prev => ({
+                              ...prev,
+                              nurse: nId,
+                              nurse_name: selNurse ? selNurse.name : ''
+                            }));
+                          }}
+                          className={`w-full px-3 py-2 rounded-xl border border-slate-300 font-medium ${!editFormData.hospital
+                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                              : 'bg-white text-slate-800 focus:outline-none focus:border-sky-600 cursor-pointer shadow-2xs'
+                            }`}
+                        >
+                          {!editFormData.hospital ? (
+                            <option value="">-- Select Target Hospital First --</option>
+                          ) : hospActiveNurses.length === 0 ? (
+                            <option value="">-- No Active Nurses in this Branch --</option>
+                          ) : (
+                            <>
+                              <option value="">-- Select Nurse --</option>
+                              {hospActiveNurses.map(n => (
+                                <option key={n.id} value={n.id}>
+                                  {n.name} ({n.ward || 'Ward Staff'}) - Shift: {n.shift || 'General'}
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </select>
+                      </div>
                     </div>
                   </div>
                 );

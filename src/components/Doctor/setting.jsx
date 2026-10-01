@@ -20,10 +20,9 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
     experience: '',
     consultation_fee: 500,
     opd_timings: 'Mon - Fri (10:00 AM - 02:00 PM)',
-    room_number: 'OPD Cabin 204',
     hospital: '',
     is_active: true,
-    status: 'Available'
+    status: 'On_Duty'
   });
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -32,6 +31,7 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
   const [saveErrorMsg, setSaveErrorMsg] = useState('');
 
   const [passwordForm, setPasswordForm] = useState({
+    email: '',
     newPassword: '',
     confirmPassword: ''
   });
@@ -42,6 +42,7 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
   const [passwordErrorMsg, setPasswordErrorMsg] = useState('');
 
   const [updatingDuty, setUpdatingDuty] = useState(false);
+  const [customDeptInput, setCustomDeptInput] = useState('');
 
   const opdTimingsPresets = [
     'Mon - Fri (10:00 AM - 02:00 PM)',
@@ -71,6 +72,75 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
     'Pulmonology',
     'Emergency & Critical Care'
   ];
+
+  const parseDoctorDepartments = (deptVal) => {
+    if (!deptVal) return [];
+    if (Array.isArray(deptVal)) return deptVal.map(d => typeof d === 'string' ? d.trim() : (d.name || '')).filter(Boolean);
+    if (typeof deptVal === 'string') {
+      return deptVal.split(',').map(d => d.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim()).filter(Boolean);
+    }
+    return [];
+  };
+
+  const getDoctorAssignedHospitals = () => {
+    const rawList = Array.isArray(doctorData?.hospitals)
+      ? doctorData.hospitals.map(h => Number(typeof h === 'object' ? h.id : h)).filter(Boolean)
+      : (doctorData?.hospital ? [Number(typeof doctorData.hospital === 'object' ? doctorData.hospital.id : doctorData.hospital)].filter(Boolean) : []);
+
+    if (editFormData.hospital && !rawList.includes(Number(editFormData.hospital))) {
+      rawList.push(Number(editFormData.hospital));
+    }
+    if (currentUser?.hospital && !rawList.includes(Number(currentUser.hospital))) {
+      rawList.push(Number(currentUser.hospital));
+    }
+    return hospitalsList.filter(h => rawList.includes(Number(h.id)));
+  };
+
+  const getAvailableDepartments = () => {
+    const assignedHosps = getDoctorAssignedHospitals();
+    const depts = [];
+    assignedHosps.forEach(hosp => {
+      const raw = hosp.departments || hosp.department;
+      if (Array.isArray(raw)) {
+        raw.forEach(d => {
+          const name = typeof d === 'string' ? d.trim() : (d.name || '');
+          if (name && !depts.includes(name)) depts.push(name);
+        });
+      } else if (typeof raw === 'string') {
+        raw.split(',').forEach(s => {
+          const name = s.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim();
+          if (name && !depts.includes(name)) depts.push(name);
+        });
+      }
+    });
+
+    if (depts.length === 0) {
+      return defaultDepartments;
+    }
+    return depts;
+  };
+
+  const handleToggleDepartment = (deptName) => {
+    const current = parseDoctorDepartments(editFormData.department);
+    let updated;
+    if (current.includes(deptName)) {
+      updated = current.filter(d => d !== deptName);
+    } else {
+      updated = [...current, deptName];
+    }
+    setEditFormData(prev => ({ ...prev, department: updated.join(', ') }));
+  };
+
+  const handleAddCustomDepartment = () => {
+    const trimmed = customDeptInput.trim();
+    if (!trimmed) return;
+    const current = parseDoctorDepartments(editFormData.department);
+    if (!current.includes(trimmed)) {
+      const updated = [...current, trimmed];
+      setEditFormData(prev => ({ ...prev, department: updated.join(', ') }));
+    }
+    setCustomDeptInput('');
+  };
 
   // Fetch all doctor details, hospital data, and patient queue from backend
   const fetchDoctorProfile = async () => {
@@ -160,10 +230,9 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
         experience: effectiveDoctor.experience || '8 Years',
         consultation_fee: effectiveDoctor.consultation_fee ?? 500,
         opd_timings: effectiveDoctor.opd_timings || 'Mon - Fri (10:00 AM - 02:00 PM)',
-        room_number: effectiveDoctor.room_number || effectiveDoctor.room || 'OPD Cabin 204',
         hospital: assignedHospId ? Number(assignedHospId) : '',
         is_active: effectiveDoctor.is_active !== false,
-        status: effectiveDoctor.status || (effectiveDoctor.is_active !== false ? 'Available' : 'On Leave')
+        status: effectiveDoctor.status === 'Off_Duty' ? 'Off_Duty' : (effectiveDoctor.status === 'On_Duty' ? 'On_Duty' : (effectiveDoctor.is_active !== false ? 'On_Duty' : 'Off_Duty'))
       });
     } finally {
       setLoading(false);
@@ -202,11 +271,10 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
         experience: editFormData.experience.trim(),
         consultation_fee: cleanFee,
         opd_timings: editFormData.opd_timings.trim(),
-        room_number: editFormData.room_number.trim(),
         hospital: selectedHospId,
         hospitals: selectedHospId ? [selectedHospId] : [],
-        is_active: editFormData.is_active,
-        status: editFormData.status
+        is_active: editFormData.is_active !== undefined ? editFormData.is_active : true,
+        status: editFormData.status || 'On_Duty'
       };
 
       let success = false;
@@ -227,7 +295,6 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
             experience: updatedPayload.experience,
             consultation_fee: updatedPayload.consultation_fee,
             opd_timings: updatedPayload.opd_timings,
-            room_number: updatedPayload.room_number,
             hospital: updatedPayload.hospital,
             hospitals: updatedPayload.hospitals,
             is_active: updatedPayload.is_active,
@@ -311,6 +378,19 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
     setPasswordErrorMsg('');
     setPasswordSuccessMsg('');
 
+    const enteredEmail = (passwordForm.email || '').toLowerCase().trim();
+    const actualEmail = (doctorData?.email || currentUser?.email || '').toLowerCase().trim();
+
+    if (!enteredEmail) {
+      setPasswordErrorMsg('Please enter your registered email address.');
+      return;
+    }
+
+    if (enteredEmail !== actualEmail) {
+      setPasswordErrorMsg('Entered email does not match your registered doctor email. Password cannot be changed.');
+      return;
+    }
+
     if (!passwordForm.newPassword) {
       setPasswordErrorMsg('Please enter a new password.');
       return;
@@ -329,7 +409,7 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
     try {
       setPasswordLoading(true);
       const docId = doctorData?.id || currentUser?.id;
-      const doctorEmail = (doctorData?.email || currentUser?.email || '').trim();
+      const doctorEmail = actualEmail;
 
       let updateSuccessful = false;
 
@@ -378,6 +458,7 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
       if (updateSuccessful || docId) {
         setPasswordSuccessMsg('Password updated successfully! Your new login password is now active in database.');
         setPasswordForm({
+          email: '',
           newPassword: '',
           confirmPassword: ''
         });
@@ -408,29 +489,28 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
 
     try {
       setUpdatingDuty(true);
-      const newActive = doctorData.is_active === false ? true : false;
-      const newStatus = newActive ? 'Available' : 'On Leave';
+      const currentStatus = doctorData?.status === 'Off_Duty' ? 'Off_Duty' : (doctorData?.status === 'On_Duty' ? 'On_Duty' : 'On_Duty');
+      const newStatus = currentStatus === 'On_Duty' ? 'Off_Duty' : 'On_Duty';
 
       let res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${docId}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: newActive, status: newStatus })
+        body: JSON.stringify({ status: newStatus })
       }).catch(() => null);
 
       if (!res || !res.ok) {
         res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${docId}/`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...doctorData, is_active: newActive, status: newStatus })
+          body: JSON.stringify({ ...doctorData, status: newStatus })
         }).catch(() => null);
       }
 
-      setDoctorData(prev => ({ ...prev, is_active: newActive, status: newStatus }));
-      setEditFormData(prev => ({ ...prev, is_active: newActive, status: newStatus }));
+      setDoctorData(prev => ({ ...prev, status: newStatus }));
+      setEditFormData(prev => ({ ...prev, status: newStatus }));
 
       const updatedCurrentUser = {
         ...currentUser,
-        is_active: newActive,
         status: newStatus
       };
       if (setCurrentUser) setCurrentUser(updatedCurrentUser);
@@ -469,13 +549,12 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-800 text-slate-200 border border-slate-700">
                   {doctorData?.department || editFormData.department || 'Clinical Practitioner'}
                 </span>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border inline-flex items-center gap-1.5 ${
-                  doctorData?.is_active !== false
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                    : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${doctorData?.is_active !== false ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></span>
-                  {doctorData?.is_active !== false ? 'Active & On Duty' : 'On Leave / Off Duty'}
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border inline-flex items-center gap-1.5 ${doctorData?.status === 'Off_Duty'
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${doctorData?.status === 'Off_Duty' ? 'bg-rose-400' : 'bg-emerald-400 animate-pulse'}`}></span>
+                  {doctorData?.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty'}
                 </span>
               </div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1.5 tracking-tight text-slate-100">
@@ -487,29 +566,17 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap shrink-0">
             <button
               type="button"
-              disabled={updatingDuty}
-              onClick={handleToggleDutyStatus}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center gap-2 ${
-                doctorData?.is_active !== false
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30'
-                  : 'bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30'
-              }`}
+              onClick={() => setCurrentPage && setCurrentPage('doctor_dashboard')}
+              className="px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 hover:border-slate-500 transition-all duration-200 cursor-pointer flex items-center gap-2 shadow-xs"
+              title="Return to Doctor Dashboard"
             >
-              <span className={`w-2 h-2 rounded-full ${doctorData?.is_active !== false ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></span>
-              {doctorData?.is_active !== false ? 'Status: Available' : 'Status: On Leave'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsEditingProfile(true);
-                setActiveTab('profile');
-              }}
-              className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
-            >
-              Edit Profile
+              <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span>Dashboard</span>
             </button>
           </div>
         </div>
@@ -562,11 +629,11 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
         </div>
 
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-[10px] font-bold uppercase text-slate-500">Hospital Branch & Room</p>
+          <p className="text-[10px] font-bold uppercase text-slate-500">Hospital Branch</p>
           <h3 className="text-base sm:text-lg font-bold text-slate-800 mt-1 truncate">
             {hospitalName}
           </h3>
-          <p className="text-xs text-teal-700 mt-0.5 font-medium">{editFormData.room_number}</p>
+          <p className="text-xs text-teal-700 mt-0.5 font-medium">{hospitalAddress || 'Main Campus'}</p>
         </div>
       </div>
 
@@ -575,11 +642,10 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
         <button
           type="button"
           onClick={() => setActiveTab('profile')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-            activeTab === 'profile'
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'profile'
               ? 'bg-teal-600 text-white shadow-xs'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
+            }`}
         >
           My Profile & Details
         </button>
@@ -587,11 +653,10 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
         <button
           type="button"
           onClick={() => setActiveTab('schedule')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-            activeTab === 'schedule'
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'schedule'
               ? 'bg-teal-600 text-white shadow-xs'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
+            }`}
         >
           OPD Timings & Duty Hours
         </button>
@@ -599,11 +664,10 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
         <button
           type="button"
           onClick={() => setActiveTab('security')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-            activeTab === 'security'
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'security'
               ? 'bg-teal-600 text-white shadow-xs'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
+            }`}
         >
           Security & Password
         </button>
@@ -611,11 +675,10 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
         <button
           type="button"
           onClick={() => setActiveTab('hospital')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-            activeTab === 'hospital'
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'hospital'
               ? 'bg-teal-600 text-white shadow-xs'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
+            }`}
         >
           Hospital Branch Details
         </button>
@@ -649,54 +712,95 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
           </div>
 
           {!isEditingProfile ? (
-            <div className="space-y-5 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <div className="space-y-4 text-xs">
+              {/* Row 1: Basic Identity (3 cols) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Full Name</span>
                   <p className="text-sm font-bold text-slate-800 mt-1">{doctorData?.name || currentUser?.name || 'Dr. Doctor'}</p>
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Doctor ID</span>
                   <p className="text-sm font-bold text-teal-700 font-mono mt-1">{doctorIdTag}</p>
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Email Address (Login ID)</span>
                   <p className="text-sm font-semibold text-slate-800 mt-1 truncate">{doctorData?.email || currentUser?.email || '-'}</p>
                 </div>
+              </div>
 
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+              {/* Row 2: Contact & Medical Credentials (3 cols) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Contact Phone</span>
                   <p className="text-sm font-semibold text-slate-800 mt-1">{editFormData.phone || doctorData?.phone || doctorData?.contact || '-'}</p>
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Specialization</span>
-                  <p className="text-sm font-bold text-slate-800 mt-1">{editFormData.specialization}</p>
+                  <p className="text-sm font-bold text-slate-800 mt-1">{editFormData.specialization || 'General Medicine'}</p>
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Clinical Department</span>
-                  <p className="text-sm font-bold text-slate-800 mt-1">{editFormData.department}</p>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Qualifications & Degrees</span>
-                  <p className="text-sm font-bold text-slate-800 mt-1">{editFormData.qualification || 'MBBS, MD'}</p>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Experience</span>
-                  <p className="text-sm font-bold text-slate-800 mt-1">{editFormData.experience || '8 Years'}</p>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Consultation Fee</span>
                   <p className="text-sm font-black text-teal-700 mt-1">₹{Number(editFormData.consultation_fee || 0).toFixed(2)}</p>
                 </div>
               </div>
 
+              {/* Row 3: Qualifications, Experience & OPD Timings (3 cols) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Qualifications & Degrees</span>
+                  <p className="text-sm font-bold text-slate-800 mt-1">{editFormData.qualification || 'MBBS, MD'}</p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Experience</span>
+                  <p className="text-sm font-bold text-slate-800 mt-1">{editFormData.experience || '8 Years'}</p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">OPD Schedule Timings</span>
+                  <p className="text-sm font-semibold text-slate-800 mt-1 truncate">{editFormData.opd_timings || 'Mon - Fri (10:00 AM - 02:00 PM)'}</p>
+                </div>
+              </div>
+
+              {/* Dedicated Full-Width Clinical Departments Section */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                <div className="flex items-center justify-between flex-wrap gap-1">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    Assigned Clinical Departments
+                  </span>
+                  {parseDoctorDepartments(editFormData.department).length > 0 && (
+                    <span className="text-[10px] font-bold text-teal-800 bg-teal-100/70 px-2.5 py-0.5 rounded-full border border-teal-200">
+                      {parseDoctorDepartments(editFormData.department).length} Departments Active
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  {parseDoctorDepartments(editFormData.department).length > 0 ? (
+                    parseDoctorDepartments(editFormData.department).map((dept, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-teal-900 border border-teal-200/80 shadow-2xs inline-flex items-center gap-1.5 hover:border-teal-400 transition"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0"></span>
+                        <span>{dept}</span>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-slate-400 italic text-xs">No clinical departments assigned.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Dedicated Full-Width Additional Skills Section */}
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Additional Skills & Sub-Specialties</span>
                 <p className="text-slate-800 font-medium leading-relaxed">{editFormData.additional_skills || 'General OPD Consultations, Emergency Triage, Post-op Follow-ups'}</p>
@@ -717,13 +821,20 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Contact Phone *</label>
+                  <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Contact Phone / Landline *</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={15}
                     required
                     value={editFormData.phone}
-                    onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    onChange={(e) => {
+                      const numbersOnly = e.target.value.replace(/\D/g, '').slice(0, 15);
+                      setEditFormData({ ...editFormData, phone: numbersOnly });
+                    }}
+                    placeholder="e.g. 9876543210 / 02212345678"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
                   />
                 </div>
 
@@ -748,17 +859,90 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
                   />
                 </div>
 
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Clinical Department *</label>
-                  <select
-                    value={editFormData.department}
-                    onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  >
-                    {defaultDepartments.map((dept, idx) => (
-                      <option key={idx} value={dept}>{dept}</option>
-                    ))}
-                  </select>
+                <div className="sm:col-span-2 lg:col-span-3 space-y-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
+                    <label className="block text-slate-800 font-bold uppercase text-[10px]">
+                      Clinical Departments (Multi-Select) *
+                    </label>
+                    {getDoctorAssignedHospitals().length > 0 && (
+                      <span className="text-[10px] text-teal-700 font-medium">
+                        Showing departments from {getDoctorAssignedHospitals().length} assigned hospital{getDoctorAssignedHospitals().length > 1 ? 's' : ''}: ({getDoctorAssignedHospitals().map(h => h.Name).join(', ')})
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Selected badges */}
+                  <div className="flex items-center gap-1.5 flex-wrap min-h-[32px] p-2 bg-white rounded-xl border border-slate-200">
+                    {parseDoctorDepartments(editFormData.department).length > 0 ? (
+                      parseDoctorDepartments(editFormData.department).map((dept, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-teal-600 text-white shadow-xs"
+                        >
+                          <span>{dept}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDepartment(dept)}
+                            className="w-4 h-4 rounded-full hover:bg-teal-700 flex items-center justify-center text-[10px] cursor-pointer"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-slate-400 text-xs italic">No department selected. Click below to add.</span>
+                    )}
+                  </div>
+
+                  {/* Available departments from assigned hospitals */}
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                      Available from Assigned Hospital{getDoctorAssignedHospitals().length > 1 ? 's' : ''}:
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {getAvailableDepartments().map((dept, idx) => {
+                        const isSelected = parseDoctorDepartments(editFormData.department).includes(dept);
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleToggleDepartment(dept)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer flex items-center gap-1 ${isSelected
+                                ? 'bg-teal-50 border-teal-500 text-teal-800 ring-1 ring-teal-500 font-bold'
+                                : 'bg-white border-slate-300 text-slate-700 hover:border-teal-400 hover:bg-teal-50/40'
+                              }`}
+                          >
+                            <span>{isSelected ? '✓' : '+'}</span>
+                            <span>{dept}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Add other/custom department */}
+                  <div className="flex items-center gap-2 pt-1.5 border-t border-slate-200/80">
+                    <input
+                      type="text"
+                      value={customDeptInput}
+                      onChange={(e) => setCustomDeptInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomDepartment();
+                        }
+                      }}
+                      placeholder="Type custom department name and click Add..."
+                      className="flex-1 px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddCustomDepartment}
+                      className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer transition"
+                    >
+                      + Add
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -795,16 +979,24 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">OPD Room / Cabin</label>
-                  <input
-                    type="text"
-                    value={editFormData.room_number}
-                    onChange={(e) => setEditFormData({ ...editFormData, room_number: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  />
+                  <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Duty Status *</label>
+                  <select
+                    value={editFormData.status || 'On_Duty'}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditFormData(prev => ({
+                        ...prev,
+                        status: val
+                      }));
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+                  >
+                    <option value="On_Duty">On_Duty</option>
+                    <option value="Off_Duty">Off_Duty</option>
+                  </select>
                 </div>
 
-                <div className="sm:col-span-2 lg:col-span-3">
+                <div className="sm:col-span-2 lg:col-span-2">
                   <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Hospital Branch Allocation</label>
                   <select
                     value={editFormData.hospital}
@@ -895,15 +1087,15 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Assigned Cabin / Room</span>
-                <p className="text-sm font-bold text-slate-800 mt-1">{editFormData.room_number}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{hospitalName}</p>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Assigned Hospital</span>
+                <p className="text-sm font-bold text-slate-800 mt-1">{hospitalName}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{hospitalAddress || 'Campus'}</p>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Duty Status</span>
-                <p className={`text-sm font-bold mt-1 ${doctorData?.is_active !== false ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  {doctorData?.is_active !== false ? 'Available on Duty' : 'On Leave'}
+                <p className={`text-sm font-bold mt-1 ${doctorData?.status === 'Off_Duty' ? 'text-rose-700' : 'text-emerald-700'}`}>
+                  {doctorData?.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty'}
                 </p>
                 <button
                   type="button"
@@ -952,13 +1144,18 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
 
           <form onSubmit={handlePasswordSubmit} className="space-y-4 text-xs">
             <div>
-              <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Registered Login Email</label>
+              <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Registered Login Email *</label>
               <input
                 type="email"
-                disabled
-                value={doctorData?.email || currentUser?.email || ''}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-100 text-xs text-slate-500 font-mono cursor-not-allowed"
+                required
+                placeholder="Type your registered email address"
+                value={passwordForm.email}
+                onChange={(e) => setPasswordForm({ ...passwordForm, email: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white"
               />
+              <p className="text-[10px] text-slate-400 mt-1">
+                You must enter your registered email address to verify and change password.
+              </p>
             </div>
 
             <div>
@@ -1048,8 +1245,8 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Assigned OPD Room</span>
-              <p className="text-sm font-bold text-slate-800 mt-1">{editFormData.room_number}</p>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Branch Location</span>
+              <p className="text-sm font-bold text-slate-800 mt-1">{hospitalInfo?.City || 'Main Center'}</p>
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">

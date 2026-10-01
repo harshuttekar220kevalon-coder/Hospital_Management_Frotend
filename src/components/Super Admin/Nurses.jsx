@@ -33,7 +33,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
     email: '',
     password: '',
     hospital: '',
-    status: 'On Duty',
+    status: 'On_Duty',
     is_active: true
   };
 
@@ -135,6 +135,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
     try {
       const generatedNurseId = generateNurseId();
       const nurseRole = formData.role || formData.nurse_role || 'Staff Nurse';
+      const currentStatus = formData.status || (formData.is_active !== false ? 'On_Duty' : 'Off_Duty');
       const payload = {
         ...formData,
         role: nurseRole,
@@ -144,7 +145,9 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
         nurse_id: generatedNurseId,
         contact: formData.contact.trim(),
         password: formData.password || '',
-        hospital: Number(formData.hospital)
+        hospital: Number(formData.hospital),
+        status: currentStatus,
+        is_active: formData.is_active !== undefined ? formData.is_active : true
       };
 
       const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/`, {
@@ -157,7 +160,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
 
       if (response.ok) {
         const createdId = data.nurse_id || generatedNurseId;
-        alert(`Nurse registered successfully!\nNurse ID: ${createdId}`);
+        alert(`Nurse registered successfully!\nNurse ID: ${createdId}\nDuty Status: ${currentStatus}`);
         setIsAddModalOpen(false);
         fetchNurses();
       } else {
@@ -171,19 +174,21 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
 
   const handleToggleStatus = async (nurse) => {
     try {
-      const updatedStatus = !nurse.is_active;
+      const isCurrentlyOnDuty = nurse.status === 'On_Duty' || nurse.status === 'On Duty';
+      const updatedStatusStr = isCurrentlyOnDuty ? 'Off_Duty' : 'On_Duty';
+
       const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${nurse.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: updatedStatus, status: updatedStatus ? 'On Duty' : 'Off Duty' })
+        body: JSON.stringify({ status: updatedStatusStr })
       });
 
       if (response.ok) {
         const data = await response.json().catch(() => null);
-        setNurses(prev => prev.map(n => n.id === nurse.id ? { ...n, is_active: updatedStatus, ...(data || {}) } : n));
+        setNurses(prev => prev.map(n => n.id === nurse.id ? { ...n, status: updatedStatusStr, ...(data || {}) } : n));
         fetchNurses();
       } else {
-        alert('Failed to update status.');
+        alert('Failed to update duty status.');
       }
     } catch (error) {
       console.error('Error toggling status:', error);
@@ -395,13 +400,13 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                         <button
                           type="button"
                           onClick={() => handleToggleStatus(nurse)}
-                          title="Click to toggle active/inactive status"
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${nurse.is_active !== false
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                              : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                          title="Click to toggle Duty Status (On_Duty / Off_Duty)"
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${nurse.status === 'Off_Duty'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                             }`}
                         >
-                          {nurse.is_active !== false ? 'Active' : 'Inactive'}
+                          {nurse.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty'}
                         </button>
                       </td>
                       <td className="py-3.5 px-4 text-center">
@@ -478,16 +483,16 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
               {/* ROW 2: CONTACT PHONE & SIGNIN PASSWORD */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone (Numbers only) *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    maxLength={10}
+                    maxLength={15}
                     required
                     value={formData.contact}
-                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '') })}
-                    placeholder="e.g. 9876543210"
+                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                    placeholder="e.g. 9876543210 / 02212345678"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
@@ -613,18 +618,20 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                 </select>
               </div>
 
-              {/* ROW 7: ACTIVE CHECKBOX */}
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="nurseActiveCreate"
-                  checked={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  className="w-4 h-4 text-sky-600 rounded cursor-pointer"
-                />
-                <label htmlFor="nurseActiveCreate" className="font-semibold text-slate-700 cursor-pointer">
-                  Nurse is Currently On Duty & Active
-                </label>
+              {/* ROW 7: DUTY STATUS */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Duty Status *</label>
+                <select
+                  value={formData.status || 'On_Duty'}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    status: e.target.value
+                  })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                >
+                  <option value="On_Duty">On_Duty</option>
+                  <option value="Off_Duty">Off_Duty</option>
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
