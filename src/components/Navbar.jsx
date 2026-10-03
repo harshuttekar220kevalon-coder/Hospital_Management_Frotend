@@ -175,6 +175,62 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                   </>
                 )}
 
+                {(currentUser?.role || '').toString().toUpperCase().includes('RECEPTION') && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('receptionist_doctors')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                        currentPage === 'receptionist_doctors'
+                          ? 'bg-slate-800 text-amber-300 border border-amber-500/30'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      Doctors & OPD
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('receptionist_patients')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                        currentPage === 'receptionist_patients' || currentPage === 'receptionist_patient_details'
+                          ? 'bg-slate-800 text-amber-300 border border-amber-500/30'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      Patient Admissions
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('receptionist_anassine')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer flex items-center gap-1.5 ${
+                        currentPage === 'receptionist_anassine' || currentPage === 'receptionist_unassigned'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-400/50 font-bold shadow-xs'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                      title="Unassigned Patients Queue & Triage"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                      <span>Unassigned Patients</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('receptionist_settings')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer flex items-center gap-1.5 ${
+                        currentPage === 'receptionist_settings'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-400/50 font-bold shadow-xs'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/60 border border-transparent'
+                      }`}
+                      title="Front Desk Profile & Settings"
+                    >
+                      <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span>Settings</span>
+                    </button>
+                  </>
+                )}
+
                 {((currentUser?.role || '').toString().toUpperCase().includes('ADMIN') && !(currentUser?.role || '').toString().toUpperCase().includes('SUPER')) && (
                   <>
                     <button
@@ -361,6 +417,52 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 <span>Nurse Settings & Profile</span>
+              </button>
+            </>
+          )}
+
+          {(currentUser?.role || '').toString().toUpperCase().includes('RECEPTION') && (
+            <>
+              <button
+                type="button"
+                onClick={() => handleNavClick('receptionist_doctors')}
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  currentPage === 'receptionist_doctors' ? 'bg-slate-800 text-amber-300 border border-amber-500/30' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                Doctors & OPD Schedule
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNavClick('receptionist_patients')}
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  currentPage === 'receptionist_patients' || currentPage === 'receptionist_patient_details' ? 'bg-slate-800 text-amber-300 border border-amber-500/30' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                Patient Admissions
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNavClick('receptionist_anassine')}
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center gap-2 ${
+                  currentPage === 'receptionist_anassine' || currentPage === 'receptionist_unassigned' ? 'bg-amber-500/20 text-amber-300 border border-amber-400/50 font-bold' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                <span>Unassigned Patients Queue</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNavClick('receptionist_settings')}
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center gap-2 ${
+                  currentPage === 'receptionist_settings' ? 'bg-amber-500/20 text-amber-300 border border-amber-400/50 font-bold' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>Front Desk Settings</span>
               </button>
             </>
           )}

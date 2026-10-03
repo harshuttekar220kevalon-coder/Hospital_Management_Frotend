@@ -1,6 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
+const getFloorNumber = (bed) => {
+  if (!bed) return null;
+  const num = Number(bed);
+  if (isNaN(num) || num <= 0) return null;
+  return Math.floor((num - 1) / 100) + 1;
+};
+
+const getAssignedNurseForPatientBed = (bedNumber, nursesList = [], hospitalId = null) => {
+  if (!nursesList || !Array.isArray(nursesList) || nursesList.length === 0) {
+    return { nurseId: null, nurseName: '' };
+  }
+  const hospNurses = hospitalId
+    ? nursesList.filter(n => Number(typeof n.hospital === 'object' ? n.hospital?.id : n.hospital) === Number(hospitalId))
+    : nursesList;
+  const activeNurses = hospNurses.length > 0 ? hospNurses : nursesList;
+  if (activeNurses.length === 0) return { nurseId: null, nurseName: '' };
+  const first = activeNurses[0];
+  return { nurseId: first.id, nurseName: first.name };
+};
+
 const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
   const [patients, setPatients] = useState([]);
   const [hospitalsList, setHospitalsList] = useState([]);
@@ -244,13 +264,14 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
   const handleCreatePatient = async (e) => {
     e.preventDefault();
     if (!addFormData.hospital) {
-      alert('Please select a target hospital branch.');
+      alert('Branch Allocation Required:\nPlease select a target hospital branch for this patient admission.');
       return;
     }
 
     try {
       const generatedDocPatId = generatePatientId();
       const selectedDocObj = doctorsList.find(d => d.id === Number(addFormData.doctor));
+      const selectedHospitalObj = hospitalsList.find(h => h.id === Number(addFormData.hospital));
       const selectedNurseObj = nursesList.find(n => n.id === Number(addFormData.nurse));
       const autoNurse = getAssignedNurseForPatientBed(addFormData.bed_number, nursesList, addFormData.hospital);
       const finalNurseId = addFormData.nurse ? Number(addFormData.nurse) : (autoNurse?.nurseId || null);
@@ -319,18 +340,24 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
       if (response && response.ok) {
         const resData = await response.json().catch(() => ({}));
         const createdId = resData.patient_id || generatedDocPatId;
-        const floorInfo = parsedBedNum ? `Floor ${Math.floor((parsedBedNum - 1) / 100) + 1}` : 'Not Assigned';
-        alert(`Patient registered successfully!\nPatient ID: ${createdId}\n${parsedBedNum ? `Bed: #${parsedBedNum} (${floorInfo})\nAssigned Nurse: ${finalNurseName || 'Assigned'}` : 'Bed: Not Assigned'}`);
+        const successMsg = resData.message || `Patient ${addFormData.name} registered successfully! (ID: ${createdId})`;
+        alert(successMsg);
         setAddSelectedFile(null);
         setIsAddModalOpen(false);
         fetchAllData();
       } else {
         const data = response ? await response.json().catch(() => ({})) : {};
-        alert('Failed to register patient: ' + JSON.stringify(data));
+        let errMsg = data.message || data.detail || data.error;
+        if (!errMsg && typeof data === 'object') {
+          errMsg = Object.entries(data)
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? JSON.stringify(v) : v)}`)
+            .join('\n');
+        }
+        alert(errMsg || 'Failed to register patient.');
       }
     } catch (error) {
       console.error('Error creating patient:', error);
-      alert('Network error while registering patient.');
+      alert(error.message || 'Error while registering patient. Please check backend connection.');
     }
   };
 
@@ -745,29 +772,13 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                          <select
-                            value={['Pending', 'Assigned', 'Admitted', 'Discharged', 'Cancelled'].includes(pat.status) ? pat.status : ''}
-                            onChange={(e) => handleUpdatePatientStatus(pat, e.target.value)}
-                            disabled={updatingPatientId === pat.id}
-                            className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer disabled:opacity-50"
-                          >
-                            <option value="" disabled>- Select an option -</option>
-                            <option value="Pending">Pending</option>
-                            <option value="Assigned">Assigned</option>
-                            <option value="Admitted">Admitted</option>
-                            <option value="Discharged">Discharged</option>
-                            <option value="Cancelled">Cancelled</option>
-                          </select>
-
-                          <button
-                            type="button"
-                            onClick={() => handleViewPatientDetails(pat)}
-                            className="px-3.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1 whitespace-nowrap shrink-0"
-                          >
-                            Details &rarr;
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleViewPatientDetails(pat)}
+                          className="px-3.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1 whitespace-nowrap shadow-2xs"
+                        >
+                          Details &rarr;
+                        </button>
                       </td>
                     </tr>
                   );

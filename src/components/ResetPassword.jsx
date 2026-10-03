@@ -78,7 +78,7 @@ const ResetPassword = ({ setCurrentPage }) => {
 
       // 3. If email is NOT found in backend, DO NOT reset password!
       if (!matchedUser) {
-        setErrorMsg(`❌ Email not found! No registered account exists with "${formData.email}". Please enter a valid registered email.`);
+        setErrorMsg(`Email not found! No registered account exists with "${formData.email}". Please enter a valid registered email.`);
         setLoading(false);
         return;
       }
@@ -168,14 +168,12 @@ const ResetPassword = ({ setCurrentPage }) => {
 
         {errorMsg && (
           <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-start gap-2 animate-in fade-in duration-150">
-            <span className="text-rose-600 font-bold shrink-0">⚠️</span>
             <span className="flex-1">{errorMsg}</span>
           </div>
         )}
 
         {successMsg && (
           <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-start gap-2 animate-in fade-in duration-150">
-            <span className="text-emerald-600 font-bold shrink-0">✓</span>
             <span className="flex-1">{successMsg}</span>
           </div>
         )}

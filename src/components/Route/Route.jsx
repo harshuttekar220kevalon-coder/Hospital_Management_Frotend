@@ -50,10 +50,19 @@ import NurseDashboard from '../Nurse/Dashbord';
 import NursePatients from '../Nurse/Patient';
 import NurseSettings from '../Nurse/Setting';
 import ReceptionistDashboard from '../Receptionist/Dashbord';
+import ReceptionistDoctors from '../Receptionist/Doctors';
+import ReceptionistPatient from '../Receptionist/Patient';
+import ReceptionistPatientDetails from '../Receptionist/Patient_Details';
+import ReceptionistSetting from '../Receptionist/Setting';
+import ReceptionistAnassine from '../Receptionist/Anassine';
 import PatientDashboard from '../Patient/Dashbord';
 
-// General View
-import Home from '../View/Home';
+// Patient Main Frontend Pages (Static)
+import PatientHome from '../Patient/Home';
+import PatientAbout from '../Patient/About';
+import PatientContact from '../Patient/Contact';
+import PatientAppointment from '../Patient/Appoiement';
+
 
 const getDashboardByRole = (role) => {
   const r = (role || '').toString().toUpperCase();
@@ -130,20 +139,36 @@ const AppRoutes = () => {
     }
   });
 
+  const [selectedDoctorForPatient, setSelectedDoctorForPatient] = useState(null);
+
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return localStorage.getItem('isLoggedIn') === 'true';
   });
 
   const [currentPage, setCurrentPage] = useState(() => {
     const isLogged = localStorage.getItem('isLoggedIn') === 'true';
+    const savedPage = localStorage.getItem('currentPage');
+
     if (!isLogged) {
-      const savedPage = localStorage.getItem('currentPage');
-      if (savedPage === 'signin' || savedPage === 'reset_password') {
+      if (
+        savedPage === 'signin' ||
+        savedPage === 'reset_password' ||
+        savedPage === 'login' ||
+        savedPage === 'home' ||
+        savedPage === 'about' ||
+        savedPage === 'contact' ||
+        savedPage === 'appointment' ||
+        savedPage === 'appoint' ||
+        savedPage === 'patient_home' ||
+        savedPage === 'patient_about' ||
+        savedPage === 'patient_contact' ||
+        savedPage === 'patient_appointment'
+      ) {
         return savedPage;
       }
-      return 'login';
+      return 'home';
     }
-    const savedPage = localStorage.getItem('currentPage');
+
     if (savedPage && savedPage !== 'login' && savedPage !== 'signin' && savedPage !== 'reset_password') {
       return savedPage;
     }
@@ -289,16 +314,65 @@ const AppRoutes = () => {
             <ResetPassword
               setCurrentPage={setCurrentPage}
             />
-          ) : (
+          ) : currentPage === 'login' ? (
             <Login
               setCurrentPage={setCurrentPage}
               setIsLoggedIn={handleLoginSuccess}
             />
+          ) : currentPage === 'about' || currentPage === 'patient_about' ? (
+            <PatientAbout
+              setCurrentPage={setCurrentPage}
+              isLoggedIn={isLoggedIn}
+              currentUser={currentUser}
+            />
+          ) : currentPage === 'contact' || currentPage === 'patient_contact' ? (
+            <PatientContact
+              setCurrentPage={setCurrentPage}
+              isLoggedIn={isLoggedIn}
+              currentUser={currentUser}
+            />
+          ) : currentPage === 'appointment' || currentPage === 'appoint' || currentPage === 'patient_appointment' ? (
+            <PatientAppointment
+              setCurrentPage={setCurrentPage}
+              isLoggedIn={isLoggedIn}
+              currentUser={currentUser}
+            />
+          ) : (
+            <PatientHome
+              setCurrentPage={setCurrentPage}
+              isLoggedIn={isLoggedIn}
+              currentUser={currentUser}
+            />
           )
         ) : (
           <>
-            {currentPage === 'home' && (
-              <Home />
+            {(currentPage === 'home' || currentPage === 'patient_home') && (
+              <PatientHome
+                setCurrentPage={setCurrentPage}
+                isLoggedIn={isLoggedIn}
+                currentUser={currentUser}
+              />
+            )}
+            {(currentPage === 'about' || currentPage === 'patient_about') && (
+              <PatientAbout
+                setCurrentPage={setCurrentPage}
+                isLoggedIn={isLoggedIn}
+                currentUser={currentUser}
+              />
+            )}
+            {(currentPage === 'contact' || currentPage === 'patient_contact') && (
+              <PatientContact
+                setCurrentPage={setCurrentPage}
+                isLoggedIn={isLoggedIn}
+                currentUser={currentUser}
+              />
+            )}
+            {(currentPage === 'appointment' || currentPage === 'appoint' || currentPage === 'patient_appointment') && (
+              <PatientAppointment
+                setCurrentPage={setCurrentPage}
+                isLoggedIn={isLoggedIn}
+                currentUser={currentUser}
+              />
             )}
             {currentPage === 'super_admin_dashboard' && (
               <SuperAdminDashboard
@@ -531,7 +605,50 @@ const AppRoutes = () => {
               />
             )}
             {currentPage === 'receptionist_dashboard' && (
-              <ReceptionistDashboard currentUser={currentUser} />
+              <ReceptionistDashboard
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedPatient={setSelectedPatient}
+                setSelectedDoctorForPatient={setSelectedDoctorForPatient}
+              />
+            )}
+            {currentPage === 'receptionist_doctors' && (
+              <ReceptionistDoctors
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedDoctorForPatient={setSelectedDoctorForPatient}
+              />
+            )}
+            {currentPage === 'receptionist_patients' && (
+              <ReceptionistPatient
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedPatient={setSelectedPatient}
+                selectedDoctorForPatient={selectedDoctorForPatient}
+              />
+            )}
+            {currentPage === 'receptionist_patient_details' && (
+              <ReceptionistPatientDetails
+                currentUser={currentUser}
+                selectedPatient={selectedPatient}
+                setSelectedPatient={setSelectedPatient}
+                setCurrentPage={setCurrentPage}
+              />
+            )}
+            {(currentPage === 'receptionist_anassine' || currentPage === 'receptionist_unassigned' || currentPage === 'anassine') && (
+              <ReceptionistAnassine
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedPatient={setSelectedPatient}
+                setSelectedDoctorForPatient={setSelectedDoctorForPatient}
+              />
+            )}
+            {(currentPage === 'receptionist_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('RECEPTION'))) && (
+              <ReceptionistSetting
+                currentUser={currentUser}
+                setCurrentUser={setCurrentUser}
+                setCurrentPage={setCurrentPage}
+              />
             )}
             {currentPage === 'patient_dashboard' && (
               <PatientDashboard currentUser={currentUser} />

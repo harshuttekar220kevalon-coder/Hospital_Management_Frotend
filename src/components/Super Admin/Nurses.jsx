@@ -159,16 +159,22 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
       const data = await response.json();
 
       if (response.ok) {
-        const createdId = data.nurse_id || generatedNurseId;
-        alert(`Nurse registered successfully!\nNurse ID: ${createdId}\nDuty Status: ${currentStatus}`);
+        const successMsg = data.message || `Nurse ${formData.name || 'member'} registered successfully!`;
+        alert(successMsg);
         setIsAddModalOpen(false);
         fetchNurses();
       } else {
-        alert('Error: ' + JSON.stringify(data));
+        let errMsg = data.message || data.detail || data.error;
+        if (!errMsg && typeof data === 'object') {
+          errMsg = Object.entries(data)
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? JSON.stringify(v) : v)}`)
+            .join('\n');
+        }
+        alert(errMsg || 'Failed to register nurse.');
       }
     } catch (error) {
       console.error('Error creating nurse:', error);
-      alert('Network error while saving nurse profile.');
+      alert(error.message || 'Error registering nurse profile.');
     }
   };
 

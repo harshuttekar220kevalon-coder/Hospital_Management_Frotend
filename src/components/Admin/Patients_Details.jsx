@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
+const getAssignedNurseForPatientBed = (bedNumber, nursesList = [], hospitalId = null) => {
+  if (!nursesList || !Array.isArray(nursesList) || nursesList.length === 0) {
+    return { nurseId: null, nurseName: '' };
+  }
+  const hospNurses = hospitalId
+    ? nursesList.filter(n => Number(typeof n.hospital === 'object' ? n.hospital?.id : n.hospital) === Number(hospitalId))
+    : nursesList;
+  const activeNurses = hospNurses.length > 0 ? hospNurses : nursesList;
+  if (activeNurses.length === 0) return { nurseId: null, nurseName: '' };
+  const first = activeNurses[0];
+  return { nurseId: first.id, nurseName: first.name };
+};
+
 const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient, setCurrentPage }) => {
   const [patientData, setPatientData] = useState(() => {
     if (selectedPatient && selectedPatient.id) return selectedPatient;
@@ -264,8 +277,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
 
       if (response && response.ok) {
         const updated = await response.json();
-        const floorInfo = parsedBedNum ? `Floor ${Math.floor((parsedBedNum - 1) / 100) + 1}` : 'Not Assigned';
-        alert(`Patient record updated successfully!\n${parsedBedNum ? `Bed: #${parsedBedNum} (${floorInfo})\nAssigned Nurse: ${finalNurseName || 'Assigned'}` : 'Bed: Not Assigned'}`);
+        alert(updated.message || 'Patient record updated successfully.');
         setPatientData(updated);
         if (setSelectedPatient) setSelectedPatient(updated);
         localStorage.setItem('selectedPatient', JSON.stringify(updated));
@@ -273,11 +285,17 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
         setIsEditModalOpen(false);
       } else {
         const errorData = response ? await response.json().catch(() => ({})) : {};
-        alert('Failed to update patient: ' + JSON.stringify(errorData));
+        let errMsg = errorData.message || errorData.detail || errorData.error;
+        if (!errMsg && typeof errorData === 'object') {
+          errMsg = Object.entries(errorData)
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? JSON.stringify(v) : v)}`)
+            .join('\n');
+        }
+        alert(errMsg || 'Failed to update patient: ' + JSON.stringify(errorData));
       }
     } catch (err) {
       console.error('Error updating patient:', err);
-      alert('Network error while updating patient details.');
+      alert(err.message || 'Network error while updating patient details.');
     }
   };
 

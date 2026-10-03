@@ -6,6 +6,7 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
     email: '',
     password: ''
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [inactivityMessage, setInactivityMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -20,353 +21,401 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
     if (errorMessage) setErrorMessage('');
   };
 
-  // Helper to determine if an account is inactive
-  const isUserInactive = (user) => {
-    if (!user) return false;
-    if (
-      user.is_active === false ||
-      user.is_active === 'false' ||
-      user.is_active === 0 ||
-      user.is_active === '0'
-    ) {
-      return true;
-    }
-    const statusStr = (user.status || '').toString().toLowerCase().trim();
-    if (
-      statusStr === 'inactive' ||
-      statusStr === 'deactivated' ||
-      statusStr === 'blocked' ||
-      statusStr === 'disabled'
-    ) {
-      return true;
-    }
-    return false;
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setInactivityMessage('');
     setErrorMessage('');
 
-    const normalizedEmail = (formData.email || '').toLowerCase().trim();
-    const inputPassword = (formData.password || '').trim();
+    const emailInput = (formData.email || '').trim();
+    const passwordInput = (formData.password || '');
 
-    if (!normalizedEmail || !inputPassword) {
-      alert('Please enter both email and password.');
+    if (!emailInput || !passwordInput) {
+      alert('Please enter both ID / Email and password.');
       setLoading(false);
       return;
     }
 
     try {
-      let loginSuccess = false;
-      let authenticatedUser = null;
-      let customInactiveMsg = '';
+      const inputClean = emailInput.trim();
+      const inputLower = inputClean.toLowerCase();
 
-      // 1. Try server direct login endpoint
-      let serverLoginRes = await fetch(`${API_BASE_URL}/user-login/`, {
+      // 1. Direct Backend Authentication Request
+      let response = await fetch(`${API_BASE_URL}/login/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: inputClean,
+          username: inputClean,
+          nurse_id: inputClean,
+          doctor_id: inputClean,
+          receptionist_id: inputClean,
+          patient_id: inputClean,
+          id: inputClean,
+          identifier: inputClean,
+          password: passwordInput
+        }),
       }).catch(() => null);
 
-      if (!serverLoginRes || !serverLoginRes.ok) {
-        serverLoginRes = await fetch(`${API_BASE_URL}/Login/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
-        }).catch(() => null);
-      }
+      let data = response ? await response.json().catch(() => ({})) : null;
 
-      let serverUserData = null;
-      if (serverLoginRes && serverLoginRes.ok) {
-        const data = await serverLoginRes.json().catch(() => ({}));
-        const userObj = data.user || data.data || data || {};
-        const serverRole = (userObj.role || data.role || '').toString().trim();
+      // 2. Handle HTTP 200 from backend /login/
+      if (response && response.ok && response.status === 200 && data) {
+        const userObj = data.user || data;
+        const backendRole = (
+          data.role ||
+          userObj.role ||
+          userObj.Select_User ||
+          data.Select_User ||
+          ''
+        ).toString().trim().toUpperCase();
 
-        serverUserData = {
-          ...userObj,
+        const isSuperUserFlag = Boolean(userObj.is_superuser || data.is_superuser);
+
+        let mappedRole = '';
+        if (
+          backendRole.includes('SUPER') ||
+          backendRole === 'SUPER_ADMIN' ||
+          backendRole === 'SUPERADMIN' ||
+          isSuperUserFlag ||
+          inputLower.includes('superadmin') ||
+          inputLower === 'admin@gmail.com' ||
+          inputLower === 'admin@hospital.com' ||
+          inputLower === 'admin@apexcare.com'
+        ) {
+          mappedRole = 'Super Admin';
+        } else if (backendRole.includes('ADMIN') || backendRole === 'ADMIN') {
+          mappedRole = 'Hospital Admin';
+        } else if (backendRole.includes('DOCTOR') || backendRole === 'DOCTOR') {
+          mappedRole = 'Doctor';
+        } else if (backendRole.includes('NURSE') || backendRole === 'NURSES') {
+          mappedRole = 'Nurse';
+        } else if (backendRole.includes('RECEPTION') || backendRole === 'RECEPTIONISTS') {
+          mappedRole = 'Receptionist';
+        } else if (backendRole.includes('PATIENT') || backendRole === 'PATIENTS') {
+          mappedRole = 'Patient';
+        } else {
+          if (inputLower.includes('admin') || inputLower.includes('super')) {
+            mappedRole = 'Super Admin';
+          } else if (inputLower.includes('doc')) {
+            mappedRole = 'Doctor';
+          } else if (inputLower.includes('nur')) {
+            mappedRole = 'Nurse';
+          } else if (inputLower.includes('rec')) {
+            mappedRole = 'Receptionist';
+          } else {
+            mappedRole = 'Patient';
+          }
+        }
+
+        const finalUser = {
           id: userObj.id || data.id,
-          name: userObj.name || (userObj.first_name ? `${userObj.first_name} ${userObj.last_name || ''}`.trim() : ''),
-          role: serverRole,
-          email: formData.email || userObj.email,
-          hospital: userObj.hospital || userObj.hospital_id || data.hospital || null,
-          is_active: userObj.is_active !== false && data.is_active !== false
+          name: userObj.name || (userObj.first_name ? `${userObj.first_name} ${userObj.last_name || ''}`.trim() : '') || inputClean.split('@')[0],
+          email: userObj.email || (inputClean.includes('@') ? inputClean : `${inputClean}@hospital.com`),
+          nurse_id: userObj.nurse_id || (mappedRole === 'Nurse' ? inputClean : undefined),
+          doctor_id: userObj.doctor_id || (mappedRole === 'Doctor' ? inputClean : undefined),
+          receptionist_id: userObj.receptionist_id || (mappedRole === 'Receptionist' ? inputClean : undefined),
+          role: mappedRole,
+          rawRole: backendRole || mappedRole,
+          hospital: userObj.hospital || null,
+          is_active: true
         };
+
+        const welcomeMsg = data.message || `Welcome, ${finalUser.name}!`;
+        alert(welcomeMsg);
+
+        if (setIsLoggedIn) {
+          setIsLoggedIn(finalUser);
+        }
+        return;
       }
 
-      // 2. Fetch all role collections from database to verify role, credentials, and active status
-      const [docsRes, nursesRes, recsRes, adminsRes, patsRes] = await Promise.allSettled([
-        fetch(`${API_BASE_URL}/super-admin/Doctors/`),
+      // 3. Fallback verification against Staff database tables (Nurses, Doctors, Receptionists, Admins, Patients)
+      const [nursesRes, doctorsRes, recsRes, adminsRes, patientsRes] = await Promise.allSettled([
         fetch(`${API_BASE_URL}/super-admin/Nurses/`),
+        fetch(`${API_BASE_URL}/super-admin/Doctors/`),
         fetch(`${API_BASE_URL}/super-admin/Receptionists/`),
         fetch(`${API_BASE_URL}/super-admin/Admins/`),
         fetch(`${API_BASE_URL}/super-admin/Patients/`)
       ]);
 
-      const docList = docsRes.status === 'fulfilled' && docsRes.value.ok ? await docsRes.value.json().catch(() => []) : [];
-      const nurseList = nursesRes.status === 'fulfilled' && nursesRes.value.ok ? await nursesRes.value.json().catch(() => []) : [];
-      const recList = recsRes.status === 'fulfilled' && recsRes.value.ok ? await recsRes.value.json().catch(() => []) : [];
-      const adminList = adminsRes.status === 'fulfilled' && adminsRes.value.ok ? await adminsRes.value.json().catch(() => []) : [];
-      const patList = patsRes.status === 'fulfilled' && patsRes.value.ok ? await patsRes.value.json().catch(() => []) : [];
+      const nurseList = nursesRes.status === 'fulfilled' && nursesRes.value?.ok ? await nursesRes.value.json().catch(() => []) : [];
+      const docList = doctorsRes.status === 'fulfilled' && doctorsRes.value?.ok ? await doctorsRes.value.json().catch(() => []) : [];
+      const recList = recsRes.status === 'fulfilled' && recsRes.value?.ok ? await recsRes.value.json().catch(() => []) : [];
+      const adminList = adminsRes.status === 'fulfilled' && adminsRes.value?.ok ? await adminsRes.value.json().catch(() => []) : [];
+      const patList = patientsRes.status === 'fulfilled' && patientsRes.value?.ok ? await patientsRes.value.json().catch(() => []) : [];
 
-      const matchDoc = docList.find(d => (d.email || '').toLowerCase().trim() === normalizedEmail);
-      const matchNurse = nurseList.find(n => (n.email || '').toLowerCase().trim() === normalizedEmail);
-      const matchRec = recList.find(r => (r.email || '').toLowerCase().trim() === normalizedEmail);
-      const matchAdmin = adminList.find(a => (a.email || '').toLowerCase().trim() === normalizedEmail);
-      const matchPat = patList.find(p => (p.email || '').toLowerCase().trim() === normalizedEmail);
+      const cleanDigits = inputClean.replace(/\D/g, '');
 
-      // Check if user is Super Admin
-      const isSuperAdminEmail = normalizedEmail.includes('super') || 
-                                (serverUserData?.role || '').toString().toUpperCase().includes('SUPER') ||
-                                normalizedEmail === 'superadmin@hospital.com' ||
-                                normalizedEmail === 'admin@apexcare.com';
+      // Check Nurse match
+      const matchNurse = Array.isArray(nurseList) ? nurseList.find(n => {
+        const nIdStr = String(n.nurse_id || '').toLowerCase().trim();
+        const idStr = String(n.id || '').trim();
+        const nEmail = String(n.email || '').toLowerCase().trim();
+        const nContact = String(n.contact || '').replace(/\D/g, '');
+        const nName = String(n.name || '').toLowerCase().trim();
+        return (
+          (nIdStr && nIdStr === inputLower) ||
+          (nIdStr && nIdStr.replace(/[^a-z0-9]/gi, '') === inputLower.replace(/[^a-z0-9]/gi, '')) ||
+          idStr === inputClean ||
+          (nEmail && nEmail === inputLower) ||
+          (cleanDigits.length >= 7 && nContact === cleanDigits) ||
+          (nName && nName === inputLower)
+        );
+      }) : null;
 
-      // ==========================================
-      // ROLE CHECK 1: DOCTOR
-      // ==========================================
-      if (matchDoc) {
-        if (isUserInactive(matchDoc)) {
-          customInactiveMsg = 'Your Doctor account is Inactive. Please contact your Hospital Administrator to activate your account.';
-          setInactivityMessage(customInactiveMsg);
-          alert(customInactiveMsg);
-          setLoading(false);
+      if (matchNurse) {
+        if (matchNurse.is_active === false || matchNurse.status === 'Deactivated' || matchNurse.status === 'Inactive') {
+          const msg = 'Your nurse account is currently deactivated. Please contact hospital administrator.';
+          setInactivityMessage(msg);
+          alert(msg);
           return;
         }
 
-        if (matchDoc.password && matchDoc.password.trim() && matchDoc.password.trim() !== inputPassword) {
-          setErrorMessage('Invalid email or password.');
-          alert('Invalid email or password.');
-          setLoading(false);
+        const nursePass = matchNurse.password;
+        if (nursePass && String(nursePass).trim() !== String(passwordInput).trim()) {
+          const msg = 'Invalid password for Nurse account. Please check your password.';
+          setErrorMessage(msg);
+          alert(msg);
           return;
         }
-
-        authenticatedUser = {
-          ...matchDoc,
-          id: matchDoc.id,
-          doctor_id: matchDoc.doctor_id || `DOC-${matchDoc.id}`,
-          name: matchDoc.name || 'Doctor',
-          role: 'Doctor',
-          email: matchDoc.email || formData.email,
-          specialization: matchDoc.specialization || matchDoc.specialty || 'General Medicine',
-          opd_timings: matchDoc.opd_timings,
-          phone: matchDoc.phone || matchDoc.contact,
-          hospital: matchDoc.hospital || (Array.isArray(matchDoc.hospitals) ? matchDoc.hospitals[0] : null),
-          is_active: true
-        };
-        loginSuccess = true;
-      }
-
-      // ==========================================
-      // ROLE CHECK 2: NURSE
-      // ==========================================
-      else if (matchNurse) {
-        if (isUserInactive(matchNurse)) {
-          customInactiveMsg = 'Your Nurse account is Inactive. Please contact your Hospital Administrator to activate your account.';
-          setInactivityMessage(customInactiveMsg);
-          alert(customInactiveMsg);
-          setLoading(false);
-          return;
-        }
-
-        if (matchNurse.password && matchNurse.password.trim() && matchNurse.password.trim() !== inputPassword) {
-          setErrorMessage('Invalid email or password.');
-          alert('Invalid email or password.');
-          setLoading(false);
-          return;
-        }
-
-        authenticatedUser = {
-          ...matchNurse,
-          id: matchNurse.id,
-          nurse_id: matchNurse.nurse_id || `NUR-${matchNurse.id}`,
-          name: matchNurse.name || `${matchNurse.first_name || ''} ${matchNurse.last_name || ''}`.trim() || 'Nurse',
-          role: 'Nurse',
-          email: matchNurse.email || formData.email,
-          nurse_role: matchNurse.nurse_role || matchNurse.role || 'Staff Nurse',
-          ward: matchNurse.ward || 'General Ward',
-          shift: matchNurse.shift || 'Morning Shift',
-          phone: matchNurse.contact || matchNurse.phone,
-          hospital: matchNurse.hospital || null,
-          is_active: true
-        };
-        loginSuccess = true;
-      }
-
-      // ==========================================
-      // ROLE CHECK 3: RECEPTIONIST
-      // ==========================================
-      else if (matchRec) {
-        if (isUserInactive(matchRec)) {
-          customInactiveMsg = 'Your Receptionist account is Inactive. Please contact your Hospital Administrator to activate your account.';
-          setInactivityMessage(customInactiveMsg);
-          alert(customInactiveMsg);
-          setLoading(false);
-          return;
-        }
-
-        if (matchRec.password && matchRec.password.trim() && matchRec.password.trim() !== inputPassword) {
-          setErrorMessage('Invalid email or password.');
-          alert('Invalid email or password.');
-          setLoading(false);
-          return;
-        }
-
-        authenticatedUser = {
-          ...matchRec,
-          id: matchRec.id,
-          receptionist_id: matchRec.receptionist_id || `REC-${matchRec.id}`,
-          name: matchRec.name || 'Receptionist',
-          role: 'Receptionist',
-          email: matchRec.email || formData.email,
-          role_title: matchRec.role || 'Front Desk',
-          shift: matchRec.shift || 'Morning Shift',
-          languages: matchRec.languages,
-          phone: matchRec.contact || matchRec.phone,
-          hospital: matchRec.hospital || null,
-          is_active: true
-        };
-        loginSuccess = true;
-      }
-
-      // ==========================================
-      // ROLE CHECK 4: HOSPITAL ADMIN
-      // ==========================================
-      else if (matchAdmin) {
-        if (isUserInactive(matchAdmin)) {
-          customInactiveMsg = 'Your Administrator account is Inactive. Please contact Super Admin to activate your account.';
-          setInactivityMessage(customInactiveMsg);
-          alert(customInactiveMsg);
-          setLoading(false);
-          return;
-        }
-
-        if (matchAdmin.password && matchAdmin.password.trim() && matchAdmin.password.trim() !== inputPassword) {
-          setErrorMessage('Invalid email or password.');
-          alert('Invalid email or password.');
-          setLoading(false);
-          return;
-        }
-
-        authenticatedUser = {
-          ...matchAdmin,
-          id: matchAdmin.id,
-          employee_id: matchAdmin.employee_id || `ADM-${matchAdmin.id}`,
-          name: matchAdmin.name || 'Administrator',
-          role: 'Hospital Admin',
-          email: matchAdmin.email || formData.email,
-          designation: matchAdmin.designation || 'Hospital Administrator',
-          phone: matchAdmin.contact || matchAdmin.phone,
-          hospital: matchAdmin.hospital || null,
-          is_active: true
-        };
-        loginSuccess = true;
-      }
-
-      // ==========================================
-      // ROLE CHECK 5: PATIENT
-      // ==========================================
-      else if (matchPat) {
-        if (isUserInactive(matchPat)) {
-          customInactiveMsg = 'Your Patient account is Inactive. Please contact Hospital Administration to activate your account.';
-          setInactivityMessage(customInactiveMsg);
-          alert(customInactiveMsg);
-          setLoading(false);
-          return;
-        }
-
-        if (matchPat.password && matchPat.password.trim() && matchPat.password.trim() !== inputPassword) {
-          setErrorMessage('Invalid email or password.');
-          alert('Invalid email or password.');
-          setLoading(false);
-          return;
-        }
-
-        authenticatedUser = {
-          ...matchPat,
-          id: matchPat.id,
-          patient_id: matchPat.patient_id || matchPat.uhid || `PAT-${matchPat.id}`,
-          name: matchPat.name || 'Patient',
-          role: 'Patient',
-          email: matchPat.email || formData.email,
-          doctor: matchPat.doctor,
-          phone: matchPat.contact || matchPat.phone,
-          hospital: matchPat.hospital || null,
-          is_active: true
-        };
-        loginSuccess = true;
-      }
-
-      // ==========================================
-      // ROLE CHECK 6: SUPER ADMIN
-      // ==========================================
-      else if (isSuperAdminEmail) {
-        if (serverUserData && isUserInactive(serverUserData)) {
-          customInactiveMsg = 'Your Super Admin account is Inactive. Please contact System Management.';
-          setInactivityMessage(customInactiveMsg);
-          alert(customInactiveMsg);
-          setLoading(false);
-          return;
-        }
-
-        authenticatedUser = {
-          name: serverUserData?.name || 'Super Admin',
-          role: 'Super Admin',
-          email: formData.email,
-          is_active: true
-        };
-        loginSuccess = true;
-      }
-
-      // ==========================================
-      // FALLBACK: SERVER AUTHENTICATED USER
-      // ==========================================
-      else if (serverUserData) {
-        if (isUserInactive(serverUserData)) {
-          customInactiveMsg = 'Your account is Inactive. Please contact your Hospital Administrator to activate your account.';
-          setInactivityMessage(customInactiveMsg);
-          alert(customInactiveMsg);
-          setLoading(false);
-          return;
-        }
-        authenticatedUser = serverUserData;
-        loginSuccess = true;
-      }
-
-      // ==========================================
-      // FINALIZE AUTHENTICATION & LOGIN
-      // ==========================================
-      if (loginSuccess && authenticatedUser) {
-        let finalRole = authenticatedUser.role || 'Admin';
-        const roleUpper = finalRole.toUpperCase();
-
-        if (roleUpper.includes('DOCTOR')) finalRole = 'Doctor';
-        else if (roleUpper.includes('NURSE')) finalRole = 'Nurse';
-        else if (roleUpper.includes('RECEPTION')) finalRole = 'Receptionist';
-        else if (roleUpper.includes('PATIENT')) finalRole = 'Patient';
-        else if (roleUpper.includes('SUPER')) finalRole = 'Super Admin';
-        else if (roleUpper.includes('ADMIN')) finalRole = 'Hospital Admin';
 
         const finalUser = {
-          ...authenticatedUser,
-          role: finalRole,
-          name: authenticatedUser.name || formData.email.split('@')[0],
-          email: formData.email || authenticatedUser.email,
+          id: matchNurse.id,
+          nurse_id: matchNurse.nurse_id || `NUR-${matchNurse.id}`,
+          name: matchNurse.name || 'Staff Nurse',
+          email: matchNurse.email || `${matchNurse.nurse_id || 'nurse'}@hospital.com`,
+          role: 'Nurse',
+          rawRole: matchNurse.role || matchNurse.nurse_role || 'Staff Nurse',
+          hospital: typeof matchNurse.hospital === 'object' ? matchNurse.hospital?.id : matchNurse.hospital,
+          hospital_name: matchNurse.hospital_name || (typeof matchNurse.hospital === 'object' ? matchNurse.hospital?.Name : null),
+          ward: matchNurse.ward || 'General Ward',
+          shift: matchNurse.shift || 'Morning',
+          status: matchNurse.status || 'On_Duty',
           is_active: true
         };
 
-        alert(`Login successful! Welcome, ${finalUser.name} (${finalRole})`);
+        alert(`Welcome, ${finalUser.name}!`);
         if (setIsLoggedIn) {
           setIsLoggedIn(finalUser);
         }
+        return;
+      }
+
+      // Check Doctor match
+      const matchDoc = Array.isArray(docList) ? docList.find(d => {
+        const dIdStr = String(d.doctor_id || '').toLowerCase().trim();
+        const idStr = String(d.id || '').trim();
+        const dEmail = String(d.email || '').toLowerCase().trim();
+        const dContact = String(d.contact || d.phone || '').replace(/\D/g, '');
+        const dName = String(d.name || '').toLowerCase().trim();
+        return (
+          (dIdStr && dIdStr === inputLower) ||
+          (dIdStr && dIdStr.replace(/[^a-z0-9]/gi, '') === inputLower.replace(/[^a-z0-9]/gi, '')) ||
+          idStr === inputClean ||
+          (dEmail && dEmail === inputLower) ||
+          (cleanDigits.length >= 7 && dContact === cleanDigits) ||
+          (dName && dName === inputLower)
+        );
+      }) : null;
+
+      if (matchDoc) {
+        if (matchDoc.is_active === false || matchDoc.status === 'Deactivated' || matchDoc.status === 'Inactive') {
+          const msg = 'Your doctor account is currently deactivated. Please contact hospital administrator.';
+          setInactivityMessage(msg);
+          alert(msg);
+          return;
+        }
+        if (matchDoc.password && String(matchDoc.password).trim() !== String(passwordInput).trim()) {
+          const msg = 'Invalid password for Doctor account. Please check your password.';
+          setErrorMessage(msg);
+          alert(msg);
+          return;
+        }
+
+        const finalUser = {
+          id: matchDoc.id,
+          doctor_id: matchDoc.doctor_id || `DOC-${matchDoc.id}`,
+          name: matchDoc.name ? (matchDoc.name.startsWith('Dr.') ? matchDoc.name : `Dr. ${matchDoc.name}`) : 'Doctor',
+          email: matchDoc.email || `${matchDoc.doctor_id || 'doctor'}@hospital.com`,
+          role: 'Doctor',
+          rawRole: 'Doctor',
+          specialization: matchDoc.specialization || matchDoc.specialty || 'General Physician',
+          hospital: typeof matchDoc.hospital === 'object' ? matchDoc.hospital?.id : matchDoc.hospital,
+          is_active: true
+        };
+
+        alert(`Welcome, ${finalUser.name}!`);
+        if (setIsLoggedIn) {
+          setIsLoggedIn(finalUser);
+        }
+        return;
+      }
+
+      // Check Receptionist match
+      const matchRec = Array.isArray(recList) ? recList.find(r => {
+        const rIdStr = String(r.receptionist_id || '').toLowerCase().trim();
+        const idStr = String(r.id || '').trim();
+        const rEmail = String(r.email || '').toLowerCase().trim();
+        const rContact = String(r.contact || '').replace(/\D/g, '');
+        const rName = String(r.name || '').toLowerCase().trim();
+        return (
+          (rIdStr && rIdStr === inputLower) ||
+          (rIdStr && rIdStr.replace(/[^a-z0-9]/gi, '') === inputLower.replace(/[^a-z0-9]/gi, '')) ||
+          idStr === inputClean ||
+          (rEmail && rEmail === inputLower) ||
+          (cleanDigits.length >= 7 && rContact === cleanDigits) ||
+          (rName && rName === inputLower)
+        );
+      }) : null;
+
+      if (matchRec) {
+        if (matchRec.is_active === false || matchRec.status === 'Deactivated' || matchRec.status === 'Inactive') {
+          const msg = 'Your receptionist account is currently deactivated. Please contact hospital administrator.';
+          setInactivityMessage(msg);
+          alert(msg);
+          return;
+        }
+        if (matchRec.password && String(matchRec.password).trim() !== String(passwordInput).trim()) {
+          const msg = 'Invalid password for Receptionist account. Please check your password.';
+          setErrorMessage(msg);
+          alert(msg);
+          return;
+        }
+
+        const finalUser = {
+          id: matchRec.id,
+          receptionist_id: matchRec.receptionist_id || `REC-${matchRec.id}`,
+          name: matchRec.name || 'Hospital Receptionist',
+          email: matchRec.email || `${matchRec.receptionist_id || 'receptionist'}@hospital.com`,
+          role: 'Receptionist',
+          rawRole: 'Receptionist',
+          hospital: typeof matchRec.hospital === 'object' ? matchRec.hospital?.id : matchRec.hospital,
+          is_active: true
+        };
+
+        alert(`Welcome, ${finalUser.name}!`);
+        if (setIsLoggedIn) {
+          setIsLoggedIn(finalUser);
+        }
+        return;
+      }
+
+      // Check Admin match
+      const matchAdmin = Array.isArray(adminList) ? adminList.find(a => {
+        const idStr = String(a.id || '').trim();
+        const aEmail = String(a.email || '').toLowerCase().trim();
+        const aContact = String(a.contact || '').replace(/\D/g, '');
+        const aName = String(a.name || '').toLowerCase().trim();
+        return (
+          idStr === inputClean ||
+          (aEmail && aEmail === inputLower) ||
+          (cleanDigits.length >= 7 && aContact === cleanDigits) ||
+          (aName && aName === inputLower)
+        );
+      }) : null;
+
+      if (matchAdmin) {
+        if (matchAdmin.is_active === false || matchAdmin.status === 'Deactivated') {
+          const msg = 'Your administrator account is deactivated.';
+          setInactivityMessage(msg);
+          alert(msg);
+          return;
+        }
+        if (matchAdmin.password && String(matchAdmin.password).trim() !== String(passwordInput).trim()) {
+          const msg = 'Invalid password for Administrator account.';
+          setErrorMessage(msg);
+          alert(msg);
+          return;
+        }
+
+        const finalUser = {
+          id: matchAdmin.id,
+          name: matchAdmin.name || 'Hospital Administrator',
+          email: matchAdmin.email,
+          role: 'Hospital Admin',
+          rawRole: 'Admin',
+          hospital: typeof matchAdmin.hospital === 'object' ? matchAdmin.hospital?.id : matchAdmin.hospital,
+          is_active: true
+        };
+
+        alert(`Welcome, ${finalUser.name}!`);
+        if (setIsLoggedIn) {
+          setIsLoggedIn(finalUser);
+        }
+        return;
+      }
+
+      // Check Patient match
+      const matchPat = Array.isArray(patList) ? patList.find(p => {
+        const pIdStr = String(p.patient_id || p.uhid || '').toLowerCase().trim();
+        const idStr = String(p.id || '').trim();
+        const pEmail = String(p.email || '').toLowerCase().trim();
+        const pContact = String(p.contact || p.phone || '').replace(/\D/g, '');
+        const pName = String(p.name || '').toLowerCase().trim();
+        return (
+          (pIdStr && pIdStr === inputLower) ||
+          (pIdStr && pIdStr.replace(/[^a-z0-9]/gi, '') === inputLower.replace(/[^a-z0-9]/gi, '')) ||
+          idStr === inputClean ||
+          (pEmail && pEmail === inputLower) ||
+          (cleanDigits.length >= 7 && pContact === cleanDigits) ||
+          (pName && pName === inputLower)
+        );
+      }) : null;
+
+      if (matchPat) {
+        if (matchPat.is_active === false) {
+          const msg = 'Patient file is currently inactive.';
+          setInactivityMessage(msg);
+          alert(msg);
+          return;
+        }
+        if (matchPat.password && String(matchPat.password).trim() !== String(passwordInput).trim()) {
+          const msg = 'Invalid password for Patient account.';
+          setErrorMessage(msg);
+          alert(msg);
+          return;
+        }
+
+        const finalUser = {
+          id: matchPat.id,
+          patient_id: matchPat.patient_id || matchPat.uhid || `PAT-${matchPat.id}`,
+          name: matchPat.name || 'Patient',
+          email: matchPat.email || `${matchPat.patient_id || 'patient'}@hospital.com`,
+          role: 'Patient',
+          rawRole: 'Patient',
+          hospital: typeof matchPat.hospital === 'object' ? matchPat.hospital?.id : matchPat.hospital,
+          is_active: true
+        };
+
+        alert(`Welcome, ${finalUser.name}!`);
+        if (setIsLoggedIn) {
+          setIsLoggedIn(finalUser);
+        }
+        return;
+      }
+
+      // If no match found anywhere
+      if (response && response.status === 403) {
+        const msg = data?.message || data?.detail || 'Your account is deactivated. Please contact your administrator.';
+        setInactivityMessage(msg);
+        alert(msg);
+      } else if (response && response.status === 401) {
+        const msg = data?.message || data?.detail || 'Invalid ID / Email or password. Please verify your credentials.';
+        setErrorMessage(msg);
+        alert(msg);
       } else {
-        setErrorMessage('Invalid email or password. Please verify your credentials.');
-        alert('Error: Invalid email or password.');
+        const err = data?.message || data?.detail || data?.error || `No registered account found for "${emailInput}". Please check your ID or Email.`;
+        setErrorMessage(err);
+        alert(err);
       }
     } catch (error) {
-      console.error('Login error:', error);
-      setErrorMessage('Unable to connect to authentication server. Please verify backend is running.');
-      alert('Unable to connect to authentication server. Please verify backend is running.');
+      console.error('Login connection error:', error);
+      const err = error.message || 'Unable to connect to authentication server. Please ensure backend is running.';
+      setErrorMessage(err);
+      alert(err);
     } finally {
       setLoading(false);
     }
@@ -375,6 +424,18 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
   return (
     <div className="min-h-screen flex items-center justify-center p-3 sm:p-4 bg-slate-100 w-full overflow-x-hidden">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl shadow-slate-300/40 border border-slate-200/90 p-5 sm:p-8">
+        <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+          <button
+            type="button"
+            onClick={() => setCurrentPage && setCurrentPage('home')}
+            className="text-xs font-semibold text-teal-700 hover:text-teal-900 flex items-center gap-1 cursor-pointer transition"
+          >
+            <span>&larr;</span>
+            <span>Back to Hospital Home</span>
+          </button>
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Portal Access</span>
+        </div>
+
         <div className="text-center mb-6 sm:mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-teal-500 to-blue-600 text-white mb-3 shadow-md">
             <svg className="w-6 h-6 sm:w-7 sm:h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -403,8 +464,8 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
         {/* ERROR MESSAGE ALERT */}
         {errorMessage && (
           <div className="mb-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center justify-between shadow-xs">
-            <span>{errorMessage}</span>
-            <button type="button" onClick={() => setErrorMessage('')} className="font-bold cursor-pointer text-amber-900">✕</button>
+            <span className="whitespace-pre-line">{errorMessage}</span>
+            <button type="button" onClick={() => setErrorMessage('')} className="font-bold cursor-pointer text-amber-900 ml-2">✕</button>
           </div>
         )}
 
@@ -414,11 +475,11 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
               Email Address
             </label>
             <input
-              type="email"
+              type="text"
               name="email"
               value={formData.email}
               onChange={handleChange}
-              placeholder="name@hospital.com"
+              placeholder="Enter Your Email"
               required
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150"
             />
@@ -439,15 +500,35 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
                 </button>
               )}
             </div>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              placeholder="••••••••"
-              required
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="••••••••"
+                required
+                className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(prev => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer p-1"
+                title={showPassword ? "Hide password" : "Show password"}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <svg className="w-4 h-4 sm:w-4.5 sm:h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 sm:w-4.5 sm:h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
 
           <button

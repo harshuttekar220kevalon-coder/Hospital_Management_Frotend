@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
+const getAssignedNurseForPatientBed = (bedNumber, nursesList = [], hospitalId = null) => {
+  if (!nursesList || !Array.isArray(nursesList) || nursesList.length === 0) {
+    return { nurseId: null, nurseName: '' };
+  }
+  const hospNurses = hospitalId
+    ? nursesList.filter(n => Number(typeof n.hospital === 'object' ? n.hospital?.id : n.hospital) === Number(hospitalId))
+    : nursesList;
+  const activeNurses = hospNurses.length > 0 ? hospNurses : nursesList;
+  if (activeNurses.length === 0) return { nurseId: null, nurseName: '' };
+  const first = activeNurses[0];
+  return { nurseId: first.id, nurseName: first.name };
+};
+
 const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, setCurrentPage }) => {
   const [patientData, setPatientData] = useState(() => {
     if (selectedPatient) return selectedPatient;
@@ -297,8 +310,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
 
       if (response && response.ok) {
         const updated = await response.json();
-        const floorInfo = parsedBedNum ? `Floor ${Math.floor((parsedBedNum - 1) / 100) + 1}` : 'Not Assigned';
-        alert(`Patient record updated successfully!\n${parsedBedNum ? `Bed: #${parsedBedNum} (${floorInfo})\nAssigned Nurse: ${finalNurseName || 'Assigned'}` : 'Bed: Not Assigned'}`);
+        alert(updated.message || 'Patient record updated successfully.');
         setPatientData(updated);
         if (setSelectedPatient) setSelectedPatient(updated);
         localStorage.setItem('selectedPatient', JSON.stringify(updated));
@@ -306,11 +318,17 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
         setIsEditModalOpen(false);
       } else {
         const errorData = response ? await response.json().catch(() => ({})) : {};
-        alert('Failed to update patient: ' + JSON.stringify(errorData));
+        let errMsg = errorData.message || errorData.detail || errorData.error;
+        if (!errMsg && typeof errorData === 'object') {
+          errMsg = Object.entries(errorData)
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? JSON.stringify(v) : v)}`)
+            .join('\n');
+        }
+        alert(errMsg || 'Failed to update patient record.');
       }
     } catch (err) {
       console.error('Error updating patient:', err);
-      alert('Network error while updating patient details.');
+      alert(err.message || 'Network error while updating patient record.');
     }
   };
 
@@ -336,16 +354,24 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
 
       if (response.ok) {
         const updated = await response.json();
-        alert('Patient status updated successfully in database.');
+        alert(updated.message || `Patient status updated to ${statusUpdateValue} successfully.`);
         setPatientData(updated);
         if (setSelectedPatient) setSelectedPatient(updated);
         localStorage.setItem('selectedPatient', JSON.stringify(updated));
         setIsStatusModalOpen(false);
       } else {
-        alert('Failed to update status.');
+        const errData = await response.json().catch(() => ({}));
+        let errMsg = errData.message || errData.detail || errData.error;
+        if (!errMsg && typeof errData === 'object') {
+          errMsg = Object.entries(errData)
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? JSON.stringify(v) : v)}`)
+            .join('\n');
+        }
+        alert(errMsg || 'Failed to update patient clinical status.');
       }
     } catch (err) {
       console.error('Error updating status:', err);
+      alert(err.message || 'Network error while updating clinical status.');
     }
   };
 
@@ -357,16 +383,17 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
       }).catch(() => null);
 
       if (response && (response.ok || response.status === 204)) {
-        alert('Patient record removed successfully.');
+        const resData = response.status !== 204 ? await response.json().catch(() => ({})) : {};
+        alert(resData?.message || `Patient ${activePatient.name} removed successfully.`);
         localStorage.removeItem('selectedPatient');
         if (setSelectedPatient) setSelectedPatient(null);
         if (setCurrentPage) setCurrentPage('super_admin_patients');
       } else {
-        alert('Failed to delete patient record.');
+        alert('Failed to remove patient record.');
       }
     } catch (err) {
       console.error('Error deleting patient:', err);
-      alert('Network error while deleting patient.');
+      alert(err.message || 'Network error while deleting patient file.');
     }
   };
 

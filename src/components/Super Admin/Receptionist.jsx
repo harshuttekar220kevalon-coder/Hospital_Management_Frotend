@@ -170,16 +170,22 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
       const data = await response.json();
 
       if (response.ok) {
-        const createdId = data.receptionist_id || generatedRecId;
-        alert(`Receptionist registered successfully!\nReceptionist ID: ${createdId}`);
+        const successMsg = data.message || `Receptionist ${formData.name || 'member'} registered successfully!`;
+        alert(successMsg);
         setIsAddModalOpen(false);
         fetchReceptionists();
       } else {
-        alert('Error: ' + JSON.stringify(data));
+        let errMsg = data.message || data.detail || data.error;
+        if (!errMsg && typeof data === 'object') {
+          errMsg = Object.entries(data)
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? JSON.stringify(v) : v)}`)
+            .join('\n');
+        }
+        alert(errMsg || 'Failed to register receptionist.');
       }
     } catch (error) {
       console.error('Error creating receptionist:', error);
-      alert('Network error while saving receptionist profile.');
+      alert(error.message || 'Error registering receptionist profile.');
     }
   };
 

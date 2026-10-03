@@ -1,6 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
+const getAssignedNurseForPatientBed = (bedNumber, nursesList = [], hospitalId = null) => {
+  if (!nursesList || !Array.isArray(nursesList) || nursesList.length === 0) {
+    return { nurseId: null, nurseName: '' };
+  }
+  const hospNurses = hospitalId
+    ? nursesList.filter(n => Number(typeof n.hospital === 'object' ? n.hospital?.id : n.hospital) === Number(hospitalId))
+    : nursesList;
+  const activeNurses = hospNurses.length > 0 ? hospNurses : nursesList;
+  if (activeNurses.length === 0) return { nurseId: null, nurseName: '' };
+  const first = activeNurses[0];
+  return { nurseId: first.id, nurseName: first.name };
+};
+
+const getFloorNumber = (bed) => {
+  if (!bed) return null;
+  const num = Number(bed);
+  if (isNaN(num) || num <= 0) return null;
+  return Math.floor((num - 1) / 100) + 1;
+};
+
+const getFloorBedRange = (floor) => {
+  if (!floor || isNaN(Number(floor))) {
+    return { label: 'Beds 1 - 100', start: 1, end: 100 };
+  }
+  const f = Number(floor);
+  const start = (f - 1) * 100 + 1;
+  const end = f * 100;
+  return { label: `Beds ${start} - ${end}`, start, end };
+};
+
 const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSelectedHospital }) => {
   const [patients, setPatients] = useState([]);
   const [hospitalData, setHospitalData] = useState(null);
@@ -219,7 +249,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
   const handleCreatePatient = async (e) => {
     e.preventDefault();
     if (!addFormData.name.trim()) {
-      alert('Patient Name is required.');
+      alert('Registration Incomplete:\nPlease enter the patient\'s full legal name before submitting.');
       return;
     }
 
@@ -295,18 +325,24 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
       if (response && response.ok) {
         const resData = await response.json().catch(() => ({}));
         const createdId = resData.patient_id || generatedDocPatId;
-        const floorInfo = parsedBedNum ? `Floor ${Math.floor((parsedBedNum - 1) / 100) + 1}` : 'Not Assigned';
-        alert(`Patient registered successfully with payment details!\nPatient ID: ${createdId}\n${parsedBedNum ? `Bed: #${parsedBedNum} (${floorInfo})\nAssigned Nurse: ${finalNurseName || 'Assigned'}` : 'Bed: Not Assigned'}`);
+        const successMsg = resData.message || `Patient ${addFormData.name} registered successfully! (UHID: ${createdId})`;
+        alert(successMsg);
         setAddSelectedFile(null);
         setIsAddModalOpen(false);
         fetchAdminPatientsAndDoctors();
       } else {
-        const data = response ? await response.json().catch(() => ({})) : {};
-        alert('Failed to register patient: ' + JSON.stringify(data));
+        const errorData = response ? await response.json().catch(() => ({})) : {};
+        let errMsg = errorData.message || errorData.detail || errorData.error;
+        if (!errMsg && typeof errorData === 'object') {
+          errMsg = Object.entries(errorData)
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? JSON.stringify(v) : v)}`)
+            .join('\n');
+        }
+        alert(errMsg || 'Failed to register patient in hospital database.');
       }
     } catch (error) {
       console.error('Error creating patient:', error);
-      alert('Network error while registering patient.');
+      alert(error.message || 'Error registering patient with hospital network.');
     }
   };
 
@@ -678,29 +714,13 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                          <select
-                            value={statusOptions.includes(pat.status) ? pat.status : ''}
-                            onChange={(e) => handleUpdatePatientStatus(pat, e.target.value)}
-                            disabled={updatingPatientId === pat.id}
-                            className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50"
-                          >
-                            <option value="" disabled>- Select an option -</option>
-                            <option value="Pending">Pending</option>
-                            <option value="Assigned">Assigned</option>
-                            <option value="Admitted">Admitted</option>
-                            <option value="Discharged">Discharged</option>
-                            <option value="Cancelled">Cancelled</option>
-                          </select>
-
-                          <button
-                            type="button"
-                            onClick={() => handleViewPatientDetails(pat)}
-                            className="px-2.5 py-1 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white font-bold text-xs transition cursor-pointer border border-teal-200 inline-flex items-center justify-center gap-1"
-                          >
-                            Details &rarr;
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleViewPatientDetails(pat)}
+                          className="px-3.5 py-1.5 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white font-bold text-xs transition cursor-pointer border border-teal-200 inline-flex items-center justify-center gap-1 shadow-2xs"
+                        >
+                          Details &rarr;
+                        </button>
                       </td>
                     </tr>
                   );
@@ -940,11 +960,6 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                         <span className="text-slate-600 font-mono">
                           Floor Range: {getFloorBedRange(getFloorNumber(currentBed)).label}
                         </span>
-                        {autoNurseInfo.isRedistributed && (
-                          <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded font-bold text-[10px]">
-                            {autoNurseInfo.redistributionReason}
-                          </span>
-                        )}
                       </div>
                     )}
                   </div>
