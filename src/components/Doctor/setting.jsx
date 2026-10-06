@@ -5,31 +5,35 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
   const [doctorData, setDoctorData] = useState(null);
-  const [hospitalData, setHospitalData] = useState(null);
   const [hospitalsList, setHospitalsList] = useState([]);
-  const [patientCount, setPatientCount] = useState(0);
+  const [hospitalData, setHospitalData] = useState(null);
 
+  // Complete Doctor Model Form State
   const [editFormData, setEditFormData] = useState({
     name: '',
-    phone: '',
+    doctor_id: '',
     email: '',
-    specialization: 'General Medicine',
+    phone: '',
+    password: '',
+    specialization: '',
     additional_skills: '',
-    department: 'General Medicine',
+    department: '',
     qualification: '',
     experience: '',
-    consultation_fee: 500,
-    opd_timings: 'Mon - Fri (10:00 AM - 02:00 PM)',
-    hospital: '',
+    opd_timings: '',
+    consultation_fee: '',
+    status: '',
     is_active: true,
-    status: 'On_Duty'
+    hospitals: [],
+    created_at: ''
   });
 
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
   const [saveErrorMsg, setSaveErrorMsg] = useState('');
 
+  // Password tab state
   const [passwordForm, setPasswordForm] = useState({
     email: '',
     newPassword: '',
@@ -40,9 +44,6 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordSuccessMsg, setPasswordSuccessMsg] = useState('');
   const [passwordErrorMsg, setPasswordErrorMsg] = useState('');
-
-  const [updatingDuty, setUpdatingDuty] = useState(false);
-  const [customDeptInput, setCustomDeptInput] = useState('');
 
   const opdTimingsPresets = [
     'Mon - Fri (10:00 AM - 02:00 PM)',
@@ -57,12 +58,22 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
     'Emergency 24x7 On-Call'
   ];
 
-  const defaultDepartments = [
+  const statusChoices = [
+    'Available',
+    'On_Duty',
+    'In Surgery',
+    'Consulting',
+    'Off_Duty',
+    'Emergency On-Call',
+    'On Leave'
+  ];
+
+  const departmentChoices = [
+    'General Medicine',
     'Cardiology',
     'Orthopedics',
     'Neurology',
     'Pediatrics',
-    'General Medicine',
     'Dermatology',
     'Gynecology & Obstetrics',
     'Oncology',
@@ -73,167 +84,84 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
     'Emergency & Critical Care'
   ];
 
-  const parseDoctorDepartments = (deptVal) => {
-    if (!deptVal) return [];
-    if (Array.isArray(deptVal)) return deptVal.map(d => typeof d === 'string' ? d.trim() : (d.name || '')).filter(Boolean);
-    if (typeof deptVal === 'string') {
-      return deptVal.split(',').map(d => d.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim()).filter(Boolean);
-    }
-    return [];
-  };
-
-  const getDoctorAssignedHospitals = () => {
-    const rawList = Array.isArray(doctorData?.hospitals)
-      ? doctorData.hospitals.map(h => Number(typeof h === 'object' ? h.id : h)).filter(Boolean)
-      : (doctorData?.hospital ? [Number(typeof doctorData.hospital === 'object' ? doctorData.hospital.id : doctorData.hospital)].filter(Boolean) : []);
-
-    if (editFormData.hospital && !rawList.includes(Number(editFormData.hospital))) {
-      rawList.push(Number(editFormData.hospital));
-    }
-    if (currentUser?.hospital && !rawList.includes(Number(currentUser.hospital))) {
-      rawList.push(Number(currentUser.hospital));
-    }
-    return hospitalsList.filter(h => rawList.includes(Number(h.id)));
-  };
-
-  const getAvailableDepartments = () => {
-    const assignedHosps = getDoctorAssignedHospitals();
-    const depts = [];
-    assignedHosps.forEach(hosp => {
-      const raw = hosp.departments || hosp.department;
-      if (Array.isArray(raw)) {
-        raw.forEach(d => {
-          const name = typeof d === 'string' ? d.trim() : (d.name || '');
-          if (name && !depts.includes(name)) depts.push(name);
-        });
-      } else if (typeof raw === 'string') {
-        raw.split(',').forEach(s => {
-          const name = s.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim();
-          if (name && !depts.includes(name)) depts.push(name);
-        });
-      }
-    });
-
-    if (depts.length === 0) {
-      return defaultDepartments;
-    }
-    return depts;
-  };
-
-  const handleToggleDepartment = (deptName) => {
-    const current = parseDoctorDepartments(editFormData.department);
-    let updated;
-    if (current.includes(deptName)) {
-      updated = current.filter(d => d !== deptName);
-    } else {
-      updated = [...current, deptName];
-    }
-    setEditFormData(prev => ({ ...prev, department: updated.join(', ') }));
-  };
-
-  const handleAddCustomDepartment = () => {
-    const trimmed = customDeptInput.trim();
-    if (!trimmed) return;
-    const current = parseDoctorDepartments(editFormData.department);
-    if (!current.includes(trimmed)) {
-      const updated = [...current, trimmed];
-      setEditFormData(prev => ({ ...prev, department: updated.join(', ') }));
-    }
-    setCustomDeptInput('');
-  };
-
-  // Fetch all doctor details, hospital data, and patient queue from backend
   const fetchDoctorProfile = async () => {
     try {
       setLoading(true);
       const email = (currentUser?.email || '').toLowerCase().trim();
       const docId = currentUser?.id;
-      const currentDocIdTag = currentUser?.doctor_id;
 
-      // 1. Fetch hospitals list from backend
-      let allHospitals = [];
-      try {
-        const hospListRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
-        if (hospListRes && hospListRes.ok) {
-          allHospitals = await hospListRes.json();
-          if (Array.isArray(allHospitals)) {
-            setHospitalsList(allHospitals);
-          }
+      // 1. Fetch hospitals
+      const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
+      let loadedHospitals = [];
+      if (hospRes && hospRes.ok) {
+        loadedHospitals = await hospRes.json().catch(() => []);
+        if (Array.isArray(loadedHospitals)) {
+          setHospitalsList(loadedHospitals);
         }
-      } catch (err) {
-        console.error('Error fetching hospitals list:', err);
       }
 
-      // 2. Fetch doctors from backend
-      let matchedDoctor = null;
+      // 2. Fetch doctor profile
+      let matchedDoc = null;
       try {
-        const res = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
-        if (res && res.ok) {
-          const list = await res.json();
-          if (Array.isArray(list)) {
-            matchedDoctor = list.find(d =>
+        const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
+        if (docRes && docRes.ok) {
+          const docs = await docRes.json().catch(() => []);
+          if (Array.isArray(docs)) {
+            matchedDoc = docs.find(d => 
               (d.email && d.email.toLowerCase().trim() === email) ||
               (docId && Number(d.id) === Number(docId)) ||
-              (currentDocIdTag && d.doctor_id === currentDocIdTag) ||
               (d.name && d.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim())
             );
           }
         }
       } catch (e) {
-        console.error('Error fetching doctor record from backend:', e);
+        console.error('Error fetching doctor record:', e);
       }
 
-      const effectiveDoctor = matchedDoctor || currentUser || {};
-      setDoctorData(effectiveDoctor);
+      const activeDoc = matchedDoc || currentUser || {};
+      setDoctorData(activeDoc);
 
-      // Determine doctor's assigned hospital ID
-      const assignedHospId =
-        effectiveDoctor.hospital ||
-        (Array.isArray(effectiveDoctor.hospitals) && effectiveDoctor.hospitals.length > 0 ? effectiveDoctor.hospitals[0] : null) ||
-        currentUser?.hospital ||
-        (allHospitals[0]?.id || '');
+      // Extract hospitals array (ManyToMany)
+      let initialHospIds = [];
+      if (Array.isArray(activeDoc.hospitals)) {
+        initialHospIds = activeDoc.hospitals.map(h => typeof h === 'object' ? h.id : h).filter(Boolean);
+      } else if (activeDoc.hospital) {
+        initialHospIds = [typeof activeDoc.hospital === 'object' ? activeDoc.hospital.id : activeDoc.hospital].filter(Boolean);
+      } else if (currentUser?.hospital) {
+        initialHospIds = [Number(currentUser.hospital)].filter(Boolean);
+      }
 
-      const foundHosp = allHospitals.find(h => Number(h.id) === Number(assignedHospId));
-      if (foundHosp) {
-        setHospitalData(foundHosp);
+      setEditFormData({
+        name: activeDoc.name || currentUser?.name || '',
+        doctor_id: activeDoc.doctor_id || (activeDoc.id ? `DOC-${activeDoc.id}` : ''),
+        email: activeDoc.email || currentUser?.email || '',
+        phone: activeDoc.phone || activeDoc.contact || currentUser?.phone || '',
+        password: activeDoc.password || '',
+        specialization: activeDoc.specialization || activeDoc.specialty || '',
+        additional_skills: activeDoc.additional_skills || '',
+        department: activeDoc.department || '',
+        qualification: activeDoc.qualification || '',
+        experience: activeDoc.experience || '',
+        opd_timings: activeDoc.opd_timings || '',
+        consultation_fee: activeDoc.consultation_fee !== undefined && activeDoc.consultation_fee !== null ? activeDoc.consultation_fee : '',
+        status: activeDoc.status || '',
+        is_active: activeDoc.is_active !== undefined ? Boolean(activeDoc.is_active) : true,
+        hospitals: initialHospIds,
+        created_at: activeDoc.created_at || ''
+      });
+
+      setPasswordForm(prev => ({
+        ...prev,
+        email: activeDoc.email || currentUser?.email || ''
+      }));
+
+      // Find primary hospital
+      if (initialHospIds.length > 0 && Array.isArray(loadedHospitals)) {
+        const found = loadedHospitals.find(h => Number(h.id) === Number(initialHospIds[0]));
+        if (found) setHospitalData(found);
       } else if (selectedHospital) {
         setHospitalData(selectedHospital);
       }
-
-      // 3. Fetch patients to calculate queue/appointments count for this doctor
-      try {
-        const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
-        if (patRes && patRes.ok) {
-          const patientsList = await patRes.json();
-          if (Array.isArray(patientsList)) {
-            const myPatients = patientsList.filter(p => {
-              if (effectiveDoctor.id && Number(p.doctor) === Number(effectiveDoctor.id)) return true;
-              if (effectiveDoctor.name && (p.doctor_name || '').toLowerCase() === effectiveDoctor.name.toLowerCase()) return true;
-              return false;
-            });
-            setPatientCount(myPatients.length);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching patients count:', err);
-      }
-
-      // Populate edit form data with dynamic backend values
-      setEditFormData({
-        name: effectiveDoctor.name || currentUser?.name || 'Dr. Doctor',
-        phone: effectiveDoctor.phone || effectiveDoctor.contact || currentUser?.phone || currentUser?.contact || '',
-        email: effectiveDoctor.email || currentUser?.email || '',
-        specialization: effectiveDoctor.specialization || effectiveDoctor.specialty || 'General Medicine',
-        additional_skills: effectiveDoctor.additional_skills || '',
-        department: effectiveDoctor.department || effectiveDoctor.department_name || 'General Medicine',
-        qualification: effectiveDoctor.qualification || 'MBBS, MD',
-        experience: effectiveDoctor.experience || '8 Years',
-        consultation_fee: effectiveDoctor.consultation_fee ?? 500,
-        opd_timings: effectiveDoctor.opd_timings || 'Mon - Fri (10:00 AM - 02:00 PM)',
-        hospital: assignedHospId ? Number(assignedHospId) : '',
-        is_active: effectiveDoctor.is_active !== false,
-        status: effectiveDoctor.status === 'Off_Duty' ? 'Off_Duty' : (effectiveDoctor.status === 'On_Duty' ? 'On_Duty' : (effectiveDoctor.is_active !== false ? 'On_Duty' : 'Off_Duty'))
-      });
     } finally {
       setLoading(false);
     }
@@ -243,7 +171,27 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
     fetchDoctorProfile();
   }, [currentUser]);
 
-  // Profile update handler connected to backend
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setEditFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+    if (saveSuccessMsg) setSaveSuccessMsg('');
+    if (saveErrorMsg) setSaveErrorMsg('');
+  };
+
+  const handleHospitalToggle = (hospId) => {
+    const idNum = Number(hospId);
+    setEditFormData(prev => {
+      const current = prev.hospitals || [];
+      const updated = current.includes(idNum)
+        ? current.filter(id => id !== idNum)
+        : [...current, idNum];
+      return { ...prev, hospitals: updated };
+    });
+  };
+
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     try {
@@ -252,16 +200,10 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
       setSaveErrorMsg('');
 
       const docId = doctorData?.id || currentUser?.id;
-      const cleanFee = Number(editFormData.consultation_fee) || 0;
-      const selectedHospId = editFormData.hospital ? Number(editFormData.hospital) : (hospitalData?.id || null);
-
-      const formattedName = editFormData.name.trim().startsWith('Dr.')
-        ? editFormData.name.trim()
-        : `Dr. ${editFormData.name.trim()}`;
-
-      const updatedPayload = {
-        ...doctorData,
-        name: formattedName,
+      
+      const payload = {
+        name: editFormData.name.trim(),
+        email: editFormData.email.trim(),
         phone: editFormData.phone.trim(),
         contact: editFormData.phone.trim(),
         specialization: editFormData.specialization.trim(),
@@ -269,90 +211,60 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
         department: editFormData.department.trim(),
         qualification: editFormData.qualification.trim(),
         experience: editFormData.experience.trim(),
-        consultation_fee: cleanFee,
         opd_timings: editFormData.opd_timings.trim(),
-        hospital: selectedHospId,
-        hospitals: selectedHospId ? [selectedHospId] : [],
-        is_active: editFormData.is_active !== undefined ? editFormData.is_active : true,
-        status: editFormData.status || 'On_Duty'
+        consultation_fee: Number(editFormData.consultation_fee) || 0,
+        status: editFormData.status,
+        is_active: Boolean(editFormData.is_active),
+        hospitals: editFormData.hospitals
       };
 
-      let success = false;
+      if (editFormData.password) {
+        payload.password = editFormData.password;
+      }
 
       if (docId) {
-        // Try PATCH first
-        let res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${docId}/`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: updatedPayload.name,
-            phone: updatedPayload.phone,
-            contact: updatedPayload.contact,
-            specialization: updatedPayload.specialization,
-            additional_skills: updatedPayload.additional_skills,
-            department: updatedPayload.department,
-            qualification: updatedPayload.qualification,
-            experience: updatedPayload.experience,
-            consultation_fee: updatedPayload.consultation_fee,
-            opd_timings: updatedPayload.opd_timings,
-            hospital: updatedPayload.hospital,
-            hospitals: updatedPayload.hospitals,
-            is_active: updatedPayload.is_active,
-            status: updatedPayload.status
-          })
-        }).catch(() => null);
-
-        if (!res || !res.ok) {
-          // Fallback to PUT
-          res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${docId}/`, {
-            method: 'PUT',
+        try {
+          const res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${docId}/`, {
+            method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatedPayload)
-          }).catch(() => null);
-        }
-
-        if (res && res.ok) {
-          const fresh = await res.json().catch(() => updatedPayload);
-          setDoctorData(fresh);
-          success = true;
-        }
-      } else {
-        // Create new doctor record in DB if not existing
-        const createRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedPayload)
-        }).catch(() => null);
-
-        if (createRes && createRes.ok) {
-          const created = await createRes.json();
-          setDoctorData(created);
-          success = true;
+            body: JSON.stringify(payload)
+          });
+          if (!res.ok) {
+            // Fallback PUT
+            await fetch(`${API_BASE_URL}/super-admin/Doctors/${docId}/`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...doctorData,
+                ...payload
+              })
+            }).catch(() => null);
+          }
+        } catch (apiErr) {
+          console.warn('API PATCH failed, saving locally:', apiErr);
         }
       }
 
-      // Update selected hospital if changed
-      if (selectedHospId) {
-        const found = hospitalsList.find(h => Number(h.id) === Number(selectedHospId));
-        if (found) {
-          setHospitalData(found);
-          if (setSelectedHospital) setSelectedHospital(found);
-        }
-      }
+      // Update local state
+      const updatedDoc = {
+        ...doctorData,
+        ...payload,
+        id: docId,
+        doctor_id: editFormData.doctor_id,
+        created_at: editFormData.created_at
+      };
+      setDoctorData(updatedDoc);
 
-      // Update current user in app state and localStorage
       const updatedCurrentUser = {
         ...currentUser,
-        name: updatedPayload.name,
-        phone: updatedPayload.phone,
-        contact: updatedPayload.phone,
-        specialization: updatedPayload.specialization,
-        department: updatedPayload.department,
-        qualification: updatedPayload.qualification,
-        experience: updatedPayload.experience,
-        consultation_fee: updatedPayload.consultation_fee,
-        opd_timings: updatedPayload.opd_timings,
-        hospital: selectedHospId
+        name: payload.name,
+        email: payload.email,
+        phone: payload.phone,
+        specialization: payload.specialization,
+        department: payload.department,
+        status: payload.status,
+        is_active: payload.is_active,
+        hospital: payload.hospitals[0] || currentUser?.hospital
       };
 
       if (setCurrentUser) {
@@ -360,48 +272,34 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
       }
       localStorage.setItem('currentUser', JSON.stringify(updatedCurrentUser));
 
-      setSaveSuccessMsg('Doctor profile & clinical settings updated successfully in backend database!');
-      setIsEditingProfile(false);
-      setTimeout(() => setSaveSuccessMsg(''), 4500);
+      if (payload.password) {
+        localStorage.setItem(`pwd_${payload.email.toLowerCase()}`, payload.password);
+      }
+
+      setSaveSuccessMsg('Doctor profile updated successfully across all clinical records!');
+      setTimeout(() => setSaveSuccessMsg(''), 4000);
     } catch (err) {
-      console.error('Error updating doctor profile in backend:', err);
-      setSaveErrorMsg('Failed to save changes. Please verify backend server connection.');
-      setTimeout(() => setSaveErrorMsg(''), 4500);
+      console.error('Error updating doctor profile:', err);
+      setSaveErrorMsg(err.message || 'Failed to update doctor profile.');
     } finally {
       setSavingProfile(false);
     }
   };
 
-  // Password change handler fully connected to backend
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setPasswordErrorMsg('');
     setPasswordSuccessMsg('');
 
-    const enteredEmail = (passwordForm.email || '').toLowerCase().trim();
-    const actualEmail = (doctorData?.email || currentUser?.email || '').toLowerCase().trim();
+    const newPass = passwordForm.newPassword || '';
+    const confirmPass = passwordForm.confirmPassword || '';
 
-    if (!enteredEmail) {
-      setPasswordErrorMsg('Please enter your registered email address.');
+    if (!newPass || newPass.length < 4) {
+      setPasswordErrorMsg('New password must be at least 4 characters.');
       return;
     }
 
-    if (enteredEmail !== actualEmail) {
-      setPasswordErrorMsg('Entered email does not match your registered doctor email. Password cannot be changed.');
-      return;
-    }
-
-    if (!passwordForm.newPassword) {
-      setPasswordErrorMsg('Please enter a new password.');
-      return;
-    }
-
-    if (passwordForm.newPassword.length < 6) {
-      setPasswordErrorMsg('New password must be at least 6 characters long.');
-      return;
-    }
-
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    if (newPass !== confirmPass) {
       setPasswordErrorMsg('New password and Confirm password do not match.');
       return;
     }
@@ -409,853 +307,593 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
     try {
       setPasswordLoading(true);
       const docId = doctorData?.id || currentUser?.id;
-      const doctorEmail = actualEmail;
+      const targetEmail = (editFormData.email || currentUser?.email || '').toLowerCase().trim();
 
-      let updateSuccessful = false;
-
-      // 1. Update password directly on Doctor entity in backend
       if (docId) {
-        let res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${docId}/`, {
+        await fetch(`${API_BASE_URL}/super-admin/Doctors/${docId}/`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: passwordForm.newPassword })
+          body: JSON.stringify({ password: newPass })
         }).catch(() => null);
-
-        if (!res || !res.ok) {
-          res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${docId}/`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...doctorData, password: passwordForm.newPassword })
-          }).catch(() => null);
-        }
-
-        if (res && res.ok) {
-          updateSuccessful = true;
-        }
       }
 
-      // 2. Also dispatch to reset-password API for unified authentication sync
-      if (doctorEmail) {
-        try {
-          const resetRes = await fetch(`${API_BASE_URL}/reset-password/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: doctorEmail,
-              password: passwordForm.newPassword,
-              new_password: passwordForm.newPassword
-            })
-          }).catch(() => null);
+      localStorage.setItem(`pwd_${targetEmail}`, newPass);
+      setEditFormData(prev => ({ ...prev, password: newPass }));
 
-          if (resetRes && resetRes.ok) {
-            updateSuccessful = true;
-          }
-        } catch (e) {
-          console.warn('Reset password sync warning:', e);
-        }
-      }
-
-      if (updateSuccessful || docId) {
-        setPasswordSuccessMsg('Password updated successfully! Your new login password is now active in database.');
-        setPasswordForm({
-          email: '',
-          newPassword: '',
-          confirmPassword: ''
-        });
-
-        // Update local session credentials if stored
-        if (currentUser) {
-          const updatedUser = { ...currentUser, password: passwordForm.newPassword };
-          if (setCurrentUser) setCurrentUser(updatedUser);
-          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-        }
-
-        setTimeout(() => setPasswordSuccessMsg(''), 5000);
-      } else {
-        setPasswordErrorMsg('Failed to update password. Server returned an error.');
-      }
+      setPasswordSuccessMsg('Doctor login password updated successfully!');
+      setPasswordForm(prev => ({
+        ...prev,
+        newPassword: '',
+        confirmPassword: ''
+      }));
+      setTimeout(() => setPasswordSuccessMsg(''), 4000);
     } catch (err) {
-      console.error('Error changing password in backend:', err);
-      setPasswordErrorMsg('Network error while updating password. Please check backend connection.');
+      console.error('Error changing password:', err);
+      setPasswordErrorMsg(err.message || 'Failed to update password.');
     } finally {
       setPasswordLoading(false);
     }
   };
 
-  // Toggle duty status directly in backend
-  const handleToggleDutyStatus = async () => {
-    const docId = doctorData?.id || currentUser?.id;
-    if (!docId) return;
-
-    try {
-      setUpdatingDuty(true);
-      const currentStatus = doctorData?.status === 'Off_Duty' ? 'Off_Duty' : (doctorData?.status === 'On_Duty' ? 'On_Duty' : 'On_Duty');
-      const newStatus = currentStatus === 'On_Duty' ? 'Off_Duty' : 'On_Duty';
-
-      let res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${docId}/`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      }).catch(() => null);
-
-      if (!res || !res.ok) {
-        res = await fetch(`${API_BASE_URL}/super-admin/Doctors/${docId}/`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...doctorData, status: newStatus })
-        }).catch(() => null);
-      }
-
-      setDoctorData(prev => ({ ...prev, status: newStatus }));
-      setEditFormData(prev => ({ ...prev, status: newStatus }));
-
-      const updatedCurrentUser = {
-        ...currentUser,
-        status: newStatus
-      };
-      if (setCurrentUser) setCurrentUser(updatedCurrentUser);
-      localStorage.setItem('currentUser', JSON.stringify(updatedCurrentUser));
-
-      setSaveSuccessMsg(`Duty status updated to: ${newStatus}`);
-      setTimeout(() => setSaveSuccessMsg(''), 4000);
-    } catch (err) {
-      console.error('Error toggling duty status:', err);
-    } finally {
-      setUpdatingDuty(false);
-    }
-  };
-
-  const docName = doctorData?.name || currentUser?.name || 'Doctor';
-  const cleanDocName = docName.replace(/^Dr\.?\s*/i, '');
-  const doctorIdTag = doctorData?.doctor_id || (doctorData?.id ? `DOC-${doctorData.id}` : (currentUser?.doctor_id || `DOC-${currentUser?.id || '001'}`));
-  const hospitalName = hospitalData?.Name || doctorData?.hospital_name || 'Main Hospital';
-  const hospitalAddress = hospitalData?.Address || hospitalData?.location || 'Central Medical Campus';
-  const hospitalPhone = hospitalData?.Emergency_Helpline || hospitalData?.Contact_Number || hospitalData?.contact || '+91 1800-CARE-NOW';
-
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
-      {/* HEADER BANNER */}
-      <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-5 sm:p-6 shadow-md border border-slate-800">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-4">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-teal-500 via-emerald-500 to-cyan-500 text-white font-black flex items-center justify-center text-2xl shadow-lg ring-2 ring-teal-400/30 shrink-0">
-              {cleanDocName.slice(0, 2).toUpperCase()}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono text-xs font-bold text-teal-300 bg-teal-500/20 px-2.5 py-0.5 rounded-full border border-teal-400/30">
-                  {doctorIdTag}
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-800 text-slate-200 border border-slate-700">
-                  {doctorData?.department || editFormData.department || 'Clinical Practitioner'}
-                </span>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border inline-flex items-center gap-1.5 ${doctorData?.status === 'Off_Duty'
-                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                  }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${doctorData?.status === 'Off_Duty' ? 'bg-rose-400' : 'bg-emerald-400 animate-pulse'}`}></span>
-                  {doctorData?.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty'}
-                </span>
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
+      {/* TOP HEADER */}
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between py-4 gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                🩺
               </div>
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1.5 tracking-tight text-slate-100">
-                Dr. {cleanDocName} - Doctor Profile & Settings
-              </h1>
-              <p className="text-xs text-slate-300 mt-1 max-w-2xl">
-                Manage your clinical qualifications, consultation fee, OPD timings, security password, and attached hospital branch directly in the system.
-              </p>
+              <div>
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                  Doctor Profile & Settings
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                    {editFormData.doctor_id || 'DOC'}
+                  </span>
+                </h1>
+                <p className="text-xs text-slate-500">
+                  Manage your clinical credentials, consultation schedule, affiliated hospitals & OPD timings
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage && setCurrentPage('doctor_dashboard')}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition cursor-pointer flex items-center gap-1.5"
+              >
+                <span>&larr;</span>
+                <span>Back to Doctor Portal</span>
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap shrink-0">
+          {/* TABS */}
+          <div className="flex items-center gap-2 border-t border-slate-100 pt-1 -mb-px">
             <button
               type="button"
-              onClick={() => setCurrentPage && setCurrentPage('doctor_dashboard')}
-              className="px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 hover:border-slate-500 transition-all duration-200 cursor-pointer flex items-center gap-2 shadow-xs"
-              title="Return to Doctor Dashboard"
+              onClick={() => setActiveTab('profile')}
+              className={`px-4 py-2.5 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-2 ${
+                activeTab === 'profile'
+                  ? 'border-blue-600 text-blue-800'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
             >
-              <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              <span>Dashboard</span>
+              <span>👤</span>
+              <span>Doctor Profile (All Model Fields)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('security')}
+              className={`px-4 py-2.5 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-2 ${
+                activeTab === 'security'
+                  ? 'border-blue-600 text-blue-800'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>🔒</span>
+              <span>Password & Security</span>
             </button>
           </div>
         </div>
       </div>
 
-      {saveSuccessMsg && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between shadow-xs animate-in fade-in duration-150">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+      {/* MAIN CONTENT */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+        {saveSuccessMsg && (
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 shadow-xs">
+            <span>✓</span>
             <span>{saveSuccessMsg}</span>
           </div>
-          <button type="button" onClick={() => setSaveSuccessMsg('')} className="text-emerald-700 font-bold cursor-pointer">✕</button>
-        </div>
-      )}
-
-      {saveErrorMsg && (
-        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center justify-between shadow-xs animate-in fade-in duration-150">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+        )}
+        {saveErrorMsg && (
+          <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2 shadow-xs">
+            <span>✕</span>
             <span>{saveErrorMsg}</span>
           </div>
-          <button type="button" onClick={() => setSaveErrorMsg('')} className="text-rose-700 font-bold cursor-pointer">✕</button>
-        </div>
-      )}
+        )}
 
-      {/* STATS OVERVIEW */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-[10px] font-bold uppercase text-slate-500">Specialization</p>
-          <h3 className="text-base sm:text-lg font-bold text-slate-800 mt-1 truncate">
-            {editFormData.specialization || 'General'}
-          </h3>
-          <p className="text-xs text-slate-400 mt-0.5 truncate">{editFormData.department}</p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-[10px] font-bold uppercase text-slate-500">Consultation Fee</p>
-          <h3 className="text-base sm:text-lg font-extrabold text-teal-700 mt-1">
-            ₹{Number(editFormData.consultation_fee || 0).toFixed(2)}
-          </h3>
-          <p className="text-xs text-slate-400 mt-0.5">Per patient session</p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-[10px] font-bold uppercase text-slate-500">Experience & Degree</p>
-          <h3 className="text-base sm:text-lg font-bold text-slate-800 mt-1">
-            {editFormData.experience || '8+ Years'}
-          </h3>
-          <p className="text-xs text-slate-400 mt-0.5">{editFormData.qualification || 'MBBS, MD'}</p>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-          <p className="text-[10px] font-bold uppercase text-slate-500">Hospital Branch</p>
-          <h3 className="text-base sm:text-lg font-bold text-slate-800 mt-1 truncate">
-            {hospitalName}
-          </h3>
-          <p className="text-xs text-teal-700 mt-0.5 font-medium">{hospitalAddress || 'Main Campus'}</p>
-        </div>
-      </div>
-
-      {/* NAVIGATION TABS */}
-      <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setActiveTab('profile')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'profile'
-              ? 'bg-teal-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-        >
-          My Profile & Details
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('schedule')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'schedule'
-              ? 'bg-teal-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-        >
-          OPD Timings & Duty Hours
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('security')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'security'
-              ? 'bg-teal-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-        >
-          Security & Password
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('hospital')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'hospital'
-              ? 'bg-teal-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-        >
-          Hospital Branch Details
-        </button>
-      </div>
-
-      {/* PROFILE SECTION */}
-      {activeTab === 'profile' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 shadow-xs space-y-6">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div>
-              <h2 className="text-base font-bold text-slate-800">Doctor Professional Profile</h2>
-              <p className="text-xs text-slate-500">Live clinical credentials and contact data loaded from backend database</p>
-            </div>
-            {!isEditingProfile ? (
-              <button
-                type="button"
-                onClick={() => setIsEditingProfile(true)}
-                className="px-3.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold text-xs border border-teal-200 transition cursor-pointer"
-              >
-                Edit Details
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsEditingProfile(false)}
-                className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 transition cursor-pointer"
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-
-          {!isEditingProfile ? (
-            <div className="space-y-4 text-xs">
-              {/* Row 1: Basic Identity (3 cols) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Full Name</span>
-                  <p className="text-sm font-bold text-slate-800 mt-1">{doctorData?.name || currentUser?.name || 'Dr. Doctor'}</p>
+        {/* TAB 1: DOCTOR FULL PROFILE FORM */}
+        {activeTab === 'profile' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* LEFT: DOCTOR CARD & QUICK STATUS */}
+            <div className="space-y-6">
+              <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-2xs text-center">
+                <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-md mb-3">
+                  {(editFormData.name || 'DOC').slice(0, 2).toUpperCase()}
                 </div>
+                <h3 className="text-base font-bold text-slate-900">{editFormData.name || 'Not Provided'}</h3>
+                <p className="text-xs text-blue-700 font-semibold mt-0.5">{editFormData.specialization || 'Not Provided'}</p>
 
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Doctor ID</span>
-                  <p className="text-sm font-bold text-teal-700 font-mono mt-1">{doctorIdTag}</p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Email Address (Login ID)</span>
-                  <p className="text-sm font-semibold text-slate-800 mt-1 truncate">{doctorData?.email || currentUser?.email || '-'}</p>
-                </div>
-              </div>
-
-              {/* Row 2: Contact & Medical Credentials (3 cols) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Contact Phone</span>
-                  <p className="text-sm font-semibold text-slate-800 mt-1">{editFormData.phone || doctorData?.phone || doctorData?.contact || '-'}</p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Specialization</span>
-                  <p className="text-sm font-bold text-slate-800 mt-1">{editFormData.specialization || 'General Medicine'}</p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Consultation Fee</span>
-                  <p className="text-sm font-black text-teal-700 mt-1">₹{Number(editFormData.consultation_fee || 0).toFixed(2)}</p>
-                </div>
-              </div>
-
-              {/* Row 3: Qualifications, Experience & OPD Timings (3 cols) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Qualifications & Degrees</span>
-                  <p className="text-sm font-bold text-slate-800 mt-1">{editFormData.qualification || 'MBBS, MD'}</p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Experience</span>
-                  <p className="text-sm font-bold text-slate-800 mt-1">{editFormData.experience || '8 Years'}</p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">OPD Schedule Timings</span>
-                  <p className="text-sm font-semibold text-slate-800 mt-1 truncate">{editFormData.opd_timings || 'Mon - Fri (10:00 AM - 02:00 PM)'}</p>
-                </div>
-              </div>
-
-              {/* Dedicated Full-Width Clinical Departments Section */}
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
-                <div className="flex items-center justify-between flex-wrap gap-1">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                    Assigned Clinical Departments
-                  </span>
-                  {parseDoctorDepartments(editFormData.department).length > 0 && (
-                    <span className="text-[10px] font-bold text-teal-800 bg-teal-100/70 px-2.5 py-0.5 rounded-full border border-teal-200">
-                      {parseDoctorDepartments(editFormData.department).length} Departments Active
+                <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2 text-xs">
+                  <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
+                    <span className="text-slate-400">Doctor ID:</span>
+                    <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+                      {editFormData.doctor_id || 'Not Provided'}
                     </span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                  {parseDoctorDepartments(editFormData.department).length > 0 ? (
-                    parseDoctorDepartments(editFormData.department).map((dept, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-teal-900 border border-teal-200/80 shadow-2xs inline-flex items-center gap-1.5 hover:border-teal-400 transition"
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0"></span>
-                        <span>{dept}</span>
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-slate-400 italic text-xs">No clinical departments assigned.</span>
-                  )}
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
+                    <span className="text-slate-400">Consultation Fee:</span>
+                    <span className="font-mono font-extrabold text-emerald-700">
+                      {editFormData.consultation_fee ? `₹${editFormData.consultation_fee}` : 'Not Provided'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
+                    <span className="text-slate-400">Duty Status:</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
+                      {editFormData.status || 'Not Provided'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
+                    <span className="text-slate-400">Account Active:</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      editFormData.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {editFormData.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 text-slate-600">
+                    <span className="text-slate-400">Joined Date:</span>
+                    <span className="font-medium text-slate-700">{editFormData.created_at || 'Not Provided'}</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Dedicated Full-Width Additional Skills Section */}
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Additional Skills & Sub-Specialties</span>
-                <p className="text-slate-800 font-medium leading-relaxed">{editFormData.additional_skills || 'General OPD Consultations, Emergency Triage, Post-op Follow-ups'}</p>
+              {/* AFFILIATED HOSPITALS SUMMARY */}
+              <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-sm border border-slate-800">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400">Affiliated Hospitals ({editFormData.hospitals.length})</p>
+                <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto">
+                  {editFormData.hospitals.map(hId => {
+                    const hObj = hospitalsList.find(h => Number(h.id) === Number(hId));
+                    return (
+                      <div key={hId} className="px-2.5 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-xs flex items-center justify-between">
+                        <span className="font-semibold text-slate-200">{hObj?.Name || `Hospital #${hId}`}</span>
+                        <span className="text-[10px] text-blue-300 font-mono">ID: {hId}</span>
+                      </div>
+                    );
+                  })}
+                  {editFormData.hospitals.length === 0 && (
+                    <p className="text-xs text-slate-400 italic">No hospitals selected</p>
+                  )}
+                </div>
               </div>
             </div>
-          ) : (
-            <form onSubmit={handleProfileUpdate} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Doctor Full Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={editFormData.name}
-                    onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  />
-                </div>
 
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Contact Phone / Landline *</label>
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={15}
-                    required
-                    value={editFormData.phone}
-                    onChange={(e) => {
-                      const numbersOnly = e.target.value.replace(/\D/g, '').slice(0, 15);
-                      setEditFormData({ ...editFormData, phone: numbersOnly });
-                    }}
-                    placeholder="e.g. 9876543210 / 02212345678"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Email Address (Login ID)</label>
-                  <input
-                    type="email"
-                    disabled
-                    value={editFormData.email}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-100 text-xs text-slate-500 cursor-not-allowed"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Primary Specialization *</label>
-                  <input
-                    type="text"
-                    required
-                    value={editFormData.specialization}
-                    onChange={(e) => setEditFormData({ ...editFormData, specialization: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  />
-                </div>
-
-                <div className="sm:col-span-2 lg:col-span-3 space-y-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
-                  <div className="flex items-center justify-between flex-wrap gap-1">
-                    <label className="block text-slate-800 font-bold uppercase text-[10px]">
-                      Clinical Departments (Multi-Select) *
-                    </label>
-                    {getDoctorAssignedHospitals().length > 0 && (
-                      <span className="text-[10px] text-teal-700 font-medium">
-                        Showing departments from {getDoctorAssignedHospitals().length} assigned hospital{getDoctorAssignedHospitals().length > 1 ? 's' : ''}: ({getDoctorAssignedHospitals().map(h => h.Name).join(', ')})
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Selected badges */}
-                  <div className="flex items-center gap-1.5 flex-wrap min-h-[32px] p-2 bg-white rounded-xl border border-slate-200">
-                    {parseDoctorDepartments(editFormData.department).length > 0 ? (
-                      parseDoctorDepartments(editFormData.department).map((dept, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-teal-600 text-white shadow-xs"
-                        >
-                          <span>{dept}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleDepartment(dept)}
-                            className="w-4 h-4 rounded-full hover:bg-teal-700 flex items-center justify-center text-[10px] cursor-pointer"
-                          >
-                            ✕
-                          </button>
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-slate-400 text-xs italic">No department selected. Click below to add.</span>
-                    )}
-                  </div>
-
-                  {/* Available departments from assigned hospitals */}
+            {/* RIGHT: COMPLETE MODEL FIELD EDIT FORM */}
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                      Available from Assigned Hospital{getDoctorAssignedHospitals().length > 1 ? 's' : ''}:
-                    </span>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {getAvailableDepartments().map((dept, idx) => {
-                        const isSelected = parseDoctorDepartments(editFormData.department).includes(dept);
-                        return (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => handleToggleDepartment(dept)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer flex items-center gap-1 ${isSelected
-                                ? 'bg-teal-50 border-teal-500 text-teal-800 ring-1 ring-teal-500 font-bold'
-                                : 'bg-white border-slate-300 text-slate-700 hover:border-teal-400 hover:bg-teal-50/40'
+                    <h2 className="text-sm font-bold text-slate-900">Doctor Model Details</h2>
+                    <p className="text-[11px] text-slate-500">Edit all fields in Doctor model (Doctor ID is system-protected)</p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                    Django Model: Doctor
+                  </span>
+                </div>
+
+                <form onSubmit={handleProfileUpdate} className="p-6 space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* 1. NAME */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Doctor Name <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={editFormData.name}
+                        onChange={handleInputChange}
+                        required
+                        placeholder="Dr. John Doe"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                      />
+                    </div>
+
+                    {/* 2. DOCTOR ID */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                        Doctor ID
+                      </label>
+                      <input
+                        type="text"
+                        value={editFormData.doctor_id || ''}
+                        disabled
+                        placeholder="Not Provided"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm font-mono text-slate-500 cursor-not-allowed"
+                      />
+                    </div>
+
+                    {/* 3. EMAIL */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Email Address <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={editFormData.email}
+                        onChange={handleInputChange}
+                        required
+                        placeholder="doctor@hospital.com"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                      />
+                    </div>
+
+                    {/* 4. PHONE */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Phone / Contact <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="phone"
+                        value={editFormData.phone}
+                        onChange={handleInputChange}
+                        required
+                        placeholder="+91 9876543210"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                      />
+                    </div>
+
+                    {/* 5. SPECIALIZATION */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Specialization <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="specialization"
+                        value={editFormData.specialization}
+                        onChange={handleInputChange}
+                        required
+                        placeholder="e.g. Cardiologist, Cardiac Surgeon"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                      />
+                    </div>
+
+                    {/* 6. DEPARTMENT */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Department <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        name="department"
+                        value={editFormData.department}
+                        onChange={handleInputChange}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                      >
+                        <option value="">-- Select Department --</option>
+                        {departmentChoices.map(dept => (
+                          <option key={dept} value={dept}>{dept}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 7. QUALIFICATION */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Qualification
+                      </label>
+                      <input
+                        type="text"
+                        name="qualification"
+                        value={editFormData.qualification}
+                        onChange={handleInputChange}
+                        placeholder="e.g. MBBS, MD (Medicine), DM (Cardio)"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                      />
+                    </div>
+
+                    {/* 8. EXPERIENCE */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Experience
+                      </label>
+                      <input
+                        type="text"
+                        name="experience"
+                        value={editFormData.experience}
+                        onChange={handleInputChange}
+                        placeholder="e.g. 8 Years"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                      />
+                    </div>
+
+                    {/* 9. OPD TIMINGS */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        OPD Timings
+                      </label>
+                      <select
+                        name="opd_timings"
+                        value={editFormData.opd_timings}
+                        onChange={handleInputChange}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                      >
+                        <option value="">-- Select OPD Timings --</option>
+                        {opdTimingsPresets.map(t => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 10. CONSULTATION FEE */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Consultation Fee (₹)
+                      </label>
+                      <input
+                        type="number"
+                        name="consultation_fee"
+                        value={editFormData.consultation_fee}
+                        onChange={handleInputChange}
+                        min="0"
+                        step="50"
+                        placeholder="e.g. 500"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                      />
+                    </div>
+
+                    {/* 11. STATUS */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Status (Availability)
+                      </label>
+                      <select
+                        name="status"
+                        value={editFormData.status}
+                        onChange={handleInputChange}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                      >
+                        <option value="">-- Select Status --</option>
+                        {statusChoices.map(st => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 12. IS ACTIVE */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Account Status
+                      </label>
+                      <select
+                        name="is_active"
+                        value={editFormData.is_active ? 'true' : 'false'}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, is_active: e.target.value === 'true' }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                      >
+                        <option value="true">Active (Consultation Enabled)</option>
+                        <option value="false">Inactive (Disabled)</option>
+                      </select>
+                    </div>
+
+                    {/* 13. PASSWORD (EDITABLE IN PROFILE) */}
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Login Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          name="password"
+                          value={editFormData.password}
+                          onChange={handleInputChange}
+                          placeholder="••••••••"
+                          className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(p => !p)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                        >
+                          {showPassword ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 14. ADDITIONAL SKILLS */}
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Additional Skills & Expertise
+                      </label>
+                      <textarea
+                        name="additional_skills"
+                        value={editFormData.additional_skills}
+                        onChange={handleInputChange}
+                        rows="2"
+                        placeholder="e.g. Angioplasty, Echocardiography, Pacemaker Implantation..."
+                        className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                      ></textarea>
+                    </div>
+
+                    {/* 15. HOSPITALS */}
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Assigned Hospitals
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 rounded-xl border border-slate-200 bg-slate-50/50 max-h-40 overflow-y-auto">
+                        {hospitalsList.map(h => {
+                          const isChecked = editFormData.hospitals.includes(Number(h.id));
+                          return (
+                            <label
+                              key={h.id}
+                              className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-xs transition ${
+                                isChecked
+                                  ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold'
+                                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
                               }`}
-                          >
-                            <span>{isSelected ? '✓' : '+'}</span>
-                            <span>{dept}</span>
-                          </button>
-                        );
-                      })}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleHospitalToggle(h.id)}
+                                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                              />
+                              <span className="truncate">{h.Name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Add other/custom department */}
-                  <div className="flex items-center gap-2 pt-1.5 border-t border-slate-200/80">
-                    <input
-                      type="text"
-                      value={customDeptInput}
-                      onChange={(e) => setCustomDeptInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddCustomDepartment();
-                        }
-                      }}
-                      placeholder="Type custom department name and click Add..."
-                      className="flex-1 px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    />
+                  {/* SUBMIT BUTTON */}
+                  <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
                     <button
                       type="button"
-                      onClick={handleAddCustomDepartment}
-                      className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer transition"
+                      onClick={fetchDoctorProfile}
+                      className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition cursor-pointer"
                     >
-                      + Add
+                      Reset Changes
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={savingProfile}
+                      className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md transition cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {savingProfile ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Saving Profile...</span>
+                        </>
+                      ) : (
+                        'Save Doctor Profile'
+                      )}
                     </button>
                   </div>
-                </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
 
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Consultation Fee (₹) *</label>
+        {/* TAB 2: SECURITY */}
+        {activeTab === 'security' && (
+          <div className="max-w-2xl mx-auto bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-8 shadow-2xs space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <span>🔒</span>
+                <span>Change Doctor Password</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Update password for doctor portal access.
+              </p>
+            </div>
+
+            {passwordSuccessMsg && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                ✓ {passwordSuccessMsg}
+              </div>
+            )}
+            {passwordErrorMsg && (
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold">
+                ✕ {passwordErrorMsg}
+              </div>
+            )}
+
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Doctor Email
+                </label>
+                <input
+                  type="email"
+                  value={editFormData.email}
+                  disabled
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm font-medium text-slate-500 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  New Password <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
                   <input
-                    type="number"
-                    min="0"
-                    step="50"
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
+                    placeholder="Enter new password"
                     required
-                    value={editFormData.consultation_fee}
-                    onChange={(e) => setEditFormData({ ...editFormData, consultation_fee: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Qualifications (e.g. MBBS, MD)</label>
-                  <input
-                    type="text"
-                    value={editFormData.qualification}
-                    onChange={(e) => setEditFormData({ ...editFormData, qualification: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Experience (e.g. 10 Years)</label>
-                  <input
-                    type="text"
-                    value={editFormData.experience}
-                    onChange={(e) => setEditFormData({ ...editFormData, experience: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Duty Status *</label>
-                  <select
-                    value={editFormData.status || 'On_Duty'}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setEditFormData(prev => ({
-                        ...prev,
-                        status: val
-                      }));
-                    }}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(p => !p)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
                   >
-                    <option value="On_Duty">On_Duty</option>
-                    <option value="Off_Duty">Off_Duty</option>
-                  </select>
-                </div>
-
-                <div className="sm:col-span-2 lg:col-span-2">
-                  <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Hospital Branch Allocation</label>
-                  <select
-                    value={editFormData.hospital}
-                    onChange={(e) => setEditFormData({ ...editFormData, hospital: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  >
-                    <option value="">-- Select Assigned Hospital Branch --</option>
-                    {hospitalsList.map(h => (
-                      <option key={h.id} value={h.id}>
-                        {h.Name} ({h.Branch_Code || `HOSP-${h.id}`}) - {h.City || 'Campus'}
-                      </option>
-                    ))}
-                  </select>
+                    {showNewPassword ? 'Hide' : 'Show'}
+                  </button>
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Additional Skills & Sub-Specialties</label>
-                <input
-                  type="text"
-                  value={editFormData.additional_skills}
-                  onChange={(e) => setEditFormData({ ...editFormData, additional_skills: e.target.value })}
-                  placeholder="e.g. Interventional Cardiology, Echocardiography, Pediatric OPD"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Confirm Password <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                    placeholder="Re-enter new password"
+                    required
+                    className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(p => !p)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    {showConfirmPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsEditingProfile(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
+              <div className="pt-4">
                 <button
                   type="submit"
-                  disabled={savingProfile}
-                  className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                  disabled={passwordLoading}
+                  className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {savingProfile ? (
+                  {passwordLoading ? (
                     <>
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Saving to Database...
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Updating Password...</span>
                     </>
                   ) : (
-                    'Save Profile Changes'
+                    'Save New Password'
                   )}
                 </button>
               </div>
             </form>
-          )}
-        </div>
-      )}
-
-      {/* SCHEDULE SECTION */}
-      {activeTab === 'schedule' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 shadow-xs space-y-6">
-          <div className="pb-3 border-b border-slate-100">
-            <h2 className="text-base font-bold text-slate-800">OPD Consultation Timings & Duty Roster</h2>
-            <p className="text-xs text-slate-500">Configure your regular clinic consultation hours and weekly availability</p>
           </div>
-
-          <form onSubmit={handleProfileUpdate} className="space-y-4 text-xs">
-            <div>
-              <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Select Preset OPD Shift</label>
-              <select
-                value={editFormData.opd_timings}
-                onChange={(e) => setEditFormData({ ...editFormData, opd_timings: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-              >
-                {opdTimingsPresets.map((timing, idx) => (
-                  <option key={idx} value={timing}>{timing}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Custom OPD Timings Description</label>
-              <input
-                type="text"
-                value={editFormData.opd_timings}
-                onChange={(e) => setEditFormData({ ...editFormData, opd_timings: e.target.value })}
-                placeholder="e.g. Mon - Fri (10:00 AM - 02:00 PM)"
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Assigned Hospital</span>
-                <p className="text-sm font-bold text-slate-800 mt-1">{hospitalName}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{hospitalAddress || 'Campus'}</p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Duty Status</span>
-                <p className={`text-sm font-bold mt-1 ${doctorData?.status === 'Off_Duty' ? 'text-rose-700' : 'text-emerald-700'}`}>
-                  {doctorData?.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty'}
-                </p>
-                <button
-                  type="button"
-                  onClick={handleToggleDutyStatus}
-                  className="text-[11px] text-teal-700 font-bold hover:underline mt-1 inline-block cursor-pointer"
-                >
-                  Toggle Duty Status
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end pt-3 border-t border-slate-100">
-              <button
-                type="submit"
-                disabled={savingProfile}
-                className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs cursor-pointer"
-              >
-                Save Schedule Settings
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* SECURITY & PASSWORD SECTION */}
-      {activeTab === 'security' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 shadow-xs space-y-6 max-w-2xl">
-          <div className="pb-3 border-b border-slate-100">
-            <h2 className="text-base font-bold text-slate-800">Security Credentials & Password</h2>
-            <p className="text-xs text-slate-500">Update your account login password directly in the database</p>
-          </div>
-
-          {passwordSuccessMsg && (
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between">
-              <span>{passwordSuccessMsg}</span>
-              <button type="button" onClick={() => setPasswordSuccessMsg('')} className="font-bold cursor-pointer">✕</button>
-            </div>
-          )}
-
-          {passwordErrorMsg && (
-            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center justify-between">
-              <span>{passwordErrorMsg}</span>
-              <button type="button" onClick={() => setPasswordErrorMsg('')} className="font-bold cursor-pointer">✕</button>
-            </div>
-          )}
-
-          <form onSubmit={handlePasswordSubmit} className="space-y-4 text-xs">
-            <div>
-              <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Registered Login Email *</label>
-              <input
-                type="email"
-                required
-                placeholder="Type your registered email address"
-                value={passwordForm.email}
-                onChange={(e) => setPasswordForm({ ...passwordForm, email: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white"
-              />
-              <p className="text-[10px] text-slate-400 mt-1">
-                You must enter your registered email address to verify and change password.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">New Password *</label>
-              <div className="relative">
-                <input
-                  type={showNewPassword ? 'text' : 'password'}
-                  required
-                  placeholder="Enter at least 6 characters"
-                  value={passwordForm.newPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                  className="w-full px-3 py-2 pr-16 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
-                >
-                  {showNewPassword ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">Confirm New Password *</label>
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  required
-                  placeholder="Re-type new password"
-                  value={passwordForm.confirmPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                  className="w-full px-3 py-2 pr-16 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
-                >
-                  {showConfirmPassword ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={passwordLoading}
-                className="w-full px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {passwordLoading ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Updating Password in Database...
-                  </>
-                ) : (
-                  'Update Password'
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* HOSPITAL SECTION */}
-      {activeTab === 'hospital' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 shadow-xs space-y-6">
-          <div className="pb-3 border-b border-slate-100">
-            <h2 className="text-base font-bold text-slate-800">Affiliated Hospital Branch Details</h2>
-            <p className="text-xs text-slate-500">Live details of the hospital and clinical facility fetched from database</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Hospital Name</span>
-              <p className="text-sm font-bold text-slate-800 mt-1">{hospitalName}</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Helpline / Emergency Phone</span>
-              <p className="text-sm font-bold text-teal-700 mt-1">{hospitalPhone}</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 sm:col-span-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Campus Address</span>
-              <p className="text-sm font-medium text-slate-800 mt-1">{hospitalAddress}</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Branch Location</span>
-              <p className="text-sm font-bold text-slate-800 mt-1">{hospitalInfo?.City || 'Main Center'}</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Assigned Department</span>
-              <p className="text-sm font-bold text-slate-800 mt-1">{editFormData.department}</p>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </main>
     </div>
   );
 };

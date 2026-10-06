@@ -9,15 +9,15 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
       if (saved) return JSON.parse(saved);
     } catch {}
     return {
-      id: 1,
-      name: 'Rahul Mehta',
-      receptionist_id: 'REC-1001',
-      role: 'Front Desk Receptionist',
-      shift: 'Morning Shift (07:00 AM - 03:00 PM)',
-      languages: 'English, Hindi, Gujarati',
-      contact: '+91 98765 43210',
-      email: 'rahul.mehta@hospital.com',
-      status: 'On_Duty',
+      id: null,
+      name: '',
+      receptionist_id: '',
+      role: '',
+      shift: '',
+      languages: '',
+      contact: '',
+      email: '',
+      status: '',
       is_active: true
     };
   });
@@ -55,13 +55,13 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
     hospital: '',
     name: '',
     receptionist_id: '',
-    role: 'Front Desk Receptionist',
-    shift: 'Morning Shift (07:00 AM - 03:00 PM)',
-    languages: 'English, Hindi',
+    role: '',
+    shift: '',
+    languages: '',
     contact: '',
     email: '',
-    password: 'Reception@123',
-    status: 'On_Duty',
+    password: '',
+    status: '',
     is_active: true
   });
 
@@ -103,14 +103,14 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
     setEditFormData({
       hospital: receptionistData.hospital || currentUser?.hospital || (hospitalData ? hospitalData.id : ''),
       name: receptionistData.name || '',
-      receptionist_id: receptionistData.receptionist_id || `REC-${receptionistData.id}`,
-      role: receptionistData.role || receptionistData.designation || 'Front Desk Receptionist',
-      shift: receptionistData.shift || 'Morning Shift (07:00 AM - 03:00 PM)',
-      languages: receptionistData.languages || 'English, Hindi',
+      receptionist_id: receptionistData.receptionist_id || (receptionistData.id ? `REC-${receptionistData.id}` : ''),
+      role: receptionistData.role || receptionistData.designation || '',
+      shift: receptionistData.shift || '',
+      languages: receptionistData.languages || '',
       contact: (receptionistData.contact || receptionistData.phone || '').replace(/\D/g, '').slice(0, 15),
       email: receptionistData.email || '',
-      password: receptionistData.password || 'Reception@123',
-      status: receptionistData.status === 'Off_Duty' ? 'Off_Duty' : (receptionistData.status === 'On_Duty' ? 'On_Duty' : (receptionistData.is_active !== false ? 'On_Duty' : 'Off_Duty')),
+      password: receptionistData.password || '',
+      status: receptionistData.status || (receptionistData.is_active !== false ? 'On_Duty' : 'Off_Duty'),
       is_active: receptionistData.is_active !== false
     });
     setShowEditPassword(false);
@@ -123,7 +123,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
 
     try {
       const recIdToSend = editFormData.receptionist_id || receptionistData.receptionist_id || `REC-${receptionistData.id}`;
-      const passwordToSend = receptionistData.password || editFormData.password || 'Reception@123';
+      const passwordToSend = editFormData.password || receptionistData.password || '';
       const hospId = Number(editFormData.hospital || receptionistData.hospital || currentUser?.hospital || (hospitalData ? hospitalData.id : 1));
       
       const payload = {
@@ -132,15 +132,13 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
         hospital: hospId,
         name: editFormData.name ? editFormData.name.trim() : '',
         receptionist_id: recIdToSend,
-        role: editFormData.role || editFormData.designation || receptionistData.role || 'Front Desk Receptionist',
-        designation: editFormData.role || editFormData.designation || receptionistData.role || 'Front Desk Receptionist',
+        role: editFormData.role || editFormData.designation || receptionistData.role || '',
+        designation: editFormData.role || editFormData.designation || receptionistData.role || '',
         shift: editFormData.shift,
-        languages: editFormData.languages ? editFormData.languages.trim() : 'English, Hindi',
+        languages: editFormData.languages ? editFormData.languages.trim() : '',
         contact: editFormData.contact ? editFormData.contact.trim() : '',
         email: editFormData.email ? editFormData.email.trim() : '',
         password: passwordToSend,
-        desk: receptionistData.desk || 'Main Lobby Desk 1',
-        extension: receptionistData.extension || 'Ext. 101',
         status: editFormData.status || 'On_Duty',
         is_active: editFormData.is_active !== undefined ? editFormData.is_active : true
       };
@@ -303,26 +301,26 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
             <div>
               <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-200 text-[10px] font-semibold border border-teal-400/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
-                {hospitalData?.Name || 'Branch Hospital'}
+                {hospitalData?.Name || receptionistData.hospital_name || 'Not Provided'}
               </div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1 tracking-tight text-slate-100">
-                {receptionistData.name || 'Receptionist Name'}
+                {receptionistData.name || 'Not Provided'}
               </h1>
               <div className="flex items-center gap-2 flex-wrap text-xs text-slate-300 mt-1 font-medium">
-                <span className="text-teal-300 font-bold">{receptionistData.role || 'Front Desk'}</span>
+                <span className="text-teal-300 font-bold">{receptionistData.role || receptionistData.designation || 'Not Provided'}</span>
                 <span>•</span>
                 <span className="font-mono bg-slate-800 px-2 py-0.5 rounded border border-slate-700 text-[11px] text-teal-200">
-                  {receptionistData.receptionist_id || `REC-${receptionistData.id}`}
+                  {receptionistData.receptionist_id || (receptionistData.id ? `REC-${receptionistData.id}` : 'Not Provided')}
                 </span>
                 <span>•</span>
-                <span>{receptionistData.languages || 'English, Hindi'}</span>
+                <span>{receptionistData.languages || 'Not Provided'}</span>
               </div>
             </div>
           </div>
 
           <div className="flex flex-col sm:items-end gap-1 text-xs">
             <span className="text-slate-400 text-[11px]">Shift Assignment</span>
-            <span className="text-sm font-bold text-teal-300">{receptionistData.shift || 'Morning Shift'}</span>
+            <span className="text-sm font-bold text-teal-300">{receptionistData.shift || 'Not Provided'}</span>
             <span className="text-slate-400 text-[10px]">Counter: Front Registration Desk</span>
           </div>
         </div>
@@ -331,31 +329,31 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">Desk Role</p>
-          <p className="text-base font-bold text-slate-800 mt-1">{receptionistData.role || 'Front Desk'}</p>
+          <p className="text-base font-bold text-slate-800 mt-1">{receptionistData.role || receptionistData.designation || 'Not Provided'}</p>
           <p className="text-xs text-slate-500 mt-0.5">Patient Intake Counter</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">Duty Shift</p>
-          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{receptionistData.shift || '07:00 AM - 03:00 PM'}</p>
+          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{receptionistData.shift || 'Not Provided'}</p>
           <p className="text-xs text-emerald-600 mt-0.5">Active Shift Assignment</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">Languages Known</p>
-          <p className="text-sm font-bold text-slate-800 mt-1">{receptionistData.languages || 'English, Hindi'}</p>
+          <p className="text-sm font-bold text-slate-800 mt-1">{receptionistData.languages || 'Not Provided'}</p>
           <p className="text-xs text-slate-500 mt-0.5">Multilingual Support</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">Contact Details</p>
-          <p className="text-sm font-bold text-slate-800 mt-1">{receptionistData.contact || receptionistData.phone || '-'}</p>
+          <p className="text-sm font-bold text-slate-800 mt-1">{receptionistData.contact || receptionistData.phone || 'Not Provided'}</p>
           {emailLower ? (
             <a href={`mailto:${emailLower}`} className="text-xs text-sky-700 hover:underline block lowercase truncate">
               {emailLower}
             </a>
           ) : (
-            <span className="text-xs text-slate-400">-</span>
+            <span className="text-xs text-slate-400">Not Provided</span>
           )}
         </div>
       </div>
@@ -392,7 +390,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
             <div className="space-y-3 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Assigned Counter Function</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">{receptionistData.role || 'Front Desk Receptionist'}</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{receptionistData.role || receptionistData.designation || 'Not Provided'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Core Duties</p>
@@ -400,7 +398,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Languages & Communication</p>
-                <p className="text-sm font-bold text-teal-700 mt-0.5">{receptionistData.languages || 'English, Hindi'}</p>
+                <p className="text-sm font-bold text-teal-700 mt-0.5">{receptionistData.languages || 'Not Provided'}</p>
               </div>
             </div>
           </div>
@@ -410,16 +408,18 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
             <div className="space-y-3 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Hospital Facility</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">{hospitalData?.Name || 'Apex Care Hospital'}</p>
-                <p className="text-slate-500 mt-0.5">{hospitalData?.city} • {hospitalData?.address || 'Medical Facility Road'}</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{hospitalData?.Name || receptionistData.hospital_name || 'Not Provided'}</p>
+                {(hospitalData?.city || hospitalData?.address) && (
+                  <p className="text-slate-500 mt-0.5">{hospitalData?.city} {hospitalData?.address ? `• ${hospitalData.address}` : ''}</p>
+                )}
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Reception Counter Location</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">Ground Floor • Main Lobby Counter #02</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{receptionistData.counter_location || 'Not Provided'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Shift Timings</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">{receptionistData.shift || 'Morning Shift (07:00 AM - 03:00 PM)'}</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{receptionistData.shift || 'Not Provided'}</p>
               </div>
             </div>
           </div>
@@ -428,13 +428,13 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
 
       {activeTab === 'schedule' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
-          <h2 className="text-sm sm:text-base font-bold text-slate-800">Weekly Shift Schedule for {receptionistData.name}</h2>
+          <h2 className="text-sm sm:text-base font-bold text-slate-800">Weekly Shift Schedule for {receptionistData.name || 'Receptionist'}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
             {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day) => (
               <div key={day} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
                 <p className="font-bold text-slate-800 text-sm">{day}</p>
-                <p className="text-teal-700 font-semibold">{receptionistData.shift || '07:00 AM - 03:00 PM'}</p>
-                <p className="text-slate-500 text-[11px]">Main Reception Counter • {hospitalData?.Name || 'Branch Hospital'}</p>
+                <p className="text-teal-700 font-semibold">{receptionistData.shift || 'Not Provided'}</p>
+                <p className="text-slate-500 text-[11px]">Main Reception Counter • {hospitalData?.Name || receptionistData.hospital_name || 'Not Provided'}</p>
               </div>
             ))}
           </div>
@@ -457,18 +457,18 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
 
             <form onSubmit={handleEditSubmit} className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital: *</label>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital</label>
                 <input
                   type="text"
                   readOnly
                   tabIndex={-1}
-                  value={hospitalData?.Name ? `${hospitalData.Name} (${hospitalData.city || ''})` : 'Assigned Hospital Branch'}
+                  value={hospitalData?.Name || receptionistData?.hospital_name || 'Not Provided'}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed select-none focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Name: *</label>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Name *</label>
                 <input
                   type="text"
                   required
@@ -483,7 +483,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block font-semibold text-slate-700 uppercase">
-                      Receptionist id:
+                      Receptionist ID
                     </label>
                     <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                       Permanent ID
@@ -493,7 +493,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
                     type="text"
                     readOnly
                     tabIndex={-1}
-                    value={receptionistData.receptionist_id || `REC-${receptionistData.id}`}
+                    value={receptionistData.receptionist_id || (receptionistData.id ? `REC-${receptionistData.id}` : 'Not Provided')}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-amber-800 font-mono font-bold cursor-not-allowed select-none focus:outline-none"
                   />
                 </div>
@@ -501,7 +501,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block font-semibold text-slate-700 uppercase">
-                      Password:
+                      Password
                     </label>
                     <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                       Unchangeable
@@ -512,7 +512,8 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
                       type={showEditPassword ? 'text' : 'password'}
                       readOnly
                       tabIndex={-1}
-                      value={receptionistData.password || editFormData.password || 'Reception@123'}
+                      value={receptionistData.password || editFormData.password || ''}
+                      placeholder="Not Provided"
                       className="w-full pl-3 pr-18 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono text-xs cursor-not-allowed select-none focus:outline-none tracking-wider"
                     />
                     <button
@@ -528,13 +529,14 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Role: *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Role *</label>
                   <select
                     required
                     value={editFormData.role}
                     onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-amber-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Role --</option>
                     {rolesList.map((r, i) => (
                       <option key={i} value={r}>{r}</option>
                     ))}
@@ -542,13 +544,14 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Shift: *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Shift *</label>
                   <select
                     required
                     value={editFormData.shift}
                     onChange={(e) => setEditFormData({ ...editFormData, shift: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Shift --</option>
                     {shiftsList.map((s, i) => (
                       <option key={i} value={s}>{s}</option>
                     ))}
@@ -558,7 +561,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Languages: *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Languages *</label>
                   <input
                     type="text"
                     required
@@ -586,7 +589,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Email: *</label>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Email *</label>
                 <input
                   type="email"
                   required
@@ -601,13 +604,14 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Duty Status *</label>
                 <select
-                  value={editFormData.status || 'On_Duty'}
+                  value={editFormData.status || ''}
                   onChange={(e) => setEditFormData({ 
                     ...editFormData, 
                     status: e.target.value
                   })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
                 >
+                  <option value="">-- Select Duty Status --</option>
                   <option value="On_Duty">On_Duty</option>
                   <option value="Off_Duty">Off_Duty</option>
                 </select>

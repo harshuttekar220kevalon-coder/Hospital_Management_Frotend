@@ -50,10 +50,10 @@ const ReceptionistDoctors = ({ currentUser, setCurrentPage, setSelectedDoctorFor
   };
 
   const getHospitalName = (hospId) => {
-    if (!hospId) return 'Main Hospital Campus';
-    if (typeof hospId === 'object' && hospId?.Name) return hospId.Name;
+    if (!hospId) return 'Not Provided';
+    if (typeof hospId === 'object' && (hospId?.Name || hospId?.name)) return hospId.Name || hospId.name;
     const found = hospitals.find(h => Number(h.id) === Number(hospId));
-    return found ? found.Name : 'Main Campus';
+    return found ? (found.Name || found.name) : 'Not Provided';
   };
 
   const getDoctorSchedule = (doc) => {

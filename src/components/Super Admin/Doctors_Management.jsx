@@ -126,13 +126,13 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
   const initialFormState = {
     doctor_id: '',
     name: '',
-    specialization: 'Cardiology',
+    specialization: '',
     additional_skills: '',
     department: '',
     qualification: '',
     experience: '',
-    consultation_fee: '', // Added consultation fee field
-    opd_timings: 'Mon - Fri (10:00 AM - 02:00 PM)',
+    consultation_fee: '',
+    opd_timings: '',
     phone: '',
     email: '',
     password: '',
@@ -301,18 +301,18 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
 
     setFormData({
       name: doctor.name || '',
-      specialization: doctor.specialization || 'Cardiology',
+      specialization: doctor.specialization || '',
       additional_skills: doctor.additional_skills || doctor.additionalSkills || '',
       department: doctor.department || '',
       qualification: doctor.qualification || '',
       experience: doctor.experience || '',
-      consultation_fee: doctor.consultation_fee ?? 0.00,
-      opd_timings: doctor.opd_timings || 'Mon - Fri (10:00 AM - 02:00 PM)',
+      consultation_fee: doctor.consultation_fee ?? '',
+      opd_timings: doctor.opd_timings || '',
       phone: doctor.phone || '',
       email: doctor.email || '',
-      password: doctor.password || 'Doctor@123',
+      password: doctor.password || '',
       hospital: existingHospId,
-      status: doctor.status === 'Off_Duty' ? 'Off_Duty' : (doctor.status === 'On_Duty' ? 'On_Duty' : 'On_Duty'),
+      status: doctor.status || 'On_Duty',
       is_active: doctor.is_active !== false
     });
     setShowEditPassword(false);
@@ -543,10 +543,10 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
             onChange={(e) => setHospitalFilter(e.target.value)}
             className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-semibold focus:outline-none focus:border-sky-600 cursor-pointer"
           >
-            <option value="ALL">All Hospital Branches</option>
+            <option value="ALL">-- Select Hospital (All) --</option>
             {hospitalsList.map((h) => (
               <option key={h.id} value={h.id}>
-                {h.Name} ({h.city})
+                {h.Name || h.name}
               </option>
             ))}
           </select>
@@ -599,7 +599,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                   return (
                     <tr key={doc.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-bold text-slate-800 break-words">{doc.name || 'Doctor'}</div>
+                        <div className="font-bold text-slate-800 break-words">{doc.name || 'Not Provided'}</div>
                         <span className="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block mt-0.5">
                           {doc.doctor_id || `DOC-${doc.id}`}
                         </span>
@@ -608,7 +608,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                         {(() => {
                           const specs = parseSpecializations(doc.specialization || doc.specialty);
                           if (specs.length === 0) {
-                            return <span className="text-slate-400 font-medium text-xs">General</span>;
+                            return <span className="text-slate-400 font-medium text-xs">Not Provided</span>;
                           }
                           return (
                             <div className="flex items-center justify-center gap-1.5 flex-wrap">
@@ -630,7 +630,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                       <td className="py-3.5 px-4 text-center">
                         {assignedHospitalsList.length === 0 ? (
                           <span className="text-slate-400 font-medium text-xs">
-                            {doc.hospital_name && !/^\d+$/.test(doc.hospital_name) ? doc.hospital_name : 'Unassigned'}
+                            {doc.hospital_name && !/^\d+$/.test(doc.hospital_name) ? doc.hospital_name : 'Not Provided'}
                           </span>
                         ) : (
                           <div className="flex items-center justify-center gap-1.5 flex-wrap">
@@ -651,7 +651,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-col items-center justify-center gap-0.5">
                           <span className="font-bold text-slate-800 text-xs">
-                            {doc.phone || doc.contact || '-'}
+                            {doc.phone || doc.contact || 'Not Provided'}
                           </span>
                           {emailLower ? (
                             <a
@@ -662,7 +662,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                               {emailLower}
                             </a>
                           ) : (
-                            <span className="text-[11px] text-slate-400">-</span>
+                            <span className="text-[11px] text-slate-400">Not Provided</span>
                           )}
                         </div>
                       </td>
@@ -820,10 +820,10 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                     }}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-600 font-medium cursor-pointer"
                   >
-                    <option value="" disabled>Select Hospital Branch *</option>
+                    <option value="">-- Select Hospital --</option>
                     {hospitalsList.map((h) => (
                       <option key={h.id} value={h.id}>
-                        {h.Name} ({h.city}) - {h.Branch_Code}
+                        {h.Name || h.name}
                       </option>
                     ))}
                   </select>
@@ -1128,10 +1128,10 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                     }}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-600 font-medium cursor-pointer"
                   >
-                    <option value="" disabled>Select Hospital Branch *</option>
+                    <option value="">-- Select Hospital --</option>
                     {hospitalsList.map((h) => (
                       <option key={h.id} value={h.id}>
-                        {h.Name} ({h.city}) - {h.Branch_Code}
+                        {h.Name || h.name}
                       </option>
                     ))}
                   </select>
@@ -1379,10 +1379,10 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor: se
                 onChange={(e) => setAssignHospitalId(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 font-medium focus:outline-none focus:border-teal-600 cursor-pointer"
               >
-                <option value="" disabled>Select Destination Hospital Branch *</option>
+                <option value="">-- Select Hospital --</option>
                 {hospitalsList.map((h) => (
                   <option key={h.id} value={h.id}>
-                    {h.Name} ({h.city}) - {h.Branch_Code}
+                    {h.Name || h.name}
                   </option>
                 ))}
               </select>

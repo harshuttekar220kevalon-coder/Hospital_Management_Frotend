@@ -92,7 +92,7 @@ const NurseDashboard = ({ currentUser, setCurrentPage }) => {
   const roleName = activeNurse?.nurse_role || activeNurse?.role || currentUser?.nurse_role || currentUser?.role || 'Staff Nurse';
   const wardName = activeNurse?.ward || currentUser?.ward || 'General Care Ward';
   const shiftName = activeNurse?.shift || currentUser?.shift || 'Morning Shift';
-  const hospitalName = hospitalInfo?.Name || hospitalInfo?.name || activeNurse?.hospital_name || currentUser?.hospital_name || (typeof activeNurse?.hospital === 'object' ? activeNurse.hospital?.Name : null) || 'Apex Care Hospital';
+  const hospitalName = hospitalInfo?.Name || hospitalInfo?.name || activeNurse?.hospital_name || currentUser?.hospital_name || (typeof activeNurse?.hospital === 'object' ? activeNurse.hospital?.Name : null) || 'Not Provided';
   const nurseFloor = activeNurse?.floor || 'Floor 1';
 
   const nurseNameLower = (nurseName || '').toLowerCase().trim();

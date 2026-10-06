@@ -11,17 +11,27 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
   const [visibleCount, setVisibleCount] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Today_Pending');
+  
+  // Selected patient for Clinical Checkup & Admission modal
   const [selectedPatientModal, setSelectedPatientModal] = useState(null);
+  const [clinicalNotes, setClinicalNotes] = useState('');
+  const [prescriptionText, setPrescriptionText] = useState('');
+  const [selectedSeverity, setSelectedSeverity] = useState('Normal');
   const [updatingPatientId, setUpdatingPatientId] = useState(null);
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
 
-  // Status
+  // Status helpers
   const isCompletedStatus = (status) => {
     const s = (status || '').toLowerCase().trim();
     return s === 'discharged' || s === 'completed' || s.includes('discharg') || s.includes('complet');
   };
 
-  // Condition
+  const isAdmitStatus = (status) => {
+    const s = (status || '').toLowerCase().trim();
+    return s.includes('admit');
+  };
+
+  // Condition helper
   const getPatientCondition = (patient) => {
     return patient?.Condation || patient?.condation || patient?.condition || patient?.Condition || patient?.symptoms_severity || 'Normal';
   };
@@ -31,7 +41,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
     return patient?.Blood_Group || patient?.blood_group || patient?.BloodGroup || patient?.bloodGroup || patient?.blood || patient?.Blood || '-';
   };
 
-  // Completed today
+  // Completed today localStorage tracking
   const getTodayKey = () => `doc_completed_today_${new Date().toISOString().split('T')[0]}`;
 
   const getCompletedTodayIds = () => {
@@ -83,7 +93,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
       };
     }
 
-    const rawDateStr = patient.visit_date_time || patient.appointment_time || patient.visit_date;
+    const rawDateStr = patient.visit_date_time || patient.appointment_time || patient.appointment_date || patient.visit_date;
 
     if (!rawDateStr) {
       return {
@@ -95,9 +105,9 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
         isUpcoming: false,
         diffDays: 999,
         dayLabel: 'Not Scheduled',
-        timeFormatted: '--',
-        dateFormatted: '--',
-        fullScheduleDisplay: 'Not Scheduled',
+        timeFormatted: patient.appointment_time || '--',
+        dateFormatted: patient.appointment_date || '--',
+        fullScheduleDisplay: patient.appointment_date ? `${patient.appointment_date} ${patient.appointment_time || ''}` : 'Not Scheduled',
         badgeClass: 'bg-slate-100 text-slate-500 border-slate-200'
       };
     }
@@ -112,9 +122,9 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
         isPast: false,
         isUpcoming: false,
         diffDays: 999,
-        dayLabel: 'Not Scheduled',
-        timeFormatted: '--',
-        dateFormatted: '--',
+        dayLabel: 'Scheduled',
+        timeFormatted: patient.appointment_time || '--',
+        dateFormatted: patient.appointment_date || String(rawDateStr),
         fullScheduleDisplay: String(rawDateStr),
         badgeClass: 'bg-slate-100 text-slate-500 border-slate-200'
       };
@@ -125,7 +135,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
     const targetMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     const diffDays = Math.round((targetMidnight - todayMidnight) / (1000 * 60 * 60 * 24));
 
-    const timeFormatted = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    const timeFormatted = patient.appointment_time || d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
     const dateFormatted = d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
 
     const isToday = diffDays === 0;
@@ -176,7 +186,6 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
     };
   };
 
-  // Completed helper
   const isCompletedToday = (patient) => {
     if (!patient || !isCompletedStatus(patient.status)) return false;
 
@@ -211,7 +220,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
       const docId = currentUser?.id;
       const currentDocIdTag = currentUser?.doctor_id;
 
-      // 1. Fetch all hospitals list
+      // 1. Fetch all hospitals
       let allHospitals = [];
       try {
         const hospListRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
@@ -244,7 +253,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
       const resolvedDoctor = currentDoc || currentUser || null;
       setDoctorInfo(resolvedDoctor);
 
-      // Extract all assigned hospital IDs
+      // Extract assigned hospital IDs
       const rawHospIds = Array.isArray(resolvedDoctor?.hospitals)
         ? resolvedDoctor.hospitals.map(h => Number(typeof h === 'object' ? h.id : h)).filter(Boolean)
         : (resolvedDoctor?.hospital ? [Number(typeof resolvedDoctor.hospital === 'object' ? resolvedDoctor.hospital.id : resolvedDoctor.hospital)].filter(Boolean) : []);
@@ -253,19 +262,26 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
         rawHospIds.push(Number(currentUser.hospital));
       }
 
-      const docAssignedHospitals = allHospitals.filter(h => rawHospIds.includes(Number(h.id)));
-      setAssignedHospitals(docAssignedHospitals.length > 0 ? docAssignedHospitals : (allHospitals[0] ? [allHospitals[0]] : []));
+      let docAssignedHospitals = allHospitals.filter(h => rawHospIds.includes(Number(h.id)));
+      if (docAssignedHospitals.length === 0 && currentUser?.hospital_name) {
+        const byName = allHospitals.find(h => (h.Name || h.name || '').toLowerCase() === currentUser.hospital_name.toLowerCase());
+        if (byName) docAssignedHospitals = [byName];
+      }
+      setAssignedHospitals(docAssignedHospitals);
 
       const primaryHosp = docAssignedHospitals[0] || allHospitals.find(h => Number(h.id) === Number(rawHospIds[0])) || null;
       setHospitalInfo(primaryHosp);
 
-      // 3. Fetch patients queue
+      // 3. Fetch patients queue - STRICTLY FILTERED TO THIS ASSIGNED DOCTOR ONLY!
       try {
         const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
         if (patRes && patRes.ok) {
           const allPats = await patRes.json();
           if (Array.isArray(allPats)) {
             const myPatients = allPats.filter(p => {
+              // Only patients explicitly assigned to this Doctor!
+              if (!p.doctor && !p.doctor_name) return false;
+
               const matchDocId = (resolvedDoctor?.id && Number(p.doctor) === Number(resolvedDoctor.id)) ||
                 (currentUser?.id && Number(p.doctor) === Number(currentUser.id));
               
@@ -292,57 +308,76 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
     loadDoctorPatients();
   }, [currentUser]);
 
-  const handleUpdatePatientStatus = async (patient, selectedOption) => {
-    if (!selectedOption || !patient?.id) return;
-    try {
-      setUpdatingPatientId(patient.id);
-      
-      const isMarkingDone = (selectedOption === 'Completed' || selectedOption === 'Complete' || selectedOption === 'Discharged');
-      const backendStatus = isMarkingDone ? 'Discharged' : 'Pending';
-      const nowIso = new Date().toISOString();
+  // Open Checkup & Decision Modal
+  const handleOpenCheckupModal = (patient) => {
+    setSelectedPatientModal(patient);
+    setClinicalNotes(patient.symptoms_diagnosis || patient.reason_for_visit || '');
+    setPrescriptionText(patient.prescription || patient.notes || '');
+    setSelectedSeverity(getPatientCondition(patient) || 'Normal');
+  };
 
-      if (isMarkingDone) {
-        saveCompletedTodayId(patient.id);
+  // Handle Clinical Decision: Admit vs OPD Completed
+  const handleDoctorDecision = async (decisionType) => {
+    if (!selectedPatientModal?.id) return;
+
+    try {
+      setUpdatingPatientId(selectedPatientModal.id);
+      const nowIso = new Date().toISOString();
+      const isAdmit = (decisionType === 'ADMIT');
+      
+      const newStatus = isAdmit ? 'Admit_Requested' : 'Completed';
+      const updatedNotes = clinicalNotes.trim() + (prescriptionText.trim() ? `\n[Prescription / Advice: ${prescriptionText.trim()}]` : '');
+
+      const payload = {
+        ...selectedPatientModal,
+        status: newStatus,
+        Condation: selectedSeverity,
+        condation: selectedSeverity,
+        condition: selectedSeverity,
+        symptoms_severity: selectedSeverity,
+        symptoms_diagnosis: updatedNotes || selectedPatientModal.symptoms_diagnosis,
+        completed_at: !isAdmit ? nowIso : null
+      };
+
+      if (!isAdmit) {
+        saveCompletedTodayId(selectedPatientModal.id);
       } else {
-        removeCompletedTodayId(patient.id);
+        removeCompletedTodayId(selectedPatientModal.id);
       }
 
-      let res = await fetch(`${API_BASE_URL}/super-admin/Patients/${patient.id}/`, {
+      let res = await fetch(`${API_BASE_URL}/super-admin/Patients/${selectedPatientModal.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: backendStatus })
+        body: JSON.stringify(payload)
       }).catch(() => null);
 
       if (!res || !res.ok) {
-        res = await fetch(`${API_BASE_URL}/super-admin/Patients/${patient.id}/`, {
+        res = await fetch(`${API_BASE_URL}/super-admin/Patients/${selectedPatientModal.id}/`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...patient, status: backendStatus })
+          body: JSON.stringify(payload)
         }).catch(() => null);
       }
 
       const updatedPat = {
-        ...patient,
-        status: backendStatus,
-        completed_at: isMarkingDone ? nowIso : null
+        ...selectedPatientModal,
+        ...payload
       };
 
-      setPatients(prev => prev.map(p => p.id === patient.id ? updatedPat : p));
-      if (selectedPatientModal && selectedPatientModal.id === patient.id) {
-        setSelectedPatientModal(updatedPat);
+      setPatients(prev => prev.map(p => p.id === selectedPatientModal.id ? updatedPat : p));
+      setSelectedPatientModal(null);
+
+      if (isAdmit) {
+        setActionSuccessMsg(`🏥 Patient ${selectedPatientModal.name} (${selectedPatientModal.patient_id || `PAT-${selectedPatientModal.id}`}) has been marked for ADMISSION. Routed to Receptionist to allocate Bed & Nurse.`);
+      } else {
+        setActionSuccessMsg(`✓ Checkup completed for ${selectedPatientModal.name}. Added to Completed list.`);
       }
 
-      const dateInfo = getAppointmentDateInfo(patient);
-      const isYesterdayCase = dateInfo.isYesterday;
-
-      setActionSuccessMsg(
-        backendStatus === 'Discharged'
-          ? `Checkup completed for Patient #${patient.id} (${patient.name || 'Patient'}). Added to Completed Today list!${isYesterdayCase ? ' (Yesterday\'s Patient)' : ''}`
-          : `Patient #${patient.id} status updated to "Pending".`
-      );
-      setTimeout(() => setActionSuccessMsg(''), 4500);
+      setTimeout(() => setActionSuccessMsg(''), 5500);
+      loadDoctorPatients();
     } catch (err) {
-      console.error('Error updating patient status:', err);
+      console.error('Error saving doctor clinical decision:', err);
+      alert('Error updating patient file in backend.');
     } finally {
       setUpdatingPatientId(null);
     }
@@ -350,7 +385,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
 
   const docName = doctorInfo?.name || currentUser?.name || 'Doctor';
   const cleanDocName = docName.replace(/^Dr\.?\s*/i, '');
-  const hospitalName = hospitalInfo?.Name || doctorInfo?.hospital_name || 'Main Hospital';
+  const hospitalName = hospitalInfo?.Name || doctorInfo?.hospital_name || 'Apex Care Hospital';
 
   // Filter patients by hospital filter first
   const hospitalScopedPatients = patients.filter(p => {
@@ -369,9 +404,9 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
   const todayPatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isToday);
   const todayPendingPatients = todayPatients.filter(p => !isCompletedStatus(p.status));
   const todayCompletedPatients = hospitalScopedPatients.filter(p => isCompletedToday(p));
+  const admittedPatients = hospitalScopedPatients.filter(p => isAdmitStatus(p.status));
   const yesterdayPatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isYesterday);
   const upcomingPatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isUpcoming);
-  const pastOverduePatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isPast && !getAppointmentDateInfo(p).isYesterday);
 
   const filteredPatients = hospitalScopedPatients.filter(p => {
     const term = searchTerm.toLowerCase().trim();
@@ -385,6 +420,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
 
     const dateInfo = getAppointmentDateInfo(p);
     const completed = isCompletedStatus(p.status);
+    const admitted = isAdmitStatus(p.status);
     const doneToday = isCompletedToday(p);
 
     if (statusFilter === 'Today_Pending') {
@@ -393,14 +429,12 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
       return doneToday;
     } else if (statusFilter === 'Today_All') {
       return dateInfo.isToday;
+    } else if (statusFilter === 'Admitted') {
+      return admitted;
     } else if (statusFilter === 'Yesterday') {
       return dateInfo.isYesterday;
     } else if (statusFilter === 'Upcoming') {
       return dateInfo.isUpcoming;
-    } else if (statusFilter === 'Past_Overdue') {
-      return dateInfo.isPast && !dateInfo.isYesterday;
-    } else if (statusFilter === 'Pending') {
-      return !completed;
     } else if (statusFilter === 'Completed') {
       return completed;
     }
@@ -409,7 +443,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
     const infoA = getAppointmentDateInfo(a);
     const infoB = getAppointmentDateInfo(b);
     if (infoA.dateObj && infoB.dateObj) {
-      if (statusFilter === 'Yesterday' || statusFilter === 'Past_Overdue') {
+      if (statusFilter === 'Yesterday') {
         return infoB.dateObj - infoA.dateObj;
       }
       return infoA.dateObj - infoB.dateObj;
@@ -438,14 +472,14 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
               Assigned Patients & Live Checkup Workflow
             </h1>
             <p className="text-xs text-slate-300 mt-1 max-w-2xl">
-              Day-based clinical OPD consultations. Only today's scheduled pending patients appear in the live queue. When you complete any patient (today or yesterday), they are added to "Completed Today".
+              Consult with patients assigned to you by the Hospital Receptionist. Conduct checkup, enter diagnosis notes, and decide: Mark OPD Consultation Complete or Admit Patient to IPD Ward.
             </p>
 
             {/* ASSIGNED HOSPITALS BADGES */}
             {assignedHospitals.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap mt-2 pt-2 border-t border-slate-800/80">
                 <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-                  {assignedHospitals.length > 1 ? `Affiliated Hospitals (${assignedHospitals.length} Branches):` : 'Hospital Branch:'}
+                  {assignedHospitals.length > 1 ? `Affiliated Branches (${assignedHospitals.length}):` : 'Hospital Branch:'}
                 </span>
                 {assignedHospitals.map(h => (
                   <span
@@ -495,15 +529,13 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
 
             <button
               type="button"
-              onClick={() => setCurrentPage && setCurrentPage('doctor_settings')}
-              className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-teal-300 hover:text-white text-xs font-bold border border-teal-500/30 hover:border-teal-400/60 transition-all duration-200 cursor-pointer flex items-center gap-2 shadow-sm group whitespace-nowrap"
-              title="Doctor Profile & Settings"
+              onClick={loadDoctorPatients}
+              className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
             >
-              <svg className="w-4 h-4 text-teal-400 group-hover:rotate-45 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              <span>Settings</span>
+              Refresh List
             </button>
           </div>
         </div>
@@ -515,24 +547,22 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
             <span>{actionSuccessMsg}</span>
           </div>
-          <button type="button" onClick={() => setActionSuccessMsg('')} className="text-emerald-700 font-bold">✕</button>
+          <button type="button" onClick={() => setActionSuccessMsg('')} className="text-emerald-700 font-bold cursor-pointer">✕</button>
         </div>
       )}
 
-      {/* STATS */}
+      {/* STATS CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div
           onClick={() => setStatusFilter('Today_All')}
           className={`p-4 sm:p-5 rounded-2xl bg-white border transition cursor-pointer shadow-xs ${statusFilter === 'Today_All' ? 'ring-2 ring-teal-500 border-teal-400' : 'border-slate-200 hover:border-slate-300'}`}
         >
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Today's Appointments</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Today's Assigned Total</p>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Today</span>
           </div>
           <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-800 mt-1">{todayPatients.length}</h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {hospitalFilter === 'ALL' ? 'Across all assigned branches' : (assignedHospitals.find(h => String(h.id) === String(hospitalFilter))?.Name || 'Selected branch')}
-          </p>
+          <p className="text-xs text-slate-500 mt-0.5">Assigned by Receptionist</p>
         </div>
 
         <div
@@ -540,11 +570,11 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
           className={`p-4 sm:p-5 rounded-2xl bg-white border transition cursor-pointer shadow-xs bg-amber-50/30 ${statusFilter === 'Today_Pending' ? 'ring-2 ring-amber-500 border-amber-400' : 'border-amber-300 hover:border-amber-400'}`}
         >
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-amber-800">Pending Today</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-amber-800">Pending Checkups</p>
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
           </div>
           <h3 className="text-2xl sm:text-3xl font-black text-amber-700 mt-1">{todayPendingPatients.length}</h3>
-          <p className="text-xs text-amber-700/80 mt-0.5 font-medium">Waiting in today's queue</p>
+          <p className="text-xs text-amber-700/80 mt-0.5 font-medium">Waiting for consultation</p>
         </div>
 
         <div
@@ -552,23 +582,23 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
           className={`p-4 sm:p-5 rounded-2xl bg-white border transition cursor-pointer shadow-xs bg-emerald-50/30 ${statusFilter === 'Today_Completed' ? 'ring-2 ring-emerald-500 border-emerald-400' : 'border-emerald-300 hover:border-emerald-400'}`}
         >
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">Completed Today</p>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Done Today</span>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">Checkups Done</p>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">OPD Complete</span>
           </div>
           <h3 className="text-2xl sm:text-3xl font-black text-emerald-700 mt-1">{todayCompletedPatients.length}</h3>
-          <p className="text-xs text-emerald-700/80 mt-0.5 font-medium">Consulted & Completed Today</p>
+          <p className="text-xs text-emerald-700/80 mt-0.5 font-medium">Consulted & finished</p>
         </div>
 
         <div
-          onClick={() => setStatusFilter('Yesterday')}
-          className={`p-4 sm:p-5 rounded-2xl bg-white border transition cursor-pointer shadow-xs bg-slate-50/50 ${statusFilter === 'Yesterday' ? 'ring-2 ring-indigo-500 border-indigo-400' : 'border-slate-200 hover:border-slate-300'}`}
+          onClick={() => setStatusFilter('Admitted')}
+          className={`p-4 sm:p-5 rounded-2xl bg-white border transition cursor-pointer shadow-xs bg-purple-50/30 ${statusFilter === 'Admitted' ? 'ring-2 ring-purple-500 border-purple-400' : 'border-purple-300 hover:border-purple-400'}`}
         >
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Yesterday's Patients</p>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">Yesterday</span>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-purple-800">Admitted (IPD)</p>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">Inpatients</span>
           </div>
-          <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-700 mt-1">{yesterdayPatients.length}</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Scheduled yesterday</p>
+          <h3 className="text-2xl sm:text-3xl font-extrabold text-purple-800 mt-1">{admittedPatients.length}</h3>
+          <p className="text-xs text-purple-700/80 mt-0.5">Admitted under your care</p>
         </div>
       </div>
 
@@ -576,98 +606,36 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
       <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2 border-b border-slate-100">
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-base font-bold text-slate-800">Doctor Patient Queue & Consultation Checklist</h2>
-              {statusFilter === 'Today_Pending' && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                  Today's Pending
-                </span>
-              )}
-              {statusFilter === 'Today_Completed' && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  Completed Today
-                </span>
-              )}
-              {statusFilter === 'Yesterday' && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                  Yesterday's List
-                </span>
-              )}
-              {hospitalFilter !== 'ALL' && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
-                  Branch: {assignedHospitals.find(h => String(h.id) === String(hospitalFilter))?.Name || 'Selected'}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-500">Click "Completed" on any patient (Today or Yesterday) to mark finished and add them to "Completed Today"</p>
+            <h2 className="text-base font-bold text-slate-800">Doctor Patient Queue ({filteredPatients.length})</h2>
+            <p className="text-xs text-slate-500">Conduct checkups and make clinical decisions (OPD Complete vs IPD Admission)</p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            {/* MULTI-HOSPITAL SELECTOR */}
-            {assignedHospitals.length > 1 && (
-              <select
-                value={hospitalFilter}
-                onChange={(e) => setHospitalFilter(e.target.value)}
-                className="px-3 py-1.5 rounded-xl border border-teal-300 bg-teal-50/70 text-xs font-bold text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
-              >
-                <option value="ALL">All Branches</option>
-                {assignedHospitals.map(h => {
-                  const countForHosp = patients.filter(p => {
-                    const pHospId = Number(typeof p.hospital === 'object' ? p.hospital?.id : p.hospital);
-                    const pHospName = (p.hospital_name || (typeof p.hospital === 'object' ? p.hospital?.Name : '') || '').toLowerCase().trim();
-                    return pHospId === Number(h.id) || (h.Name && pHospName === h.Name.toLowerCase().trim());
-                  }).length;
-                  return (
-                    <option key={h.id} value={String(h.id)}>
-                      {h.Name} ({countForHosp})
-                    </option>
-                  );
-                })}
-              </select>
-            )}
-
-            <div className="relative flex-1 sm:w-64">
-              <input
-                type="text"
-                placeholder="Search patient name, ID, symptoms..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-3 pr-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
-              />
-            </div>
-
-            {/* STATUS FILTER */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
-            >
-              <option value="Today_Pending">Today's Pending Queue ({todayPendingPatients.length})</option>
-              <option value="Today_Completed">Completed Today ({todayCompletedPatients.length})</option>
-              <option value="Today_All">All Today's Appointments ({todayPatients.length})</option>
-              <option value="Yesterday">Yesterday's Patients ({yesterdayPatients.length})</option>
-              <option value="Upcoming">Upcoming Appointments ({upcomingPatients.length})</option>
-              <option value="Past_Overdue">Past / Overdue Appointments ({pastOverduePatients.length})</option>
-              <option value="ALL">All Patients ({hospitalScopedPatients.length})</option>
-            </select>
+          <div className="w-full md:w-72">
+            <input
+              type="text"
+              placeholder="Search by UHID, name, phone, symptoms..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:border-teal-600 focus:bg-white transition"
+            />
           </div>
         </div>
 
-        {/* FILTER PILLS */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        {/* TABS */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
           <button
             type="button"
             onClick={() => setStatusFilter('Today_Pending')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               statusFilter === 'Today_Pending' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            Today Pending ({todayPendingPatients.length})
+            Today's Pending ({todayPendingPatients.length})
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('Today_Completed')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               statusFilter === 'Today_Completed' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
@@ -675,53 +643,35 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
           </button>
           <button
             type="button"
-            onClick={() => setStatusFilter('Today_All')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              statusFilter === 'Today_All' ? 'bg-teal-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            onClick={() => setStatusFilter('Admitted')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              statusFilter === 'Admitted' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            All Today ({todayPatients.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('Yesterday')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              statusFilter === 'Yesterday' ? 'bg-amber-700 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Yesterday ({yesterdayPatients.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('Upcoming')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              statusFilter === 'Upcoming' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Upcoming ({upcomingPatients.length})
+            Admitted Inpatients ({admittedPatients.length})
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('ALL')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               statusFilter === 'ALL' ? 'bg-slate-800 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            All History ({hospitalScopedPatients.length})
+            All Assigned ({hospitalScopedPatients.length})
           </button>
         </div>
 
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-center text-xs text-slate-600 min-w-[750px]">
+          <table className="w-full text-center text-xs text-slate-600 min-w-[780px]">
             <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
               <tr>
                 <th className="py-3 px-3 text-center">Token</th>
-                <th className="py-3 px-3 text-center">Patient & ID</th>
-                <th className="py-3 px-3 text-center">Age / Gender</th>
-                <th className="py-3 px-3 text-center">Visit Date & Time (Schedule)</th>
-                <th className="py-3 px-3 text-center">Symptoms / Complaint</th>
-                <th className="py-3 px-3 text-center">Status</th>
-                <th className="py-3 px-3 text-center">Actions & Checkup</th>
+                <th className="py-3 px-3 text-left">Patient & UHID</th>
+                <th className="py-3 px-3 text-center">Age / Gender / Blood</th>
+                <th className="py-3 px-3 text-center">Assigned Schedule</th>
+                <th className="py-3 px-3 text-left">Symptoms / Complaint</th>
+                <th className="py-3 px-3 text-center">Clinical Status</th>
+                <th className="py-3 px-3 text-right">Doctor Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -737,7 +687,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                   <td colSpan={7} className="py-10 text-center text-slate-400">
                     <div className="font-semibold text-slate-600">No patients found for this filter criteria.</div>
                     <div className="text-xs text-slate-400 mt-0.5">
-                      {statusFilter === 'Today_Pending' ? 'No pending patients remaining for Today!' : 'Try switching to another day or tab.'}
+                      {statusFilter === 'Today_Pending' ? 'No pending consultations remaining for Today!' : 'Try switching to another tab.'}
                     </div>
                   </td>
                 </tr>
@@ -745,10 +695,9 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                 filteredPatients.slice(0, visibleCount).map((pat, idx) => {
                   const patientIdDisplay = pat.patient_id || pat.uhid || (pat.id ? `PAT-${pat.id}` : '-');
                   const isDone = isCompletedStatus(pat.status);
-                  const isUpdating = updatingPatientId === pat.id;
+                  const isAdmit = isAdmitStatus(pat.status);
                   const dateInfo = getAppointmentDateInfo(pat);
                   const condition = getPatientCondition(pat);
-                  const doneToday = isCompletedToday(pat);
 
                   return (
                     <tr key={pat.id || idx} className={`transition ${isDone ? 'bg-slate-50/40 opacity-75' : 'hover:bg-slate-50/70'}`}>
@@ -756,20 +705,15 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                         #{String(idx + 1).padStart(2, '0')}
                       </td>
 
-                      <td className="py-3 px-3 text-center">
-                        <div className="font-bold text-slate-800">{pat.name || 'Patient'}</div>
-                        <div className="flex items-center justify-center gap-1 flex-wrap mt-0.5">
+                      <td className="py-3 px-3 text-left">
+                        <div className="font-bold text-slate-800 text-sm">{pat.name || 'Patient'}</div>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                           <span className="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block">
                             {patientIdDisplay}
                           </span>
-                          {pat.bed_number ? (
-                            <span className="text-[9px] font-mono font-bold bg-teal-100 text-teal-900 px-1.5 py-0.5 rounded border border-teal-300 inline-block">
-                              Bed #{pat.bed_number} ({pat.floor || `Floor ${Math.floor((pat.bed_number - 1) / 100) + 1}`})
-                            </span>
-                          ) : null}
-                          {assignedHospitals.length > 1 && (
-                            <span className="text-[9px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 inline-block">
-                              {pat.hospital_name || (assignedHospitals.find(h => Number(h.id) === Number(typeof pat.hospital === 'object' ? pat.hospital?.id : pat.hospital))?.Name) || 'Branch'}
+                          {pat.bed_number && (
+                            <span className="text-[9px] font-mono font-bold bg-purple-100 text-purple-900 px-1.5 py-0.5 rounded border border-purple-300 inline-block">
+                              Bed #{pat.bed_number}
                             </span>
                           )}
                         </div>
@@ -777,6 +721,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
 
                       <td className="py-3 px-3 text-center font-medium text-slate-700">
                         {pat.age ? `${pat.age} Y` : '-'} • {pat.gender || '-'}
+                        {pat.blood_group && <span className="block font-bold text-rose-600 text-[10px]">{pat.blood_group}</span>}
                       </td>
 
                       <td className="py-3 px-3 text-center">
@@ -790,9 +735,9 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                         </div>
                       </td>
 
-                      <td className="py-3 px-3 text-center">
-                        <span className="font-medium text-slate-800 block max-w-[180px] mx-auto truncate" title={pat.symptoms_diagnosis || pat.reason}>
-                          {pat.symptoms_diagnosis || pat.reason || '-'}
+                      <td className="py-3 px-3 text-left">
+                        <span className="font-medium text-slate-800 block max-w-[190px] truncate" title={pat.symptoms_diagnosis || pat.reason}>
+                          {pat.symptoms_diagnosis || pat.reason || 'General OPD Checkup'}
                         </span>
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border inline-block mt-0.5 ${
                           condition === 'Critical' ? 'bg-rose-100 text-rose-800 border-rose-300' :
@@ -806,32 +751,24 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
 
                       <td className="py-3 px-3 text-center">
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          isAdmit ? 'bg-purple-100 text-purple-800 border-purple-200' :
                           isDone ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
                         }`}>
-                          {isDone ? (doneToday ? 'Completed Today' : 'Completed') : 'Pending'}
+                          {isAdmit ? 'Admitted (IPD)' : (isDone ? 'Completed' : 'Pending Checkup')}
                         </span>
                       </td>
 
-                      <td className="py-3 px-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                          <select
-                            value={isDone ? 'Completed' : 'Pending'}
-                            onChange={(e) => handleUpdatePatientStatus(pat, e.target.value)}
-                            disabled={isUpdating}
-                            className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50"
-                          >
-                            <option value="Pending">Pending</option>
-                            <option value="Completed">Completed</option>
-                          </select>
-
-                          <button
-                            type="button"
-                            onClick={() => setSelectedPatientModal(pat)}
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer border border-slate-200"
-                          >
-                            Details
-                          </button>
-                        </div>
+                      <td className="py-3 px-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCheckupModal(pat)}
+                          className="px-3.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5 ml-auto"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          </svg>
+                          <span>Consult & Decide</span>
+                        </button>
                       </td>
                     </tr>
                   );
@@ -854,97 +791,149 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
         )}
       </div>
 
-      {/* MODAL */}
+      {/* MODAL: DOCTOR CONSULTATION & ADMISSION DECISION */}
       {selectedPatientModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-5 sm:p-6 space-y-4 my-auto animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full p-5 sm:p-6 space-y-4 my-auto animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-base font-bold text-slate-800">{selectedPatientModal.name}</h3>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 block">Doctor Clinical Consultation</span>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900">{selectedPatientModal.name}</h3>
                 <span className="font-mono text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
-                  {selectedPatientModal.patient_id || selectedPatientModal.uhid || `PAT-${selectedPatientModal.id}`}
+                  UHID: {selectedPatientModal.patient_id || selectedPatientModal.uhid || `PAT-${selectedPatientModal.id}`}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedPatientModal(null)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold flex items-center justify-center text-xs cursor-pointer"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold flex items-center justify-center text-xs cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              {(() => {
-                const modalDateInfo = getAppointmentDateInfo(selectedPatientModal);
-                return (
-                  <div className="p-3 bg-teal-50/60 rounded-xl border border-teal-200 flex items-center justify-between">
-                    <div>
-                      <span className="text-teal-800 uppercase font-bold text-[10px] block">Visit Date & Time Schedule</span>
-                      <span className="font-bold text-slate-800 text-sm mt-0.5 block">{modalDateInfo.fullScheduleDisplay}</span>
-                    </div>
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${modalDateInfo.badgeClass}`}>
-                      {modalDateInfo.dayLabel}
-                    </span>
-                  </div>
-                );
-              })()}
-
-              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                <span className="text-slate-400 uppercase font-bold text-[10px]">Chief Complaints / Diagnosis</span>
-                <p className="text-slate-800 font-medium leading-relaxed">
-                  {selectedPatientModal.symptoms_diagnosis || selectedPatientModal.reason || 'Routine consultation and clinical observation.'}
-                </p>
+            {/* PATIENT DEMOGRAPHICS SUMMARY */}
+            <div className="grid grid-cols-3 gap-2.5 text-xs">
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-slate-400 uppercase font-bold text-[10px] block">Age & Gender</span>
+                <p className="font-bold text-slate-800 mt-0.5">{selectedPatientModal.age ? `${selectedPatientModal.age} Yrs` : '-'} • {selectedPatientModal.gender || '-'}</p>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-slate-400 uppercase font-bold text-[10px]">Age & Gender</span>
-                  <p className="font-bold text-slate-800 mt-0.5">{selectedPatientModal.age ? `${selectedPatientModal.age} Years` : '-'} • {selectedPatientModal.gender || '-'}</p>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-slate-400 uppercase font-bold text-[10px]">Blood Group</span>
-                  <p className="font-bold text-rose-700 mt-0.5">{getPatientBloodGroup(selectedPatientModal)}</p>
-                </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-slate-400 uppercase font-bold text-[10px] block">Blood Group</span>
+                <p className="font-bold text-rose-700 mt-0.5">{getPatientBloodGroup(selectedPatientModal)}</p>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-slate-400 uppercase font-bold text-[10px]">Condition Severity</span>
-                  <p className="font-bold text-slate-800 mt-0.5">{getPatientCondition(selectedPatientModal)}</p>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-slate-400 uppercase font-bold text-[10px]">Contact Phone</span>
-                  <p className="font-semibold text-slate-800 mt-0.5">{selectedPatientModal.contact || selectedPatientModal.phone || '-'}</p>
-                </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-slate-400 uppercase font-bold text-[10px] block">Contact Phone</span>
+                <p className="font-bold text-slate-800 mt-0.5">{selectedPatientModal.contact || selectedPatientModal.phone || '-'}</p>
               </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-slate-400 uppercase font-bold text-[10px]">Hospital Facility / Branch</span>
-                  <p className="font-bold text-teal-800 mt-0.5">
-                    {selectedPatientModal.hospital_name || (assignedHospitals.find(h => Number(h.id) === Number(typeof selectedPatientModal.hospital === 'object' ? selectedPatientModal.hospital?.id : selectedPatientModal.hospital))?.Name) || hospitalName || 'Hospital'}
-                  </p>
-                </div>
-                <div className="p-3 bg-teal-50/60 rounded-xl border border-teal-200">
-                  <span className="text-teal-800 uppercase font-bold text-[10px]">Inpatient Location</span>
-                  <p className="font-bold text-teal-950 font-mono mt-0.5">
-                    {selectedPatientModal.bed_number ? `Bed #${selectedPatientModal.bed_number} (${selectedPatientModal.floor || `Floor ${Math.floor((selectedPatientModal.bed_number - 1) / 100) + 1}`})` : 'Outpatient / OPD'}
-                  </p>
-                </div>
+            {/* RESIDENTIAL ADDRESS */}
+            {selectedPatientModal.address && (
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                <span className="text-slate-400 uppercase font-bold text-[10px] block">Residential Address</span>
+                <p className="text-slate-700 font-medium mt-0.5">{selectedPatientModal.address}</p>
               </div>
+            )}
 
-              <div className="pt-3 flex items-center justify-between gap-3 border-t border-slate-100 flex-wrap">
-                <span className="text-slate-700 font-bold text-xs">Change Status:</span>
-                <select
-                  value={isCompletedStatus(selectedPatientModal.status) ? 'Completed' : 'Pending'}
-                  onChange={(e) => handleUpdatePatientStatus(selectedPatientModal, e.target.value)}
-                  disabled={updatingPatientId === selectedPatientModal.id}
-                  className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50"
+            {/* ATTACHED MEDICAL DOCUMENT */}
+            {selectedPatientModal.attached_document && (
+              <div className="p-3 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-teal-800 block">Patient Attached Document</span>
+                  <span className="font-medium text-teal-900 truncate max-w-[220px] block">
+                    {String(selectedPatientModal.attached_document).split('/').pop()}
+                  </span>
+                </div>
+                <a
+                  href={String(selectedPatientModal.attached_document).startsWith('http') ? selectedPatientModal.attached_document : `${API_BASE_URL.replace('/api', '')}${selectedPatientModal.attached_document}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs"
                 >
-                  <option value="Pending">Pending</option>
-                  <option value="Completed">Completed</option>
+                  View Document
+                </a>
+              </div>
+            )}
+
+            {/* CLINICAL SYMPTOMS & DIAGNOSIS EDIT */}
+            <div className="space-y-3 pt-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Symptoms & Clinical Diagnosis *
+                </label>
+                <textarea
+                  rows={2}
+                  value={clinicalNotes}
+                  onChange={(e) => setClinicalNotes(e.target.value)}
+                  placeholder="Record your clinical findings, diagnosis, and patient complaints..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:border-teal-600 font-medium"
+                ></textarea>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Prescription / Medical Advice & Regimen
+                </label>
+                <textarea
+                  rows={2}
+                  value={prescriptionText}
+                  onChange={(e) => setPrescriptionText(e.target.value)}
+                  placeholder="Rx: Medicines, dosage (e.g. Paracetamol 500mg TDS), dietary instructions..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:border-teal-600 font-medium"
+                ></textarea>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Patient Condition Severity
+                </label>
+                <select
+                  value={selectedSeverity}
+                  onChange={(e) => setSelectedSeverity(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:border-teal-600 font-medium"
+                >
+                  <option value="Normal">Normal (Stable condition)</option>
+                  <option value="Serious">Serious (Requires Close Monitoring)</option>
+                  <option value="Urgent">Urgent (Immediate Attention)</option>
+                  <option value="Critical">Critical (Intensive Care)</option>
+                  <option value="Emergency">Emergency Attention</option>
                 </select>
+              </div>
+            </div>
+
+            {/* DECISION ACTION BUTTONS: ADMIT VS COMPLETE */}
+            <div className="pt-3 border-t border-slate-200 space-y-2">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block text-center">
+                Select Clinical Outcome for this Patient:
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* OPTION 1: COMPLETE CHECKUP */}
+                <button
+                  type="button"
+                  disabled={updatingPatientId === selectedPatientModal.id}
+                  onClick={() => handleDoctorDecision('COMPLETE')}
+                  className="py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition cursor-pointer flex flex-col items-center justify-center gap-1 disabled:opacity-50"
+                >
+                  <span className="text-sm font-extrabold flex items-center gap-1">
+                    <span>✓</span> Checkup Complete
+                  </span>
+                  <span className="text-[10px] font-normal opacity-90">Outpatient (No Admission)</span>
+                </button>
+
+                {/* OPTION 2: ADMIT PATIENT */}
+                <button
+                  type="button"
+                  disabled={updatingPatientId === selectedPatientModal.id}
+                  onClick={() => handleDoctorDecision('ADMIT')}
+                  className="py-3 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800 text-white font-bold text-xs shadow-md transition cursor-pointer flex flex-col items-center justify-center gap-1 disabled:opacity-50"
+                >
+                  <span className="text-sm font-extrabold flex items-center gap-1">
+                    <span>🏥</span> Admit Patient (IPD)
+                  </span>
+                  <span className="text-[10px] font-normal opacity-90">Send to Reception for Bed & Nurse</span>
+                </button>
               </div>
             </div>
           </div>

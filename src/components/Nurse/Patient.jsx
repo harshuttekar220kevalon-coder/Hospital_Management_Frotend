@@ -126,7 +126,7 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
   const nurseName = activeNurse?.name || currentUser?.name || 'Nurse';
   const roleName = activeNurse?.nurse_role || activeNurse?.role || currentUser?.nurse_role || currentUser?.role || 'Staff Nurse';
   const wardName = activeNurse?.ward || currentUser?.ward || 'General Care Ward';
-  const hospitalName = hospitalInfo?.Name || hospitalInfo?.name || activeNurse?.hospital_name || currentUser?.hospital_name || (typeof activeNurse?.hospital === 'object' ? activeNurse.hospital?.Name : null) || 'Apex Care Hospital';
+  const hospitalName = hospitalInfo?.Name || hospitalInfo?.name || activeNurse?.hospital_name || currentUser?.hospital_name || (typeof activeNurse?.hospital === 'object' ? activeNurse.hospital?.Name : null) || 'Not Provided';
   const nurseIdTag = activeNurse?.nurse_id || currentUser?.nurse_id || `NUR-${currentUser?.id || '01'}`;
   const nurseFloor = activeNurse?.floor || 'Floor 1';
   const targetHospId = typeof activeNurse?.hospital === 'object' ? activeNurse?.hospital?.id : (activeNurse?.hospital || currentUser?.hospital);

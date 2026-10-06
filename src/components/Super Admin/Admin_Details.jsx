@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurrentPage }) => {
   const [activeTab, setActiveTab] = useState('all');
@@ -44,8 +45,8 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
     name: '',
     email: '',
     contact: '',
-    designation: 'Hospital Administrator',
-    role: 'Hospital Admin',
+    designation: '',
+    role: '',
     hospital: '',
     is_active: true
   });
@@ -72,7 +73,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
           if (isMounted) setAdminData(currentAdmin);
         }
       }
-      const hospListRes = await fetch('http://127.0.0.1:8000/api/super-admin/Hospital/').catch(() => null);
+      const hospListRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
       let allHospitals = [];
       if (hospListRes && hospListRes.ok) {
         allHospitals = await hospListRes.json();
@@ -80,7 +81,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
       }
 
         if (currentAdmin && currentAdmin.id && !String(currentAdmin.id).startsWith('hosp-')) {
-          const adminRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${currentAdmin.id}/`).catch(() => null);
+          const adminRes = await fetch(`${API_BASE_URL}/super-admin/Admins/${currentAdmin.id}/`).catch(() => null);
           if (adminRes && adminRes.ok) {
             const freshAdmin = await adminRes.json();
             currentAdmin = freshAdmin;
@@ -99,7 +100,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
         if (targetHospitalId) {
           let targetHosp = allHospitals.find(h => Number(h.id) === Number(targetHospitalId));
           if (!targetHosp) {
-            const hRes = await fetch(`http://127.0.0.1:8000/api/super-admin/Hospital/${targetHospitalId}/`).catch(() => null);
+            const hRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${targetHospitalId}/`).catch(() => null);
             if (hRes && hRes.ok) {
               targetHosp = await hRes.json();
             }
@@ -107,7 +108,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
           if (isMounted && targetHosp) setHospitalData(targetHosp);
 
           // Fetch Branch Doctors
-          const docRes = await fetch('http://127.0.0.1:8000/api/super-admin/Doctors/').catch(() => null);
+          const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
           if (docRes && docRes.ok) {
             const allDocs = await docRes.json();
             const branchDocs = allDocs.filter(d => {
@@ -118,7 +119,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
           }
 
           // Fetch Branch Nurses
-          const nurRes = await fetch('http://127.0.0.1:8000/api/super-admin/Nurses/').catch(() => null);
+          const nurRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/`).catch(() => null);
           if (nurRes && nurRes.ok) {
             const allNurs = await nurRes.json();
             const branchNurs = allNurs.filter(n => Number(n.hospital) === Number(targetHospitalId));
@@ -126,7 +127,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
           }
 
           // Fetch Branch Receptionists
-          const recRes = await fetch('http://127.0.0.1:8000/api/super-admin/Receptionists/').catch(() => null);
+          const recRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`).catch(() => null);
           if (recRes && recRes.ok) {
             const allRecs = await recRes.json();
             const branchRecs = allRecs.filter(r => Number(r.hospital) === Number(targetHospitalId));
@@ -134,7 +135,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
           }
 
           // Fetch Branch Patients
-          const patRes = await fetch('http://127.0.0.1:8000/api/super-admin/Patients/').catch(() => null);
+          const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
           if (patRes && patRes.ok) {
             const allPats = await patRes.json();
             const branchPats = allPats.filter(p => Number(p.hospital) === Number(targetHospitalId));
@@ -214,7 +215,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
     if (!admin || !admin.id || String(admin.id).startsWith('hosp-')) return;
     try {
       const nextStatus = !admin.is_active;
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${admin.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Admins/${admin.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: nextStatus })
@@ -246,8 +247,8 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
       name: admin.name || '',
       email: (admin.email || '').toLowerCase(),
       contact: admin.contact || '',
-      designation: admin.designation || 'Hospital Administrator',
-      role: admin.role || 'Hospital Admin',
+      designation: admin.designation || '',
+      role: admin.role || '',
       hospital: hospId,
       is_active: admin.is_active !== false
     });
@@ -267,13 +268,13 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
         name: editFormData.name.trim(),
         email: editFormData.email.trim().toLowerCase(),
         contact: editFormData.contact.trim(),
-        designation: editFormData.designation || 'Hospital Administrator',
-        role: editFormData.role || 'Hospital Admin',
+        designation: editFormData.designation || '',
+        role: editFormData.role || '',
         hospital: Number(editFormData.hospital),
         is_active: Boolean(editFormData.is_active)
       };
 
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${admin.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Admins/${admin.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -318,7 +319,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
     }
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${admin.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Admins/${admin.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -353,7 +354,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
   const handleDeleteAdmin = async () => {
     if (!admin || !admin.id || String(admin.id).startsWith('hosp-')) return;
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/super-admin/Admins/${admin.id}/`, {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Admins/${admin.id}/`, {
         method: 'DELETE'
       });
 
@@ -407,7 +408,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                 {admin.employee_id || `ADM-${admin.id}`}
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                {admin.designation || 'Hospital Administrator'}
+                {admin.designation || 'Not Provided'}
               </span>
               <button
                 type="button"
@@ -420,7 +421,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
               </button>
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 tracking-tight mt-1">
-              {admin.name || 'Administrator'}
+              {admin.name || 'Not Provided'}
             </h1>
             {admin.email && (
               <p className="mt-1">
@@ -478,13 +479,13 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                   </a>
                 </p>
               ) : (
-                <p className="font-semibold text-slate-400 mt-0.5">-</p>
+                <p className="font-semibold text-slate-400 mt-0.5">Not Provided</p>
               )}
             </div>
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
               <span className="text-slate-400 uppercase text-[10px] font-bold">Contact Phone</span>
-              <p className="font-semibold text-slate-800 mt-0.5">{admin.contact || '-'}</p>
+              <p className="font-semibold text-slate-800 mt-0.5">{admin.contact || 'Not Provided'}</p>
             </div>
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 sm:col-span-2">
@@ -852,10 +853,10 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                   onChange={(e) => setEditFormData({ ...editFormData, hospital: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                 >
-                  <option value="">-- Select Hospital Branch * --</option>
+                  <option value="">-- Select Hospital --</option>
                   {hospitalsList.map((h) => (
                     <option key={h.id} value={h.id}>
-                      {h.Name} ({h.city}) - {h.Branch_Code}
+                      {h.Name || h.name}
                     </option>
                   ))}
                 </select>
@@ -900,6 +901,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setCurren
                   type="text"
                   value={editFormData.designation}
                   onChange={(e) => setEditFormData({ ...editFormData, designation: e.target.value })}
+                  placeholder="Not Provided"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>

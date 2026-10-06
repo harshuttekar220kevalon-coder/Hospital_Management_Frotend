@@ -49,10 +49,12 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
     patient_id: '',
     name: '',
     age: '',
-    gender: 'Male',
+    gender: '',
     blood_group: '',
     contact: '',
     email: '',
+    password: '',
+    Password: '',
     address: '',
     hospital: '',
     doctor: '',
@@ -68,10 +70,10 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
     payment_method: '',
     symptoms_diagnosis: '',
     reason_for_visit: '',
-    Condation: 'Normal',
-    condation: 'Normal',
-    condition: 'Normal',
-    symptoms_severity: 'Normal',
+    Condation: '',
+    condation: '',
+    condition: '',
+    symptoms_severity: '',
     visit_date_time: '',
     status: '',
     is_active: true,
@@ -200,10 +202,12 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
       patient_id: displayId,
       name: activePatient.name || '',
       age: activePatient.age || '',
-      gender: activePatient.gender || 'Male',
-      blood_group: activePatient.Blood_Group || activePatient.blood_group || 'O+',
+      gender: activePatient.gender || '',
+      blood_group: activePatient.Blood_Group || activePatient.blood_group || '',
       contact: activePatient.contact || activePatient.phone || '',
       email: activePatient.email || '',
+      password: activePatient.Password || activePatient.password || '',
+      Password: activePatient.Password || activePatient.password || '',
       address: activePatient.address || '',
       hospital: activePatient.hospital || '',
       doctor: activePatient.doctor || (assignedDoctor ? assignedDoctor.id : ''),
@@ -219,10 +223,10 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
       payment_method: activePatient.payment_method || 'Cash',
       symptoms_diagnosis: activePatient.symptoms_diagnosis || '',
       reason_for_visit: activePatient.reason_for_visit || activePatient.symptoms_diagnosis || '',
-      Condation: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || 'Normal',
-      condation: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || 'Normal',
-      condition: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || 'Normal',
-      symptoms_severity: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || 'Normal',
+      Condation: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || '',
+      condation: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || '',
+      condition: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || '',
+      symptoms_severity: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || '',
       visit_date_time: activePatient.visit_date_time || activePatient.appointment_time || '',
       status: activePatient.status || 'Pending',
       is_active: activePatient.is_active !== undefined ? activePatient.is_active : true,
@@ -257,6 +261,8 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
         name: editFormData.name.trim(),
         contact: editFormData.contact.trim(),
         email: editFormData.email.trim(),
+        password: (editFormData.password || editFormData.Password || '').trim(),
+        Password: (editFormData.password || editFormData.Password || '').trim(),
         age: editFormData.age ? Number(editFormData.age) : null,
         gender: editFormData.gender,
         blood_group: editFormData.blood_group,
@@ -619,6 +625,13 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
+                <span className="text-[10px] text-slate-400 uppercase font-bold">Account Password</span>
+                <p className="font-mono font-bold text-slate-800 mt-0.5 break-all">
+                  {activePatient.Password || activePatient.password || '••••••••'}
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Address / City</span>
                 <p className="font-semibold text-slate-800 mt-0.5 break-words break-all">{activePatient.address || '-'}</p>
               </div>
@@ -864,6 +877,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                     onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Gender --</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
@@ -876,6 +890,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                     onChange={(e) => setEditFormData({ ...editFormData, blood_group: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Blood Group --</option>
                     {bloodGroups.map((bg, idx) => (
                       <option key={idx} value={bg}>{bg}</option>
                     ))}
@@ -883,16 +898,16 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
                     maxLength={15}
                     required
-                    placeholder="e.g. 9876543210 / 02212345678"
+                    placeholder="e.g. 9876543210"
                     value={editFormData.contact}
                     onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
@@ -905,6 +920,17 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                     value={editFormData.email}
                     onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Account Password</label>
+                  <input
+                    type="password"
+                    maxLength={20}
+                    placeholder="Set patient password"
+                    value={editFormData.password || editFormData.Password || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value, Password: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
               </div>
@@ -951,10 +977,10 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                         }}
                         className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                       >
-                        <option value="" disabled>Select Target Hospital Branch *</option>
+                        <option value="">-- Select Hospital --</option>
                         {hospitalsList.map((h) => (
                           <option key={h.id} value={h.id}>
-                            {h.Name} ({h.city}) - {h.Branch_Code}
+                            {h.Name || h.name}
                           </option>
                         ))}
                       </select>
@@ -977,7 +1003,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                         }}
                         className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                       >
-                        <option value="">Select Doctor</option>
+                        <option value="">-- Select Doctor --</option>
                         {availableDocs.map((d) => (
                           <option key={d.id} value={d.id}>
                             {d.name} ({d.specialization || d.specialty || 'Doctor'}) [₹{d.consultation_fee ?? 0}]
@@ -1077,23 +1103,25 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                 <div className="flex items-center justify-between">
                   <p className="font-bold text-emerald-900 uppercase text-[11px]">Fee & Billing Details</p>
                   <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
-                    Auto-Calculated Total
+                    Dual Billing Model
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-slate-700 uppercase mb-1">Doctor Consultation Fee (₹) *</label>
+                    <label className="block font-semibold text-slate-700 uppercase mb-1">
+                      Doctor Consultation Fee (₹) <span className="text-[10px] text-amber-700 font-normal">(Doctor Set)</span> *
+                    </label>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
+                      readOnly
                       value={editFormData.consultation_fee}
-                      onChange={handleConsultationFeeChange}
-                      placeholder="e.g. 500.00"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono font-bold focus:outline-none focus:border-emerald-600"
+                      placeholder="Doctor fee (auto)"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono font-bold focus:outline-none cursor-not-allowed"
                     />
-                    <p className="text-[10px] text-slate-500 mt-0.5">Credited to Doctor earnings</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Fixed consultation fee set on Doctor profile</p>
                   </div>
                   <div>
                     <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital Charges / Services (₹) *</label>
@@ -1137,6 +1165,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                       type="number"
                       step="0.01"
                       min="0"
+                      placeholder="e.g. 500.00"
                       value={editFormData.amount_paid}
                       onChange={(e) => setEditFormData({ ...editFormData, amount_paid: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono font-bold focus:outline-none focus:border-emerald-600"
@@ -1149,6 +1178,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                       onChange={(e) => setEditFormData({ ...editFormData, payment_status: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-semibold cursor-pointer"
                     >
+                      <option value="">-- Select Payment Status --</option>
                       {paymentStatuses.map((ps, idx) => (
                         <option key={idx} value={ps}>{ps}</option>
                       ))}
@@ -1161,7 +1191,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                       onChange={(e) => setEditFormData({ ...editFormData, payment_method: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-medium cursor-pointer"
                     >
-                      <option value="">Select Method</option>
+                      <option value="">-- Select Payment Method --</option>
                       {paymentMethods.map((pm, idx) => (
                         <option key={idx} value={pm}>{pm}</option>
                       ))}
@@ -1184,7 +1214,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Patient Condition (Triage) *</label>
                   <select
-                    value={editFormData.Condation || editFormData.condation || editFormData.condition || editFormData.symptoms_severity || 'Normal'}
+                    value={editFormData.Condation || editFormData.condation || editFormData.condition || editFormData.symptoms_severity || ''}
                     onChange={(e) => setEditFormData({
                       ...editFormData,
                       Condation: e.target.value,
@@ -1192,8 +1222,9 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                       condition: e.target.value,
                       symptoms_severity: e.target.value
                     })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-bold cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-600 font-bold cursor-pointer"
                   >
+                    <option value="">-- Select Condition --</option>
                     <option value="Critical">Critical</option>
                     <option value="Emergency">Emergency</option>
                     <option value="Urgent">Urgent</option>
@@ -1208,6 +1239,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                     onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-semibold cursor-pointer"
                   >
+                    <option value="">-- Select Status --</option>
                     {statusOptions.map((st, idx) => (
                       <option key={idx} value={st}>{st}</option>
                     ))}

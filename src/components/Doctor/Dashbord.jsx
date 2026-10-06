@@ -253,8 +253,12 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
         rawHospIds.push(Number(currentUser.hospital));
       }
 
-      const docAssignedHospitals = allHospitals.filter(h => rawHospIds.includes(Number(h.id)));
-      setAssignedHospitals(docAssignedHospitals.length > 0 ? docAssignedHospitals : (allHospitals[0] ? [allHospitals[0]] : []));
+      let docAssignedHospitals = allHospitals.filter(h => rawHospIds.includes(Number(h.id)));
+      if (docAssignedHospitals.length === 0 && currentUser?.hospital_name) {
+        const byName = allHospitals.find(h => (h.Name || h.name || '').toLowerCase() === currentUser.hospital_name.toLowerCase());
+        if (byName) docAssignedHospitals = [byName];
+      }
+      setAssignedHospitals(docAssignedHospitals);
 
       const primaryHosp = docAssignedHospitals[0] || allHospitals.find(h => Number(h.id) === Number(rawHospIds[0])) || null;
       setHospitalInfo(primaryHosp);
@@ -794,7 +798,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                       </td>
 
                       <td className="py-3 px-3 text-center">
-                        <div className="font-bold text-slate-800">{pat.name || 'Patient'}</div>
+                        <div className="font-bold text-slate-800">{pat.patient_Name || pat.patient_name || pat.name || 'Patient'}</div>
                         <div className="flex items-center justify-center gap-1 flex-wrap mt-0.5">
                           <span className="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block">
                             {patientIdDisplay}
@@ -898,7 +902,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-5 sm:p-6 space-y-4 my-auto animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-base font-bold text-slate-800">{selectedPatientModal.name}</h3>
+                <h3 className="text-base font-bold text-slate-800">{selectedPatientModal.patient_Name || selectedPatientModal.patient_name || selectedPatientModal.name}</h3>
                 <span className="font-mono text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
                   {selectedPatientModal.patient_id || selectedPatientModal.uhid || `PAT-${selectedPatientModal.id}`}
                 </span>

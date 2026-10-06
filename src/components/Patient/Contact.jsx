@@ -3,7 +3,7 @@ import PatientNavbar from './PatientNavbar';
 import PatientFooter from './PatientFooter';
 import { API_BASE_URL } from '../Api/Api';
 
-const PatientContact = ({ setCurrentPage, isLoggedIn, currentUser }) => {
+const PatientContact = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => {
   const [hospitals, setHospitals] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -122,6 +122,7 @@ const PatientContact = ({ setCurrentPage, isLoggedIn, currentUser }) => {
         currentPage="contact"
         setCurrentPage={setCurrentPage}
         isLoggedIn={isLoggedIn}
+        onLogout={onLogout}
         currentUser={currentUser}
       />
 
@@ -355,9 +356,10 @@ const PatientContact = ({ setCurrentPage, isLoggedIn, currentUser }) => {
                         onChange={(e) => setFormData({ ...formData, hospitalId: e.target.value })}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 cursor-pointer font-medium"
                       >
+                        <option value="">-- Select Hospital --</option>
                         {hospitals.map((h) => (
                           <option key={h.id} value={h.id}>
-                            {h.Name || h.name} {h.City || h.city ? `(${h.City || h.city})` : ''}
+                            {h.Name || h.name}
                           </option>
                         ))}
                       </select>

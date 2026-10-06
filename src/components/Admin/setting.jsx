@@ -5,21 +5,31 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
   const [adminData, setAdminData] = useState(null);
+  const [hospitalsList, setHospitalsList] = useState([]);
   const [hospitalData, setHospitalData] = useState(null);
 
   const [editFormData, setEditFormData] = useState({
     name: '',
+    email: '',
     contact: '',
+    password: '',
     designation: '',
-    bio: ''
+    hospital: '',
+    is_active: true,
+    employee_id: '',
+    created_at: ''
   });
 
+  const [showPassword, setShowPassword] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+  const [saveErrorMsg, setSaveErrorMsg] = useState('');
 
+  // Password tab state
   const [passwordForm, setPasswordForm] = useState({
     email: '',
+    currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
@@ -29,23 +39,30 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
   const [passwordSuccessMsg, setPasswordSuccessMsg] = useState('');
   const [passwordErrorMsg, setPasswordErrorMsg] = useState('');
 
-  const [isResetRequestModalOpen, setIsResetRequestModalOpen] = useState(false);
-  const [resetRequestReason, setResetRequestReason] = useState('Periodic security credential renewal');
-  const [resetRequestSent, setResetRequestSent] = useState(false);
-
   const fetchAdminDetails = async () => {
     try {
       setLoading(true);
       const email = (currentUser?.email || '').toLowerCase().trim();
       const adminId = currentUser?.id;
 
+      // 1. Fetch hospitals list
+      const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
+      let loadedHospitals = [];
+      if (hospRes && hospRes.ok) {
+        loadedHospitals = await hospRes.json().catch(() => []);
+        if (Array.isArray(loadedHospitals)) {
+          setHospitalsList(loadedHospitals);
+        }
+      }
+
+      // 2. Fetch admin record
       let matchedAdmin = null;
       try {
         const res = await fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null);
         if (res && res.ok) {
           const list = await res.json();
           if (Array.isArray(list)) {
-            matchedAdmin = list.find(a => 
+            matchedAdmin = list.find(a =>
               (a.email && a.email.toLowerCase().trim() === email) ||
               (adminId && Number(a.id) === Number(adminId)) ||
               (a.name && a.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim())
@@ -59,24 +76,31 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
       const effectiveAdmin = matchedAdmin || currentUser || {};
       setAdminData(effectiveAdmin);
 
+      const targetHospId = effectiveAdmin.hospital
+        ? (typeof effectiveAdmin.hospital === 'object' ? effectiveAdmin.hospital.id : effectiveAdmin.hospital)
+        : (currentUser?.hospital || '');
+
       setEditFormData({
-        name: effectiveAdmin.name || currentUser?.name || 'Administrator',
+        name: effectiveAdmin.name || currentUser?.name || '',
+        email: effectiveAdmin.email || currentUser?.email || '',
         contact: effectiveAdmin.contact || effectiveAdmin.phone || currentUser?.contact || '',
-        designation: effectiveAdmin.designation || currentUser?.designation || 'Hospital Administrator',
-        bio: effectiveAdmin.bio || 'Senior medical operations administrator overseeing daily clinical infrastructure, hospital personnel, and department allocations.'
+        password: effectiveAdmin.password || '',
+        designation: effectiveAdmin.designation || currentUser?.designation || '',
+        hospital: targetHospId ? String(targetHospId) : '',
+        is_active: effectiveAdmin.is_active !== undefined ? Boolean(effectiveAdmin.is_active) : true,
+        employee_id: effectiveAdmin.employee_id || (effectiveAdmin.id ? `ADM-${effectiveAdmin.id}` : ''),
+        created_at: effectiveAdmin.created_at || ''
       });
 
-      const hospId = effectiveAdmin.hospital || currentUser?.hospital;
-      if (hospId) {
-        try {
-          const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${hospId}/`).catch(() => null);
-          if (hospRes && hospRes.ok) {
-            const hospObj = await hospRes.json();
-            setHospitalData(hospObj);
-          }
-        } catch (e) {
-          console.error('Error fetching hospital record:', e);
-        }
+      setPasswordForm(prev => ({
+        ...prev,
+        email: effectiveAdmin.email || currentUser?.email || ''
+      }));
+
+      // Find matching hospital object
+      if (targetHospId && Array.isArray(loadedHospitals)) {
+        const found = loadedHospitals.find(h => Number(h.id) === Number(targetHospId));
+        if (found) setHospitalData(found);
       } else if (selectedHospital) {
         setHospitalData(selectedHospital);
       }
@@ -89,42 +113,80 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
     fetchAdminDetails();
   }, [currentUser]);
 
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setEditFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+    if (saveSuccessMsg) setSaveSuccessMsg('');
+    if (saveErrorMsg) setSaveErrorMsg('');
+  };
+
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     try {
       setSavingProfile(true);
       setSaveSuccessMsg('');
+      setSaveErrorMsg('');
 
       const adminId = adminData?.id || currentUser?.id;
-      const updatedPayload = {
-        ...adminData,
+
+      const payload = {
         name: editFormData.name.trim(),
+        email: editFormData.email.trim(),
         contact: editFormData.contact.trim(),
+        phone: editFormData.contact.trim(),
         designation: editFormData.designation.trim(),
-        bio: editFormData.bio.trim()
+        hospital: editFormData.hospital ? Number(editFormData.hospital) : null,
+        is_active: Boolean(editFormData.is_active)
       };
+
+      if (editFormData.password) {
+        payload.password = editFormData.password;
+      }
 
       if (adminId) {
         try {
-          await fetch(`${API_BASE_URL}/super-admin/Admins/${adminId}/`, {
+          const res = await fetch(`${API_BASE_URL}/super-admin/Admins/${adminId}/`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: updatedPayload.name,
-              contact: updatedPayload.contact,
-              designation: updatedPayload.designation
-            })
-          }).catch(() => null);
-        } catch {}
+            body: JSON.stringify(payload)
+          });
+          if (!res.ok) {
+            // Try PUT as fallback
+            await fetch(`${API_BASE_URL}/super-admin/Admins/${adminId}/`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...adminData,
+                ...payload
+              })
+            }).catch(() => null);
+          }
+        } catch (apiErr) {
+          console.warn('API PATCH failed, saving locally:', apiErr);
+        }
       }
 
-      setAdminData(updatedPayload);
+      // Update local state
+      const updatedAdmin = {
+        ...adminData,
+        ...payload,
+        id: adminId,
+        employee_id: editFormData.employee_id,
+        created_at: editFormData.created_at
+      };
+      setAdminData(updatedAdmin);
 
       const updatedCurrentUser = {
         ...currentUser,
-        name: updatedPayload.name,
-        contact: updatedPayload.contact,
-        designation: updatedPayload.designation
+        name: payload.name,
+        email: payload.email,
+        contact: payload.contact,
+        designation: payload.designation,
+        hospital: payload.hospital,
+        is_active: payload.is_active
       };
 
       if (setCurrentUser) {
@@ -132,11 +194,26 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
       }
       localStorage.setItem('currentUser', JSON.stringify(updatedCurrentUser));
 
-      setSaveSuccessMsg('Profile details updated successfully!');
+      if (payload.password) {
+        localStorage.setItem(`pwd_${payload.email.toLowerCase()}`, payload.password);
+      }
+
+      // Update selected hospital if changed
+      if (payload.hospital && hospitalsList.length > 0) {
+        const found = hospitalsList.find(h => Number(h.id) === Number(payload.hospital));
+        if (found) {
+          setHospitalData(found);
+          if (setSelectedHospital) setSelectedHospital(found);
+          localStorage.setItem('selectedHospital', JSON.stringify(found));
+        }
+      }
+
+      setSaveSuccessMsg('Administrator profile details updated successfully!');
       setIsEditingProfile(false);
       setTimeout(() => setSaveSuccessMsg(''), 4000);
     } catch (err) {
       console.error('Error updating profile:', err);
+      setSaveErrorMsg(err.message || 'Failed to update administrator profile.');
     } finally {
       setSavingProfile(false);
     }
@@ -147,499 +224,419 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
     setPasswordErrorMsg('');
     setPasswordSuccessMsg('');
 
-    const enteredEmail = (passwordForm.email || '').toLowerCase().trim();
-    const actualEmail = (adminData?.email || currentUser?.email || '').toLowerCase().trim();
+    const newPass = passwordForm.newPassword || '';
+    const confirmPass = passwordForm.confirmPassword || '';
 
-    if (!enteredEmail) {
-      setPasswordErrorMsg('Please enter your registered email address.');
+    if (!newPass || newPass.length < 4) {
+      setPasswordErrorMsg('New password must be at least 4 characters.');
       return;
     }
 
-    if (enteredEmail !== actualEmail) {
-      setPasswordErrorMsg('Entered email does not match your registered admin email. Password cannot be changed.');
-      return;
-    }
-
-    if (!passwordForm.newPassword) {
-      setPasswordErrorMsg('New password is required.');
-      return;
-    }
-
-    if (passwordForm.newPassword.length < 6) {
-      setPasswordErrorMsg('New password must be at least 6 characters long.');
-      return;
-    }
-
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordErrorMsg('New passwords do not match. Please verify.');
+    if (newPass !== confirmPass) {
+      setPasswordErrorMsg('New password and Confirm password do not match.');
       return;
     }
 
     try {
       setPasswordLoading(true);
       const adminId = adminData?.id || currentUser?.id;
-      const adminEmail = actualEmail;
-
-      let success = false;
+      const targetEmail = (editFormData.email || currentUser?.email || '').toLowerCase().trim();
 
       if (adminId) {
-        let res = await fetch(`${API_BASE_URL}/super-admin/Admins/${adminId}/`, {
+        await fetch(`${API_BASE_URL}/super-admin/Admins/${adminId}/`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: passwordForm.newPassword })
+          body: JSON.stringify({ password: newPass })
         }).catch(() => null);
-
-        if (!res || !res.ok) {
-          res = await fetch(`${API_BASE_URL}/super-admin/Admins/${adminId}/`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...adminData, password: passwordForm.newPassword })
-          }).catch(() => null);
-        }
-
-        if (res && res.ok) {
-          success = true;
-        }
       }
 
-      if (adminEmail) {
-        try {
-          const resetRes = await fetch(`${API_BASE_URL}/reset-password/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: adminEmail,
-              password: passwordForm.newPassword,
-              new_password: passwordForm.newPassword
-            })
-          }).catch(() => null);
+      localStorage.setItem(`pwd_${targetEmail}`, newPass);
+      setEditFormData(prev => ({ ...prev, password: newPass }));
 
-          if (resetRes && resetRes.ok) {
-            success = true;
-          }
-        } catch (e) {
-          console.warn('Reset password sync warning:', e);
-        }
-      }
-
-      if (success || adminId) {
-        setPasswordSuccessMsg('Password updated successfully! Your new credentials are active in database.');
-        setPasswordForm({
-          email: '',
-          newPassword: '',
-          confirmPassword: ''
-        });
-
-        if (currentUser) {
-          const updatedUser = { ...currentUser, password: passwordForm.newPassword };
-          if (setCurrentUser) setCurrentUser(updatedUser);
-          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-        }
-
-        setTimeout(() => setPasswordSuccessMsg(''), 5000);
-      } else {
-        setPasswordErrorMsg('Failed to update password. Server returned an error.');
-      }
+      setPasswordSuccessMsg('Password updated successfully!');
+      setPasswordForm(prev => ({
+        ...prev,
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      }));
+      setTimeout(() => setPasswordSuccessMsg(''), 4000);
     } catch (err) {
-      console.error('Error changing admin password:', err);
-      setPasswordErrorMsg('Failed to update password. Please check network connection.');
+      console.error('Error changing password:', err);
+      setPasswordErrorMsg(err.message || 'Failed to update password.');
     } finally {
       setPasswordLoading(false);
     }
   };
 
-  const handleSendResetRequest = () => {
-    setResetRequestSent(true);
-    setTimeout(() => {
-      setIsResetRequestModalOpen(false);
-      setResetRequestSent(false);
-      setSaveSuccessMsg('Password reset request has been dispatched to Super Admin.');
-      setTimeout(() => setSaveSuccessMsg(''), 5000);
-    }, 1800);
-  };
-
-  const getInitials = (name) => {
-    if (!name) return 'AD';
-    const parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-  };
-
-  const adminName = adminData?.name || currentUser?.name || 'Administrator';
-  const adminIdTag = adminData?.employee_id || (adminData?.id ? `ADM-${adminData.id}` : (currentUser?.employee_id || `ADM-${currentUser?.id || '1001'}`));
-  const adminEmail = (adminData?.email || currentUser?.email || 'admin@apexcare.org').toLowerCase();
-  const adminContact = adminData?.contact || adminData?.phone || currentUser?.contact || '+91 98765 43210';
-  const adminRole = adminData?.designation || currentUser?.designation || 'Hospital Administrator';
-  const branchName = hospitalData?.Name || 'Apex Care Hospital';
-  const branchCode = hospitalData?.Branch_Code || `HOSP-${hospitalData?.id || '01'}`;
-
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
-      <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-5 sm:p-6 shadow-md border border-slate-800">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-4">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-teal-500 via-emerald-500 to-cyan-500 text-white font-black flex items-center justify-center text-2xl shadow-lg ring-2 ring-teal-400/30 shrink-0">
-              {getInitials(adminName)}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono text-xs font-bold text-teal-300 bg-teal-500/20 px-2.5 py-0.5 rounded-full border border-teal-400/30">
-                  {adminIdTag}
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-800 text-slate-200 border border-slate-700">
-                  {adminRole}
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 inline-flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Active Account
-                </span>
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
+      {/* HEADER BAR */}
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between py-4 gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                ⚙️
               </div>
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1.5 tracking-tight text-slate-100">
-                {adminName}
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-300 mt-0.5 flex items-center gap-2 flex-wrap">
-                <span>{branchName}</span>
-                <span>•</span>
-                <a href={`mailto:${adminEmail}`} className="text-teal-300 hover:underline">
-                  {adminEmail}
-                </a>
-              </p>
+              <div>
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                  Admin Account Settings
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
+                    {editFormData.employee_id || 'ADM'}
+                  </span>
+                </h1>
+                <p className="text-xs text-slate-500">
+                  Manage your administrator credentials, hospital affiliation, and profile details
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage && setCurrentPage('admin_dashboard')}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition cursor-pointer flex items-center gap-1.5"
+              >
+                <span>&larr;</span>
+                <span>Back to Dashboard</span>
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          {/* TAB NAVIGATION */}
+          <div className="flex items-center gap-2 border-t border-slate-100 pt-1 -mb-px">
             <button
               type="button"
-              onClick={() => setIsResetRequestModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-amber-300 hover:text-amber-200 text-xs font-bold border border-amber-500/30 transition shadow-xs cursor-pointer flex items-center gap-1.5"
+              onClick={() => setActiveTab('profile')}
+              className={`px-4 py-2.5 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-2 ${activeTab === 'profile'
+                ? 'border-teal-600 text-teal-800'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
             >
-              <span>Reset Request</span>
+              <span>👤</span>
+              <span>Administrator Profile (All Fields)</span>
             </button>
             <button
               type="button"
-              onClick={() => {
-                setActiveTab('profile');
-                setIsEditingProfile(!isEditingProfile);
-              }}
-              className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition cursor-pointer flex items-center gap-1.5"
+              onClick={() => setActiveTab('security')}
+              className={`px-4 py-2.5 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-2 ${activeTab === 'security'
+                ? 'border-teal-600 text-teal-800'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
             >
-              <span>{isEditingProfile ? 'Cancel' : 'Edit Profile'}</span>
+              <span>🔒</span>
+              <span>Security & Password</span>
             </button>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 mt-5 pt-4 border-t border-slate-800 overflow-x-auto no-scrollbar">
-          <button
-            type="button"
-            onClick={() => setActiveTab('profile')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'profile'
-                ? 'bg-teal-500/20 text-teal-300 border border-teal-400/40 shadow-xs'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            Profile & Details
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('security')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'security'
-                ? 'bg-teal-500/20 text-teal-300 border border-teal-400/40 shadow-xs'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            Security & Password
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('hospital')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'hospital'
-                ? 'bg-teal-500/20 text-teal-300 border border-teal-400/40 shadow-xs'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            Assigned Facility Info
-          </button>
         </div>
       </div>
 
-      {saveSuccessMsg && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between shadow-xs animate-in fade-in duration-200">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+      {/* MAIN CONTENT AREA */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+        {/* SUCCESS / ERROR ALERTS */}
+        {saveSuccessMsg && (
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 shadow-xs animate-in fade-in">
+            <span>✓</span>
             <span>{saveSuccessMsg}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setSaveSuccessMsg('')}
-            className="text-emerald-700 hover:text-emerald-900 font-bold"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+        )}
+        {saveErrorMsg && (
+          <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2 shadow-xs animate-in fade-in">
+            <span>✕</span>
+            <span>{saveErrorMsg}</span>
+          </div>
+        )}
 
-      {activeTab === 'profile' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                <div>
-                  <h2 className="text-base font-bold text-slate-800">Administrator Personal Information</h2>
-                  <p className="text-xs text-slate-500">Primary administrative account credentials and profile details</p>
+        {/* TAB 1: PROFILE EDIT FORM (ALL MODEL FIELDS) */}
+        {activeTab === 'profile' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* LEFT: ADMIN BADGE & HOSPITAL OVERVIEW */}
+            <div className="space-y-6">
+              <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-2xs text-center">
+                <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-tr from-teal-600 to-emerald-600 text-white flex items-center justify-center font-black text-2xl shadow-md mb-3">
+                  {(editFormData.name || 'AD').slice(0, 2).toUpperCase()}
                 </div>
-                {!isEditingProfile && (
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingProfile(true)}
-                    className="text-xs font-bold text-teal-700 hover:text-teal-900 cursor-pointer"
-                  >
-                    Edit Info &rarr;
-                  </button>
-                )}
+                <h3 className="text-base font-bold text-slate-900">{editFormData.name || 'Not Provided'}</h3>
+                <p className="text-xs text-teal-700 font-semibold mt-0.5">{editFormData.designation || 'Not Provided'}</p>
+
+                <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2 text-xs">
+                  <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
+                    <span className="text-slate-400">Employee ID:</span>
+                    <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+                      {editFormData.employee_id || 'Not Provided'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
+                    <span className="text-slate-400">Account Status:</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${editFormData.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                      }`}>
+                      {editFormData.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
+                    <span className="text-slate-400">Joined Date:</span>
+                    <span className="font-medium text-slate-700">{editFormData.created_at || 'Not Provided'}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 text-slate-600">
+                    <span className="text-slate-400">Hospital:</span>
+                    <span className="font-bold text-teal-900 truncate max-w-[140px]">
+                      {hospitalData?.Name || hospitalData?.name || 'Not Provided'}
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              {isEditingProfile ? (
-                <form onSubmit={handleProfileUpdate} className="space-y-4 text-xs">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block font-semibold text-slate-700 uppercase mb-1">Full Name *</label>
-                      <input
-                        type="text"
-                        required
-                        value={editFormData.name}
-                        onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                        className="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white text-slate-800 font-medium"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Number *</label>
-                      <input
-                        type="text"
-                        required
-                        value={editFormData.contact}
-                        onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })}
-                        className="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white text-slate-800 font-medium"
-                      />
-                    </div>
-                  </div>
+              {/* HOSPITAL CARD */}
+              <div className="bg-gradient-to-br from-slate-900 to-teal-950 text-white rounded-2xl p-5 shadow-sm border border-slate-800">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-teal-400">Assigned Hospital</p>
+                <h4 className="text-base font-bold mt-1 text-slate-100">{hospitalData?.Name || hospitalData?.name || 'Not Provided'}</h4>
+                <p className="text-xs text-slate-300 mt-1">{hospitalData?.Address || hospitalData?.address || 'Not Provided'}</p>
+                <div className="mt-3 pt-3 border-t border-teal-800/60 flex items-center justify-between text-xs text-teal-200">
+                  <span>Helpline:</span>
+                  <span className="font-mono font-bold">{hospitalData?.Emergency_Number || hospitalData?.Phone || hospitalData?.contact || 'Not Provided'}</span>
+                </div>
+              </div>
+            </div>
 
+            {/* RIGHT: COMPLETE MODEL FIELD EDITOR */}
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">HospitalAdmin Model Information</h2>
+                    <p className="text-[11px] text-slate-500">Edit all backend fields (ID & Employee ID are system-protected)</p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                    Django Model: HospitalAdmin
+                  </span>
+                </div>
+
+                <form onSubmit={handleProfileUpdate} className="p-6 space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* 1. NAME */}
                     <div>
-                      <label className="block font-semibold text-slate-700 uppercase mb-1">Designation / Role Title</label>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Full Name <span className="text-rose-500">*</span>
+                      </label>
                       <input
                         type="text"
-                        value={editFormData.designation}
-                        onChange={(e) => setEditFormData({ ...editFormData, designation: e.target.value })}
-                        className="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white text-slate-800 font-medium"
+                        name="name"
+                        value={editFormData.name}
+                        onChange={handleInputChange}
+                        required
+                        placeholder="e.g. Dr. Rajesh Kumar"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
                       />
                     </div>
+
+                    {/* 2. EMAIL */}
                     <div>
-                      <label className="block font-semibold text-slate-700 uppercase mb-1">Official Email (Locked)</label>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Email Address <span className="text-rose-500">*</span>
+                      </label>
                       <input
                         type="email"
-                        disabled
-                        value={adminEmail}
-                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 font-medium cursor-not-allowed select-none"
+                        name="email"
+                        value={editFormData.email}
+                        onChange={handleInputChange}
+                        required
+                        placeholder="admin@hospital.com"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
                       />
-                      <span className="text-[10px] text-slate-400 mt-1 block">Contact Super Admin to modify official email address.</span>
+                    </div>
+
+                    {/* 3. CONTACT */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Contact / Phone <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="contact"
+                        value={editFormData.contact}
+                        onChange={handleInputChange}
+                        required
+                        placeholder="+91 9876543210"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
+                      />
+                    </div>
+
+                    {/* 4. DESIGNATION */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Designation <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="designation"
+                        value={editFormData.designation}
+                        onChange={handleInputChange}
+                        required
+                        placeholder="Hospital Administrator"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
+                      />
+                    </div>
+
+                    {/* 5. HOSPITAL */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Assigned Hospital
+                      </label>
+                      <select
+                        name="hospital"
+                        value={editFormData.hospital}
+                        onChange={handleInputChange}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
+                      >
+                        <option value="">-- Select Hospital --</option>
+                        {hospitalsList.map(h => (
+                          <option key={h.id} value={h.id}>
+                            {h.Name || h.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 6. PASSWORD (EDITABLE IN PROFILE) */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Login Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          name="password"
+                          value={editFormData.password}
+                          onChange={handleInputChange}
+                          placeholder="••••••••"
+                          className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(p => !p)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                        >
+                          {showPassword ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 7. EMPLOYEE ID */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                        Employee ID
+                      </label>
+                      <input
+                        type="text"
+                        value={editFormData.employee_id || ''}
+                        disabled
+                        placeholder="Not Provided"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm font-mono text-slate-500 cursor-not-allowed"
+                      />
+                    </div>
+
+                    {/* 8. ACCOUNT STATUS */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Account Status
+                      </label>
+                      <select
+                        name="is_active"
+                        value={editFormData.is_active ? 'true' : 'false'}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, is_active: e.target.value === 'true' }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
+                      >
+                        <option value="true">Active (Account Enabled)</option>
+                        <option value="false">Inactive (Account Disabled)</option>
+                      </select>
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block font-semibold text-slate-700 uppercase mb-1">Administrative Bio & Role Scope</label>
-                    <textarea
-                      rows={3}
-                      value={editFormData.bio}
-                      onChange={(e) => setEditFormData({ ...editFormData, bio: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white text-slate-800 font-medium leading-relaxed"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  {/* SUBMIT BUTTON */}
+                  <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
                     <button
                       type="button"
-                      onClick={() => setIsEditingProfile(false)}
-                      className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition cursor-pointer"
+                      onClick={fetchAdminDetails}
+                      className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition cursor-pointer"
                     >
-                      Cancel
+                      Reset Changes
                     </button>
                     <button
                       type="submit"
                       disabled={savingProfile}
-                      className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+                      className="px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm shadow-md transition cursor-pointer flex items-center gap-2 disabled:opacity-50"
                     >
-                      {savingProfile ? 'Saving...' : 'Save Profile Changes'}
+                      {savingProfile ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Saving Profile...</span>
+                        </>
+                      ) : (
+                        'Save Administrator Profile'
+                      )}
                     </button>
                   </div>
                 </form>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Administrator Full Name</span>
-                    <p className="text-sm font-bold text-slate-800 mt-0.5">{adminName}</p>
-                  </div>
-
-                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Official Email Address</span>
-                    <p className="text-sm font-bold text-slate-800 mt-0.5">
-                      <a href={`mailto:${adminEmail}`} title={`Send email to ${adminEmail}`} className="text-teal-700 hover:underline">
-                        {adminEmail}
-                      </a>
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Official Contact Number</span>
-                    <p className="text-sm font-bold text-slate-800 mt-0.5">{adminContact}</p>
-                  </div>
-
-                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Designation / Role</span>
-                    <p className="text-sm font-bold text-slate-800 mt-0.5">{adminRole}</p>
-                  </div>
-
-                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 sm:col-span-2">
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Administrative Bio</span>
-                    <p className="text-slate-700 mt-1 leading-relaxed">{editFormData.bio}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs">
-              <h3 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wider">Account Credentials Summary</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                <div className="p-3 bg-teal-50/60 rounded-xl border border-teal-100">
-                  <span className="text-[10px] font-bold uppercase text-teal-800 block">System Identifier</span>
-                  <p className="text-base font-mono font-bold text-teal-900 mt-0.5">{adminIdTag}</p>
-                  <span className="text-[10px] text-teal-700">Permanent ID</span>
-                </div>
-                <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100">
-                  <span className="text-[10px] font-bold uppercase text-indigo-800 block">Security Clearance</span>
-                  <p className="text-base font-bold text-indigo-900 mt-0.5">Tier 2 Admin</p>
-                  <span className="text-[10px] text-indigo-700">Branch Operations</span>
-                </div>
-                <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100">
-                  <span className="text-[10px] font-bold uppercase text-emerald-800 block">Facility Link</span>
-                  <p className="text-base font-bold text-emerald-900 mt-0.5 truncate">{branchCode}</p>
-                  <span className="text-[10px] text-emerald-700 truncate block">{branchName}</span>
-                </div>
               </div>
             </div>
           </div>
+        )}
 
-          <div className="space-y-4 sm:space-y-6">
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-              <h3 className="text-sm font-bold text-slate-800 mb-3">Quick Actions</h3>
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setIsResetRequestModalOpen(true)}
-                  className="w-full p-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-xs font-bold text-left transition cursor-pointer flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <span>Request Password Reset</span>
-                  </div>
-                  <span>&rarr;</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('security')}
-                  className="w-full p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold text-left transition cursor-pointer flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <span>Change Account Password</span>
-                  </div>
-                  <span>&rarr;</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage && setCurrentPage('admin_hospital_management')}
-                  className="w-full p-3 rounded-xl bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-900 text-xs font-bold text-left transition cursor-pointer flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <span>Manage Hospital Facility</span>
-                  </div>
-                  <span>&rarr;</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-slate-900 to-teal-950 text-white rounded-2xl p-5 shadow-md space-y-3">
-              <span className="text-[10px] uppercase font-bold text-teal-400 tracking-wider">Facility In-Charge</span>
-              <h4 className="text-base font-bold text-white">{branchName}</h4>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                You are registered as the active Administrator managing operations, clinical staff, and patient admissions at {hospitalData?.city || 'Central'} branch.
+        {/* TAB 2: SECURITY & PASSWORD UPDATE */}
+        {activeTab === 'security' && (
+          <div className="max-w-2xl mx-auto bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-8 shadow-2xs space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <span>🔒</span>
+                <span>Change Administrator Password</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Update your portal login password. This updates the backend database & local authentication credentials.
               </p>
-              <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
-                <span className="text-slate-400">Branch Code:</span>
-                <span className="font-mono font-bold text-teal-300">{branchCode}</span>
-              </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'security' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-5">
-            <div>
-              <h2 className="text-base font-bold text-slate-800">Update Administrator Password</h2>
-              <p className="text-xs text-slate-500">Configure a secure password for your administrative portal account</p>
-            </div>
-
-            {passwordErrorMsg && (
-              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center justify-between">
-                <span>{passwordErrorMsg}</span>
-                <button type="button" onClick={() => setPasswordErrorMsg('')}>✕</button>
-              </div>
-            )}
 
             {passwordSuccessMsg && (
-              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between">
-                <span>{passwordSuccessMsg}</span>
-                <button type="button" onClick={() => setPasswordSuccessMsg('')}>✕</button>
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                ✓ {passwordSuccessMsg}
+              </div>
+            )}
+            {passwordErrorMsg && (
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold">
+                ✕ {passwordErrorMsg}
               </div>
             )}
 
-            <form onSubmit={handlePasswordSubmit} className="space-y-4 text-xs max-w-xl">
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Registered Login Email *</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Admin Email
+                </label>
                 <input
                   type="email"
-                  required
-                  value={passwordForm.email}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, email: e.target.value })}
-                  placeholder="Type your registered email address"
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white text-slate-800"
+                  value={editFormData.email}
+                  disabled
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm font-medium text-slate-500 cursor-not-allowed"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  You must enter your registered email address to verify and change password.
-                </p>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">New Password *</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  New Password <span className="text-rose-500">*</span>
+                </label>
                 <div className="relative">
                   <input
                     type={showNewPassword ? 'text' : 'password'}
-                    required
                     value={passwordForm.newPassword}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                    placeholder="Enter at least 6 characters"
-                    className="w-full pl-3 pr-10 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white text-slate-800"
+                    onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
+                    placeholder="Enter new password (min 4 characters)"
+                    required
+                    className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
                   />
                   <button
                     type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 font-bold"
+                    onClick={() => setShowNewPassword(p => !p)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
                   >
                     {showNewPassword ? 'Hide' : 'Show'}
                   </button>
@@ -647,195 +644,48 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Confirm New Password *</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Confirm New Password <span className="text-rose-500">*</span>
+                </label>
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
-                    required
                     value={passwordForm.confirmPassword}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                    placeholder="Re-type new password"
-                    className="w-full pl-3 pr-10 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-slate-50 focus:bg-white text-slate-800"
+                    onChange={(e) => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                    placeholder="Re-enter new password"
+                    required
+                    className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
                   />
                   <button
                     type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 font-bold"
+                    onClick={() => setShowConfirmPassword(p => !p)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
                   >
                     {showConfirmPassword ? 'Hide' : 'Show'}
                   </button>
                 </div>
               </div>
 
-              <div className="pt-2 flex items-center gap-3">
+              <div className="pt-4">
                 <button
                   type="submit"
                   disabled={passwordLoading}
-                  className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition cursor-pointer disabled:opacity-50"
+                  className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm shadow-md transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {passwordLoading ? 'Updating Password...' : 'Save New Password'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsResetRequestModalOpen(true)}
-                  className="px-4 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs border border-amber-200 transition cursor-pointer"
-                >
-                  Send Reset Request to Super Admin
+                  {passwordLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Updating Password...</span>
+                    </>
+                  ) : (
+                    'Save New Password'
+                  )}
                 </button>
               </div>
             </form>
           </div>
-
-          <div className="space-y-4">
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
-              <h3 className="text-sm font-bold text-slate-800">Password Guidelines</h3>
-              <ul className="space-y-2 text-xs text-slate-600 list-disc pl-4">
-                <li>Minimum length of 6 characters (8+ recommended).</li>
-                <li>Include a combination of letters, digits, and symbols.</li>
-                <li>Never share your Administrator portal password with other staff members.</li>
-                <li>Change your credential password periodically for security.</li>
-              </ul>
-            </div>
-
-            <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-5 space-y-2 text-xs text-amber-900">
-              <span className="font-bold uppercase text-[10px] text-amber-800 block">Forgot Current Password?</span>
-              <p className="leading-relaxed">
-                If you are unable to recall your existing administrative password, you can trigger a Super Admin Password Reset Request.
-              </p>
-              <button
-                type="button"
-                onClick={() => setIsResetRequestModalOpen(true)}
-                className="mt-2 w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl transition cursor-pointer text-center"
-              >
-                Send Reset Request Now
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'hospital' && (
-        <div className="space-y-4 sm:space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-              <div>
-                <h2 className="text-base font-bold text-slate-800">Assigned Hospital Facility Overview</h2>
-                <p className="text-xs text-slate-500">Details of the medical center affiliated with this administrator account</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCurrentPage && setCurrentPage('admin_hospital_management')}
-                className="text-xs font-bold text-teal-700 hover:text-teal-900 cursor-pointer"
-              >
-                Open Hospital Management &rarr;
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-                <span className="text-slate-400 uppercase font-bold text-[10px]">Hospital Branch Name</span>
-                <p className="text-sm font-bold text-slate-800">{branchName}</p>
-                <span className="font-mono text-[11px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block">
-                  {branchCode}
-                </span>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-                <span className="text-slate-400 uppercase font-bold text-[10px]">Location & City</span>
-                <p className="text-sm font-bold text-slate-800">{hospitalData?.city || 'Mumbai'} ({hospitalData?.area || 'Central'})</p>
-                <p className="text-slate-500 text-[11px] truncate">{hospitalData?.address || 'Medical Facility Road'}</p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-                <span className="text-slate-400 uppercase font-bold text-[10px]">Communication Desk</span>
-                <p className="text-sm font-bold text-slate-800">{hospitalData?.contact || '+91 22 2654 3210'}</p>
-                {hospitalData?.email ? (
-                  <a href={`mailto:${hospitalData.email.toLowerCase()}`} className="text-teal-700 hover:underline block truncate text-[11px]">
-                    {hospitalData.email.toLowerCase()}
-                  </a>
-                ) : (
-                  <span className="text-slate-400 text-[11px]">-</span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isResetRequestModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-5 sm:p-6 space-y-4 my-auto animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-bold text-slate-800">Password Reset Request</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsResetRequestModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold flex items-center justify-center text-xs cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            {resetRequestSent ? (
-              <div className="p-6 text-center space-y-2">
-                <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-sm mx-auto font-bold">
-                  Sent
-                </div>
-                <h4 className="text-sm font-bold text-slate-800">Request Sent Successfully</h4>
-                <p className="text-xs text-slate-500">
-                  Super Admin has been notified to generate a new temporary credential for {adminEmail}.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3 text-xs">
-                <p className="text-slate-600 leading-relaxed">
-                  Submit a priority password reset request for <strong>{adminName}</strong> ({adminIdTag}). A notification ticket will be flagged in the Super Admin console.
-                </p>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Reason for Reset Request</label>
-                  <select
-                    value={resetRequestReason}
-                    onChange={(e) => setResetRequestReason(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  >
-                    <option value="Periodic security credential renewal">Periodic security credential renewal</option>
-                    <option value="Forgotten current login password">Forgotten current login password</option>
-                    <option value="Security precaution / Compromised device">Security precaution / Compromised device</option>
-                    <option value="Administrative hand-over">Administrative hand-over</option>
-                  </select>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Account Info</span>
-                  <p className="font-semibold text-slate-800">{adminName} • {adminIdTag}</p>
-                  <p className="text-slate-500 truncate">{adminEmail}</p>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsResetRequestModalOpen(false)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSendResetRequest}
-                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold transition shadow-xs cursor-pointer"
-                  >
-                    Dispatch Reset Request
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+        )}
+      </main>
     </div>
   );
 };

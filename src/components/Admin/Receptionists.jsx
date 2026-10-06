@@ -35,13 +35,13 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
     hospital: '',
     name: '',
     receptionist_id: '',
-    role: 'Front Desk Receptionist',
-    shift: 'Morning Shift (07:00 AM - 03:00 PM)',
-    languages: 'English, Hindi',
+    role: '',
+    shift: '',
+    languages: '',
     contact: '',
     email: '',
     password: '',
-    status: 'On_Duty',
+    status: '',
     is_active: true
   };
 
@@ -143,7 +143,7 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
 
     try {
       const generatedRecId = `REC-${Math.floor(1000 + Math.random() * 9000)}`;
-      const hospId = Number(hospitalData?.id || currentUser?.hospital || 1);
+      const hospId = hospitalData?.id ? Number(hospitalData.id) : (currentUser?.hospital ? Number(currentUser.hospital) : null);
       const payload = {
         hospital: hospId,
         name: formData.name.trim(),
@@ -384,27 +384,27 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
                   return (
                     <tr key={rec.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-bold text-slate-800 break-words">{rec.name || 'Receptionist'}</div>
+                        <div className="font-bold text-slate-800 break-words">{rec.name || 'Not Provided'}</div>
                         <span className="font-mono text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
-                          {rec.receptionist_id || `REC-${rec.id}`}
+                          {rec.receptionist_id || (rec.id ? `REC-${rec.id}` : 'Not Provided')}
                         </span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 inline-block">
-                          {rec.role || 'Front Desk Receptionist'}
+                          {rec.role || 'Not Provided'}
                         </span>
-                        <span className="text-[11px] text-slate-400 block mt-0.5">{rec.languages || 'English, Hindi'}</span>
+                        <span className="text-[11px] text-slate-400 block mt-0.5">{rec.languages || 'Not Provided'}</span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center font-medium text-slate-700">
-                        {rec.shift || 'Morning Shift (07:00 AM - 03:00 PM)'}
+                        {rec.shift || 'Not Provided'}
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-col items-center justify-center gap-0.5">
                           <span className="font-bold text-slate-800 text-xs">
-                            {rec.contact || rec.phone || '-'}
+                            {rec.contact || rec.phone || 'Not Provided'}
                           </span>
                           {emailLower ? (
                             <a
@@ -415,7 +415,7 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
                               {emailLower}
                             </a>
                           ) : (
-                            <span className="text-[11px] text-slate-400">-</span>
+                            <span className="text-[11px] text-slate-400">Not Provided</span>
                           )}
                         </div>
                       </td>
@@ -552,6 +552,7 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                 >
+                  <option value="">-- Select Role --</option>
                   {rolesList.map((r, i) => (
                     <option key={i} value={r}>{r}</option>
                   ))}
@@ -567,6 +568,7 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
                     onChange={(e) => setFormData({ ...formData, shift: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Shift --</option>
                     {shiftsList.map((s, i) => (
                       <option key={i} value={s}>{s}</option>
                     ))}
@@ -591,7 +593,7 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
                   type="text"
                   readOnly
                   tabIndex={-1}
-                  value={hospitalData?.Name ? `${hospitalData.Name} (${hospitalData.city || ''})` : 'Assigned Hospital Branch'}
+                  value={hospitalData?.Name || 'Not Provided'}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed select-none focus:outline-none"
                 />
               </div>
@@ -600,13 +602,14 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Duty Status *</label>
                 <select
-                  value={formData.status || 'On_Duty'}
+                  value={formData.status || ''}
                   onChange={(e) => setFormData({
                     ...formData,
                     status: e.target.value
                   })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
                 >
+                  <option value="">-- Select Duty Status --</option>
                   <option value="On_Duty">On_Duty</option>
                   <option value="Off_Duty">Off_Duty</option>
                 </select>

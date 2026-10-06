@@ -97,8 +97,12 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
         rawHospIds.push(Number(currentUser.hospital));
       }
 
-      const docAssignedHospitals = allHospitals.filter(h => rawHospIds.includes(Number(h.id)));
-      setAssignedHospitals(docAssignedHospitals.length > 0 ? docAssignedHospitals : (allHospitals[0] ? [allHospitals[0]] : []));
+      let docAssignedHospitals = allHospitals.filter(h => rawHospIds.includes(Number(h.id)));
+      if (docAssignedHospitals.length === 0 && currentUser?.hospital_name) {
+        const byName = allHospitals.find(h => (h.Name || h.name || '').toLowerCase() === currentUser.hospital_name.toLowerCase());
+        if (byName) docAssignedHospitals = [byName];
+      }
+      setAssignedHospitals(docAssignedHospitals);
 
       const primaryHosp = docAssignedHospitals[0] || allHospitals.find(h => Number(h.id) === Number(rawHospIds[0])) || null;
       setHospitalInfo(primaryHosp);

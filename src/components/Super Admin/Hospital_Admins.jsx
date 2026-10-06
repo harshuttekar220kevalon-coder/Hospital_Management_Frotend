@@ -35,8 +35,8 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
     name: '',
     email: '',
     contact: '',
-    password: '', // Added password field for admin login
-    designation: 'Hospital Administrator',
+    password: '',
+    designation: '',
     hospital: '',
     is_active: true
   };
@@ -120,14 +120,36 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
       return;
     }
 
+    const trimmedName = (formData.name || '').trim();
+    const trimmedEmail = (formData.email || '').trim().toLowerCase();
+    const trimmedContact = (formData.contact || '').trim();
+    const cleanPass = (formData.password || '').trim() || 'Admin@123';
+
+    if (!trimmedName || !trimmedEmail) {
+      alert('Please enter Admin Name and Email.');
+      return;
+    }
+
     try {
-      const { employee_id, ...restFormData } = formData;
+      const nameParts = trimmedName.split(' ');
+      const fName = nameParts[0] || '';
+      const lName = nameParts.slice(1).join(' ') || fName;
 
       const payload = {
-        ...restFormData,
-        role: formData.role || formData.designation || 'Hospital Admin',
-        designation: formData.designation || 'Hospital Administrator',
-        hospital: Number(formData.hospital)
+        name: trimmedName,
+        first_name: fName,
+        last_name: lName,
+        firstName: fName,
+        lastName: lName,
+        email: trimmedEmail,
+        contact: trimmedContact,
+        phone: trimmedContact,
+        password: cleanPass,
+        designation: formData.designation || '',
+        role: formData.role || 'Hospital Admin',
+        Select_User: 'Admin',
+        hospital: Number(formData.hospital),
+        is_active: formData.is_active !== false
       };
 
       const response = await fetch(`${API_BASE_URL}/super-admin/Admins/`, {
@@ -137,7 +159,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
       });
 
       const responseText = await response.text();
-      let data;
+      let data = {};
       try {
         data = JSON.parse(responseText);
       } catch {
@@ -145,16 +167,34 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
       }
 
       if (response.ok) {
-        alert('Hospital Administrator created successfully.');
+        // Sync password in localStorage so the new admin can log in immediately
+        localStorage.setItem(`pwd_${trimmedEmail}`, cleanPass);
+
+        const newAdminRecord = {
+          ...payload,
+          id: data.id || Date.now(),
+          employee_id: data.employee_id || `ADM-${data.id || Math.floor(1000 + Math.random() * 9000)}`,
+          ...(typeof data === 'object' ? data : {})
+        };
+
+        setAdmins(prev => [newAdminRecord, ...prev]);
+        alert(`Hospital Administrator "${trimmedName}" created successfully!`);
         setIsAddModalOpen(false);
+        setFormData(initialFormState);
         fetchAdmins();
       } else {
-        console.error('Validation error:', data);
-        alert('Error: ' + JSON.stringify(data));
+        console.error('Validation error creating admin:', data);
+        let errorMsg = 'Failed to create administrator.';
+        if (typeof data === 'object' && data !== null) {
+          errorMsg = Object.entries(data)
+            .map(([k, v]) => `${k.toUpperCase()}: ${Array.isArray(v) ? v.join(', ') : v}`)
+            .join('\n');
+        }
+        alert(errorMsg);
       }
     } catch (error) {
       console.error('Network error creating admin:', error);
-      alert('Network error while saving administrator.');
+      alert('Network error while saving administrator. Please verify backend is running.');
     }
   };
 
@@ -164,10 +204,10 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
       name: admin.name || '',
       email: admin.email || '',
       contact: admin.contact || '',
-      password: admin.password || '', // Include existing or blank password on edit
+      password: admin.password || '',
       designation: admin.designation || '',
-      hospital: admin.hospital || '',
-      is_active: admin.is_active
+      hospital: typeof admin.hospital === 'object' ? admin.hospital?.id : (admin.hospital || ''),
+      is_active: admin.is_active !== false
     });
     setIsEditModalOpen(true);
   };
@@ -181,12 +221,34 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
     }
 
     try {
+      const trimmedName = (formData.name || '').trim();
+      const trimmedEmail = (formData.email || '').trim().toLowerCase();
+      const trimmedContact = (formData.contact || '').trim();
+
+      const nameParts = trimmedName.split(' ');
+      const fName = nameParts[0] || '';
+      const lName = nameParts.slice(1).join(' ') || fName;
+
       const payload = {
-        ...formData,
-        role: formData.role || formData.designation || 'Hospital Admin',
-        designation: formData.designation || 'Hospital Administrator',
-        hospital: Number(formData.hospital)
+        name: trimmedName,
+        first_name: fName,
+        last_name: lName,
+        firstName: fName,
+        lastName: lName,
+        email: trimmedEmail,
+        contact: trimmedContact,
+        phone: trimmedContact,
+        designation: formData.designation || '',
+        role: 'Hospital Admin',
+        Select_User: 'Admin',
+        hospital: Number(formData.hospital),
+        is_active: formData.is_active !== false
       };
+
+      if (formData.password) {
+        payload.password = formData.password;
+        localStorage.setItem(`pwd_${trimmedEmail}`, formData.password);
+      }
 
       const response = await fetch(`${API_BASE_URL}/super-admin/Admins/${selectedAdmin.id}/`, {
         method: 'PUT',
@@ -194,15 +256,13 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
         body: JSON.stringify(payload)
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
         alert('Hospital Administrator updated successfully.');
         setIsEditModalOpen(false);
+        setAdmins(prev => prev.map(a => a.id === selectedAdmin.id ? { ...a, ...payload, ...data } : a));
         fetchAdmins();
-        if (detailAdmin && detailAdmin.id === selectedAdmin.id) {
-          setDetailAdmin(data);
-        }
       } else {
         alert('Error: ' + JSON.stringify(data));
       }
@@ -371,10 +431,10 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
             onChange={(e) => setHospitalFilter(e.target.value)}
             className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-semibold focus:outline-none focus:border-sky-600 cursor-pointer"
           >
-            <option value="ALL">All Hospital Branches</option>
+            <option value="ALL">-- Select Hospital (All) --</option>
             {hospitalsList.map((h, idx) => (
               <option key={h.id || idx} value={h.id}>
-                {h.Name} ({h.city})
+                {h.Name || h.name}
               </option>
             ))}
           </select>
@@ -415,7 +475,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
                   return (
                     <tr key={admin.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-bold text-slate-800 break-words">{admin.name || 'Admin'}</div>
+                        <div className="font-bold text-slate-800 break-words">{admin.name || 'Not Provided'}</div>
                         <span className="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block mt-0.5">
                           {admin.employee_id || `ADM-${admin.id}`}
                         </span>
@@ -427,14 +487,14 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
                           </span>
                         ) : (
                           <span className="text-slate-400 font-medium text-xs">
-                            Unassigned
+                            Not Provided
                           </span>
                         )}
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-col items-center justify-center gap-0.5">
                           <span className="font-bold text-slate-800 text-xs">
-                            {admin.contact || admin.phone || '-'}
+                            {admin.contact || admin.phone || 'Not Provided'}
                           </span>
                           {emailLower ? (
                             <a
@@ -445,7 +505,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
                               {emailLower}
                             </a>
                           ) : (
-                            <span className="text-[11px] text-slate-400">-</span>
+                            <span className="text-[11px] text-slate-400">Not Provided</span>
                           )}
                         </div>
                       </td>
@@ -586,6 +646,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
                     type="text"
                     value={formData.designation}
                     onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                    placeholder="Not Provided"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -597,10 +658,10 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
                     onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                   >
-                    <option value="" disabled>Select Hospital Branch *</option>
+                    <option value="">-- Select Hospital --</option>
                     {hospitalsList.map((h) => (
                       <option key={h.id} value={h.id}>
-                        {h.Name} ({h.city}) - {h.Branch_Code}
+                        {h.Name || h.name}
                       </option>
                     ))}
                   </select>

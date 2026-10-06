@@ -52,23 +52,23 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
   };
 
   return (
-    <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-slate-100 shadow-md sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+    <header className="w-full bg-slate-900/95 backdrop-blur-xl border-b border-slate-800 text-slate-100 shadow-lg sticky top-0 z-50 transition-all duration-300">
+      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
+        <div className="flex items-center justify-between h-18 sm:h-20 w-full gap-3">
           <div
             onClick={() => handleNavClick(roleInfo.page)}
-            className="flex items-center gap-3 cursor-pointer select-none group"
+            className="flex items-center gap-3.5 cursor-pointer select-none group py-2"
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-500 to-teal-400 flex items-center justify-center text-white shadow-sm">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-blue-600 via-teal-500 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-teal-500/20 group-hover:scale-105 transition-all duration-200">
+              <svg className="w-6 h-6 sm:w-7 sm:h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
               </svg>
             </div>
             <div>
-              <span className="text-base sm:text-lg font-bold bg-gradient-to-r from-blue-300 via-teal-300 to-white bg-clip-text text-transparent truncate block max-w-[200px] xs:max-w-none">
+              <span className="text-lg sm:text-xl font-extrabold bg-gradient-to-r from-blue-200 via-teal-300 to-white bg-clip-text text-transparent truncate block max-w-[220px] xs:max-w-none tracking-tight">
                 Apex Care Hospital
               </span>
-              <span className="hidden sm:block text-[10px] font-medium text-slate-400 tracking-wider uppercase">
+              <span className="hidden sm:block text-[11px] font-semibold text-slate-400 tracking-wider uppercase">
                 Healthcare Management System
               </span>
             </div>

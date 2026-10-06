@@ -3,7 +3,7 @@ import PatientNavbar from './PatientNavbar';
 import PatientFooter from './PatientFooter';
 import { API_BASE_URL } from '../Api/Api';
 
-const PatientAbout = ({ setCurrentPage, isLoggedIn, currentUser }) => {
+const PatientAbout = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => {
   const [hospitals, setHospitals] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [admins, setAdmins] = useState([]);
@@ -71,6 +71,7 @@ const PatientAbout = ({ setCurrentPage, isLoggedIn, currentUser }) => {
         currentPage="about"
         setCurrentPage={setCurrentPage}
         isLoggedIn={isLoggedIn}
+        onLogout={onLogout}
         currentUser={currentUser}
       />
 
@@ -143,7 +144,7 @@ const PatientAbout = ({ setCurrentPage, isLoggedIn, currentUser }) => {
               {hospitals.map((hosp) => {
                 const hospDocs = doctors.filter((d) => Number(d.hospital) === Number(hosp.id));
                 const hospName = hosp.Name || hosp.name || `Hospital #${hosp.id}`;
-                const hospCity = hosp.City || hosp.city || 'Main Branch';
+                const hospCity = hosp.City || hosp.city || '';
                 const hospAddress = hosp.Address || hosp.address || 'Address registered in system';
                 const hospBeds = hosp.Beds || hosp.total_beds || hosp.beds || 0;
 
@@ -189,7 +190,7 @@ const PatientAbout = ({ setCurrentPage, isLoggedIn, currentUser }) => {
                       }}
                       className="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition text-center cursor-pointer"
                     >
-                      Book OPD at this Branch
+                      Book OPD Appointment
                     </button>
                   </div>
                 );

@@ -42,12 +42,12 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
     hospital: '',
     name: '',
     receptionist_id: '',
-    role: 'Front Desk Receptionist',
-    shift: 'Morning Shift (07:00 AM - 03:00 PM)',
-    languages: 'English, Hindi',
+    role: '',
+    shift: '',
+    languages: '',
     contact: '',
     email: '',
-    password: 'Reception@123',
+    password: '',
     status: 'On_Duty',
     is_active: true
   });
@@ -97,9 +97,9 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
   const activeReceptionist = receptionistData || {};
   const assignedHospital = hospitalsList.find(h => h.id === Number(activeReceptionist.hospital));
 
-  const displayName = activeReceptionist.name || `${activeReceptionist.first_name || ''} ${activeReceptionist.last_name || ''}`.trim() || 'Receptionist';
-  const displayRole = activeReceptionist.role || activeReceptionist.designation || 'Front Desk Receptionist';
-  const displayPhone = activeReceptionist.contact || activeReceptionist.phone_number || '-';
+  const displayName = activeReceptionist.name || `${activeReceptionist.first_name || ''} ${activeReceptionist.last_name || ''}`.trim() || 'Not Provided';
+  const displayRole = activeReceptionist.role || activeReceptionist.designation || 'Not Provided';
+  const displayPhone = activeReceptionist.contact || activeReceptionist.phone_number || 'Not Provided';
 
   const handleBackClick = () => {
     if (setCurrentPage) {
@@ -112,13 +112,13 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
       hospital: activeReceptionist.hospital || '',
       name: activeReceptionist.name || `${activeReceptionist.first_name || ''} ${activeReceptionist.last_name || ''}`.trim(),
       receptionist_id: activeReceptionist.receptionist_id || `REC-${activeReceptionist.id}`,
-      role: activeReceptionist.role || activeReceptionist.designation || 'Front Desk Receptionist',
-      shift: activeReceptionist.shift || 'Morning Shift (07:00 AM - 03:00 PM)',
-      languages: activeReceptionist.languages || 'English, Hindi',
+      role: activeReceptionist.role || activeReceptionist.designation || '',
+      shift: activeReceptionist.shift || '',
+      languages: activeReceptionist.languages || '',
       contact: activeReceptionist.contact || activeReceptionist.phone_number || '',
       email: activeReceptionist.email || '',
-      password: activeReceptionist.password || 'Reception@123',
-      status: activeReceptionist.status === 'Off_Duty' ? 'Off_Duty' : (activeReceptionist.status === 'On_Duty' ? 'On_Duty' : (activeReceptionist.is_active !== false ? 'On_Duty' : 'Off_Duty')),
+      password: activeReceptionist.password || '',
+      status: activeReceptionist.status || 'On_Duty',
       is_active: activeReceptionist.is_active !== false
     });
     setShowEditPassword(false);
@@ -395,7 +395,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Duty Shift</p>
           <h3 className="text-base sm:text-lg font-bold text-slate-800 mt-1 truncate">
-            {activeReceptionist.shift || 'Morning Shift'}
+            {activeReceptionist.shift || 'Not Provided'}
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">Assigned schedule</p>
         </div>
@@ -403,7 +403,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Languages</p>
           <h3 className="text-sm font-bold text-slate-800 mt-1 truncate">
-            {activeReceptionist.languages || 'English, Hindi'}
+            {activeReceptionist.languages || 'Not Provided'}
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">Spoken languages</p>
         </div>
@@ -411,10 +411,10 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Hospital Affiliation</p>
           <h3 className="text-base sm:text-lg font-bold text-slate-800 mt-1 truncate">
-            {assignedHospital ? assignedHospital.Name : 'Unassigned'}
+            {assignedHospital ? assignedHospital.Name : 'Not Provided'}
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            {assignedHospital ? `${assignedHospital.city || ''}` : 'Needs Allocation'}
+            {assignedHospital ? (assignedHospital.city || 'Not Provided') : 'Needs Allocation'}
           </p>
         </div>
       </div>
@@ -460,12 +460,12 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Shift:</span>
-                <p className="font-semibold text-amber-700 mt-0.5 break-words">{activeReceptionist.shift || 'Morning Shift'}</p>
+                <p className="font-semibold text-amber-700 mt-0.5 break-words">{activeReceptionist.shift || 'Not Provided'}</p>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Languages:</span>
-                <p className="font-semibold text-slate-800 mt-0.5 break-words break-all">{activeReceptionist.languages || 'English, Hindi'}</p>
+                <p className="font-semibold text-slate-800 mt-0.5 break-words break-all">{activeReceptionist.languages || 'Not Provided'}</p>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
@@ -486,13 +486,13 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                     </a>
                   </p>
                 ) : (
-                  <p className="font-semibold text-slate-400 mt-0.5">-</p>
+                  <p className="font-semibold text-slate-400 mt-0.5">Not Provided</p>
                 )}
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Hospital:</span>
-                <p className="font-semibold text-slate-800 mt-0.5 break-words break-all">{assignedHospital ? assignedHospital.Name : 'Unassigned'}</p>
+                <p className="font-semibold text-slate-800 mt-0.5 break-words break-all">{assignedHospital ? assignedHospital.Name : 'Not Provided'}</p>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between min-w-0">
@@ -645,10 +645,10 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                   onChange={(e) => setEditFormData({ ...editFormData, hospital: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-amber-600 font-medium cursor-pointer"
                 >
-                  <option value="">-- Select Hospital Branch * --</option>
+                  <option value="">-- Select Hospital --</option>
                   {hospitalsList.map((h) => (
                     <option key={h.id} value={h.id}>
-                      {h.Name} ({h.city}) - {h.Branch_Code}
+                      {h.Name || h.name}
                     </option>
                   ))}
                 </select>
@@ -725,6 +725,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                     onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-amber-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Role --</option>
                     {rolesList.map((r, i) => (
                       <option key={i} value={r}>{r}</option>
                     ))}
@@ -739,6 +740,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                     onChange={(e) => setEditFormData({ ...editFormData, shift: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Shift --</option>
                     {shiftsList.map((s, i) => (
                       <option key={i} value={s}>{s}</option>
                     ))}
@@ -793,13 +795,14 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Duty Status *</label>
                 <select
-                  value={editFormData.status || 'On_Duty'}
+                  value={editFormData.status}
                   onChange={(e) => setEditFormData({
                     ...editFormData,
                     status: e.target.value
                   })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
                 >
+                  <option value="">-- Select Duty Status --</option>
                   <option value="On_Duty">On_Duty</option>
                   <option value="Off_Duty">Off_Duty</option>
                 </select>
@@ -852,10 +855,10 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                   onChange={(e) => setAssignHospitalId(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                 >
-                  <option value="" disabled>Select Hospital Branch *</option>
+                  <option value="">-- Select Hospital --</option>
                   {hospitalsList.map((h) => (
                     <option key={h.id} value={h.id}>
-                      {h.Name} ({h.city}) - {h.Branch_Code}
+                      {h.Name || h.name}
                     </option>
                   ))}
                 </select>

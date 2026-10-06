@@ -58,26 +58,28 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
     patient_id: '',
     name: '',
     age: '',
-    gender: 'Male',
+    gender: '',
     blood_group: '',
     contact: '',
     email: '',
+    password: '',
+    Password: '',
     address: '',
     hospital: '',
     doctor: '',
     bed_number: '',
     nurse: '',
     nurse_name: '',
-    consultation_fee: 0.00,
-    Hospitals_Chargies: 0.00,
-    amount_paid: 0.00,
-    payment_status: 'Pending',
+    consultation_fee: '',
+    Hospitals_Chargies: '',
+    amount_paid: '',
+    payment_status: '',
     payment_method: '',
     symptoms_diagnosis: '',
-    Condation: 'Normal',
-    condation: 'Normal',
-    condition: 'Normal',
-    symptoms_severity: 'Normal',
+    Condation: '',
+    condation: '',
+    condition: '',
+    symptoms_severity: '',
     visit_date_time: '',
     status: '',
     is_active: true,
@@ -272,6 +274,8 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
         name: addFormData.name.trim(),
         contact: (addFormData.contact || '').replace(/\D/g, '').slice(0, 15),
         email: (addFormData.email || '').trim(),
+        password: (addFormData.password || addFormData.Password || '').trim(),
+        Password: (addFormData.password || addFormData.Password || '').trim(),
         age: addFormData.age ? Number(addFormData.age) : null,
         gender: addFormData.gender,
         blood_group: addFormData.blood_group,
@@ -543,7 +547,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
               onChange={(e) => setFloorFilter(e.target.value)}
               className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-medium focus:outline-none focus:border-teal-600 cursor-pointer"
             >
-              <option value="ALL">All Floors</option>
+              <option value="ALL">-- Select Floor (All) --</option>
               <option value="1">Floor 1 (Beds 1 - 100)</option>
               <option value="2">Floor 2 (Beds 101 - 200)</option>
               <option value="3">Floor 3 (Beds 201 - 300)</option>
@@ -557,9 +561,9 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
               onChange={(e) => setDoctorFilter(e.target.value)}
               className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 focus:outline-none focus:border-teal-600 cursor-pointer"
             >
-              <option value="ALL">All Doctors</option>
+              <option value="ALL">-- Select Doctor (All) --</option>
               {doctorsList.map((doc) => (
-                <option key={doc.id} value={doc.id}>{doc.name} ({doc.specialization})</option>
+                <option key={doc.id} value={doc.id}>{doc.name} ({doc.specialization || 'Doctor'})</option>
               ))}
             </select>
 
@@ -568,7 +572,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
               onChange={(e) => setSeverityFilter(e.target.value)}
               className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 focus:outline-none focus:border-teal-600 cursor-pointer"
             >
-              <option value="ALL">All Conditions</option>
+              <option value="ALL">-- Select Condition (All) --</option>
               <option value="Critical">Critical</option>
               <option value="Emergency">Emergency</option>
               <option value="Urgent">Urgent</option>
@@ -792,6 +796,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                     onChange={(e) => setAddFormData({ ...addFormData, gender: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Gender --</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
@@ -804,7 +809,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                     onChange={(e) => setAddFormData({ ...addFormData, blood_group: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                   >
-                    <option value="">Select Blood Group</option>
+                    <option value="">-- Select Blood Group --</option>
                     {bloodGroups.map((bg, idx) => (
                       <option key={idx} value={bg}>{bg}</option>
                     ))}
@@ -812,16 +817,16 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
                     maxLength={15}
                     required
-                    placeholder="e.g. 9876543210 / 02212345678"
+                    placeholder="e.g. 9876543210"
                     value={addFormData.contact}
                     onChange={(e) => setAddFormData({ ...addFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
@@ -835,6 +840,17 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                     value={addFormData.email}
                     onChange={(e) => setAddFormData({ ...addFormData, email: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Account Password</label>
+                  <input
+                    type="password"
+                    maxLength={20}
+                    placeholder="Set patient password"
+                    value={addFormData.password || addFormData.Password || ''}
+                    onChange={(e) => setAddFormData({ ...addFormData, password: e.target.value, Password: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
               </div>
@@ -857,7 +873,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                     type="text"
                     readOnly
                     tabIndex={-1}
-                    value={hospitalData?.Name ? `${hospitalData.Name} (${hospitalData.city || ''})` : 'Assigned Hospital Branch'}
+                    value={hospitalData?.Name || 'Assigned Hospital'}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed select-none focus:outline-none"
                   />
                 </div>
@@ -978,17 +994,19 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-slate-700 uppercase mb-1">Doctor Consultation Fee (₹) *</label>
+                    <label className="block font-semibold text-slate-700 uppercase mb-1">
+                      Doctor Consultation Fee (₹) <span className="text-[10px] text-amber-700 font-normal">(Doctor Set)</span> *
+                    </label>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
+                      readOnly
                       value={addFormData.consultation_fee}
-                      onChange={handleConsultationFeeChange}
-                      placeholder="e.g. 500.00"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono font-bold focus:outline-none focus:border-emerald-600"
+                      placeholder="Doctor fee (auto)"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono font-bold focus:outline-none cursor-not-allowed"
                     />
-                    <p className="text-[10px] text-slate-500 mt-0.5">Credited to Doctor earnings</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Fixed consultation fee set on Doctor profile</p>
                   </div>
                   <div>
                     <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital Charges / Services (₹) *</label>
@@ -1031,6 +1049,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                       type="number"
                       step="0.01"
                       min="0"
+                      placeholder="e.g. 500.00"
                       value={addFormData.amount_paid}
                       onChange={(e) => setAddFormData({ ...addFormData, amount_paid: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono font-bold focus:outline-none focus:border-emerald-600"
@@ -1043,6 +1062,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                       onChange={(e) => setAddFormData({ ...addFormData, payment_status: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-semibold cursor-pointer"
                     >
+                      <option value="">-- Select Payment Status --</option>
                       {paymentStatuses.map((ps, idx) => (
                         <option key={idx} value={ps}>{ps}</option>
                       ))}
@@ -1055,7 +1075,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                       onChange={(e) => setAddFormData({ ...addFormData, payment_method: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-medium cursor-pointer"
                     >
-                      <option value="">Select Method</option>
+                      <option value="">-- Select Payment Method --</option>
                       {paymentMethods.map((pm, idx) => (
                         <option key={idx} value={pm}>{pm}</option>
                       ))}
@@ -1079,7 +1099,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Patient Condition (Triage) *</label>
                   <select
-                    value={addFormData.Condation || 'Normal'}
+                    value={addFormData.Condation || ''}
                     onChange={(e) => setAddFormData({
                       ...addFormData,
                       Condation: e.target.value,
@@ -1089,6 +1109,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                     })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-bold focus:outline-none focus:border-teal-600 focus:bg-white cursor-pointer"
                   >
+                    <option value="">-- Select Condition --</option>
                     <option value="Critical">Critical</option>
                     <option value="Emergency">Emergency</option>
                     <option value="Urgent">Urgent</option>
@@ -1111,7 +1132,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                     onChange={(e) => setAddFormData({ ...addFormData, status: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
                   >
-                    <option value="">Select Status</option>
+                    <option value="">-- Select Status --</option>
                     {statusOptions.map((st, idx) => (
                       <option key={idx} value={st}>{st}</option>
                     ))}

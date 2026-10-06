@@ -1,19 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from './Api/Api';
 
 const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    role: '',
+    first_name: '',
+    last_name: '',
+    Select_User: '',
     email: '',
+    contact: '',
+    hospital: '',
     password: '',
     confirm_password: ''
   });
+  const [hospitalsList, setHospitalsList] = useState([]);
+  const [loadingHospitals, setLoadingHospitals] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Fetch hospitals list from backend for Doctor, Nurse, Receptionist role assignment
+  useEffect(() => {
+    let isMounted = true;
+    const loadHospitals = async () => {
+      try {
+        setLoadingHospitals(true);
+        const res = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
+        if (res && res.ok) {
+          const data = await res.json().catch(() => []);
+          if (isMounted && Array.isArray(data) && data.length > 0) {
+            setHospitalsList(data);
+            return;
+          }
+        }
+        // Fallback hospital endpoint if super-admin prefix differs
+        const altRes = await fetch(`${API_BASE_URL}/Hospital/`).catch(() => null);
+        if (altRes && altRes.ok) {
+          const altData = await altRes.json().catch(() => []);
+          if (isMounted && Array.isArray(altData)) {
+            setHospitalsList(altData);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading hospitals from backend:', err);
+      } finally {
+        if (isMounted) setLoadingHospitals(false);
+      }
+    };
+    loadHospitals();
+    return () => { isMounted = false; };
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -24,22 +60,68 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
     if (errorMessage) setErrorMessage('');
   };
 
+  // Check if hospital selection is required based on role
+  const isHospitalRequiredRole = 
+    formData.Select_User === 'DOCTOR' || 
+    formData.Select_User === 'NURSES' || 
+    formData.Select_User === 'RECEPTIONISTS';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setErrorMessage('');
 
-    // Pre-validation checks
-    if (formData.password !== formData.confirm_password) {
-      const msg = 'Password mismatch: Password and Confirm Password must be the same.';
+    const first = (formData.first_name || '').trim();
+    const last = (formData.last_name || '').trim();
+    const mail = (formData.email || '').trim();
+    const contact = (formData.contact || '').trim();
+    const roleVal = formData.Select_User || '';
+    const hospitalVal = formData.hospital || '';
+    const pass = formData.password || '';
+    const confirmPass = formData.confirm_password || '';
+
+    if (!first || !last) {
+      const msg = 'Please enter both first and last name.';
       setErrorMessage(msg);
       alert(msg);
       setLoading(false);
       return;
     }
 
-    if (!formData.role) {
-      const msg = 'Please select your role (Doctor, Nurse, Receptionist, or Patient).';
+    if (!roleVal) {
+      const msg = 'Please select a user role.';
+      setErrorMessage(msg);
+      alert(msg);
+      setLoading(false);
+      return;
+    }
+
+    if (!mail) {
+      const msg = 'Please enter a valid email address.';
+      setErrorMessage(msg);
+      alert(msg);
+      setLoading(false);
+      return;
+    }
+
+    if (!contact) {
+      const msg = 'Please enter a valid contact phone number.';
+      setErrorMessage(msg);
+      alert(msg);
+      setLoading(false);
+      return;
+    }
+
+    if (isHospitalRequiredRole && !hospitalVal) {
+      const msg = 'Please select a hospital for this staff account.';
+      setErrorMessage(msg);
+      alert(msg);
+      setLoading(false);
+      return;
+    }
+
+    if (pass !== confirmPass) {
+      const msg = 'Password mismatch: Password and Confirm Password must be same.';
       setErrorMessage(msg);
       alert(msg);
       setLoading(false);
@@ -47,13 +129,33 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
     }
 
     try {
+      const selectedHospId = hospitalVal ? Number(hospitalVal) : null;
+      const fullName = `${first} ${last}`.trim();
+
+      // Complete Payload supporting all backend serializer field formats for Contact & Hospital
       const payload = {
-        firstName: formData.firstName.trim(),
-        lastName: formData.lastName.trim(),
-        role: formData.role,
-        email: formData.email.trim(),
-        password: formData.password,
-        confirm_password: formData.confirm_password
+        firstName: first,
+        lastName: last,
+        first_name: first,
+        last_name: last,
+        name: fullName,
+        role: roleVal,
+        Select_User: roleVal,
+        email: mail,
+        contact: contact,
+        phone: contact,
+        Contact: contact,
+        Phone: contact,
+        contact_number: contact,
+        phone_number: contact,
+        mobile: contact,
+        mobile_number: contact,
+        hospital: selectedHospId,
+        hospital_id: selectedHospId,
+        Hospital: selectedHospId,
+        hospitals: selectedHospId ? [selectedHospId] : [],
+        password: pass,
+        confirm_password: confirmPass
       };
 
       const response = await fetch(`${API_BASE_URL}/signup/`, {
@@ -62,31 +164,302 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
+      }).catch((err) => {
+        console.error('Fetch error:', err);
+        return null;
       });
 
-      const data = await response.json().catch(() => ({}));
+      if (!response) {
+        const networkErr = 'Unable to connect to backend server. Please verify Django server is running on http://127.0.0.1:8000.';
+        setErrorMessage(networkErr);
+        alert(networkErr);
+        setLoading(false);
+        return;
+      }
 
-      if (response.ok && (response.status === 201 || response.status === 200)) {
-        const userObj = data.user || {};
-        const successMsg = data.message || `Welcome, ${userObj.name || formData.firstName}! Registration successful.`;
+      let rawText = '';
+      let data = {};
+      try {
+        rawText = await response.text();
+        data = JSON.parse(rawText);
+      } catch {
+        data = {};
+      }
+
+      if (response.status === 201 || response.status === 200) {
+        // Synchronize backend staff and patient database tables with exact selected hospital and contact
+        if (roleVal === 'DOCTOR' && selectedHospId) {
+          try {
+            const generatedDocId = `DOC-${Math.floor(1000 + Math.random() * 9000)}`;
+            const docPayload = {
+              role: 'Doctor',
+              doctor_id: generatedDocId,
+              name: fullName.startsWith('Dr.') ? fullName : `Dr. ${fullName}`,
+              email: mail,
+              phone: contact,
+              contact: contact,
+              contact_number: contact,
+              phone_number: contact,
+              password: pass,
+              hospital: selectedHospId,
+              hospitals: [selectedHospId],
+              status: 'On_Duty',
+              is_active: true
+            };
+            const postRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(docPayload)
+            }).catch(() => null);
+
+            // If POST was rejected (e.g. user already exists from /signup/), update the existing doctor record
+            if (!postRes || !postRes.ok) {
+              const listRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
+              if (listRes && listRes.ok) {
+                const docs = await listRes.json().catch(() => []);
+                const matched = Array.isArray(docs) ? docs.find(d => (d.email && d.email.toLowerCase().trim() === mail.toLowerCase())) : null;
+                if (matched && matched.id) {
+                  await fetch(`${API_BASE_URL}/super-admin/Doctors/${matched.id}/`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      hospital: selectedHospId,
+                      hospitals: [selectedHospId],
+                      phone: contact,
+                      contact: contact
+                    })
+                  }).catch(() => null);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('Doctor staff sync notice:', e);
+          }
+        } else if (roleVal === 'NURSES' && selectedHospId) {
+          try {
+            const generatedNurseId = `NUR-${Math.floor(1000 + Math.random() * 9000)}`;
+            const nursePayload = {
+              nurse_id: generatedNurseId,
+              name: fullName,
+              email: mail,
+              contact: contact,
+              phone: contact,
+              contact_number: contact,
+              phone_number: contact,
+              hospital: selectedHospId,
+              shift: 'Morning',
+              status: 'On_Duty',
+              is_active: true,
+              password: pass
+            };
+            const postRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(nursePayload)
+            }).catch(() => null);
+
+            if (!postRes || !postRes.ok) {
+              const listRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/`).catch(() => null);
+              if (listRes && listRes.ok) {
+                const nurses = await listRes.json().catch(() => []);
+                const matched = Array.isArray(nurses) ? nurses.find(n => (n.email && n.email.toLowerCase().trim() === mail.toLowerCase())) : null;
+                if (matched && matched.id) {
+                  await fetch(`${API_BASE_URL}/super-admin/Nurses/${matched.id}/`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      hospital: selectedHospId,
+                      contact: contact,
+                      phone: contact
+                    })
+                  }).catch(() => null);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('Nurse staff sync notice:', e);
+          }
+        } else if (roleVal === 'RECEPTIONISTS' && selectedHospId) {
+          try {
+            const generatedRecId = `REC-${Math.floor(1000 + Math.random() * 9000)}`;
+            const recPayload = {
+              hospital: selectedHospId,
+              name: fullName,
+              receptionist_id: generatedRecId,
+              role: 'Front Desk Receptionist',
+              designation: 'Front Desk Receptionist',
+              contact: contact,
+              phone: contact,
+              contact_number: contact,
+              phone_number: contact,
+              email: mail,
+              password: pass,
+              shift: 'Morning',
+              status: 'On_Duty',
+              is_active: true
+            };
+            const postRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(recPayload)
+            }).catch(() => null);
+
+            if (!postRes || !postRes.ok) {
+              const listRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`).catch(() => null);
+              if (listRes && listRes.ok) {
+                const recs = await listRes.json().catch(() => []);
+                const matched = Array.isArray(recs) ? recs.find(r => (r.email && r.email.toLowerCase().trim() === mail.toLowerCase())) : null;
+                if (matched && matched.id) {
+                  await fetch(`${API_BASE_URL}/super-admin/Receptionists/${matched.id}/`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      hospital: selectedHospId,
+                      contact: contact,
+                      phone: contact
+                    })
+                  }).catch(() => null);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('Receptionist staff sync notice:', e);
+          }
+        } else if (roleVal === 'PATIENTS') {
+          // If /signup/ already created the patient, check and update contact if needed (DO NOT POST duplicate)
+          try {
+            const listRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
+            if (listRes && listRes.ok) {
+              const pats = await listRes.json().catch(() => []);
+              const matched = Array.isArray(pats) ? pats.find(p => (p.email && p.email.toLowerCase().trim() === mail.toLowerCase()) || (p.name && p.name.toLowerCase().trim() === fullName.toLowerCase())) : null;
+              if (matched && matched.id) {
+                if (!matched.contact || matched.contact !== contact) {
+                  await fetch(`${API_BASE_URL}/super-admin/Patients/${matched.id}/`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      contact: contact,
+                      phone: contact
+                    })
+                  }).catch(() => null);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('Patient database sync notice:', e);
+          }
+        }
+
+        // Store persistent mappings for seamless authentication and profile retrieval
+        if (mail && contact) {
+          localStorage.setItem(`user_contact_${mail.toLowerCase()}`, contact);
+        }
+        if (mail && selectedHospId) {
+          localStorage.setItem(`user_hospital_${mail.toLowerCase()}`, String(selectedHospId));
+        }
+        if (mail && pass) {
+          localStorage.setItem(`pwd_${mail.toLowerCase()}`, pass);
+        }
+
+        const userObj = data.user || data;
+        const successMsg = data.message || `Welcome, ${userObj.name || fullName}! Account registered successfully. Please sign in with your credentials.`;
         alert(successMsg);
 
+        // Immediate redirect to login screen
         if (setCurrentPage) {
           setCurrentPage('login');
         }
+        return;
       } else {
-        let errText = data.message || data.detail || data.error;
-        if (!errText && typeof data === 'object') {
-          errText = Object.entries(data)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? JSON.stringify(v) : v)}`)
-            .join('\n');
+        // Fallback for Patient role if /signup/ endpoint is unavailable but Patient table is available
+        if (roleVal === 'PATIENTS') {
+          try {
+            const patDirectPayload = {
+              name: fullName,
+              contact: contact,
+              phone: contact,
+              email: mail,
+              address: 'Local Resident',
+              password: pass
+            };
+            const directPatRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(patDirectPayload)
+            }).catch(() => null);
+
+            if (directPatRes && (directPatRes.ok || directPatRes.status === 201 || directPatRes.status === 200)) {
+              if (mail && contact) {
+                localStorage.setItem(`user_contact_${mail.toLowerCase()}`, contact);
+              }
+              if (mail && pass) {
+                localStorage.setItem(`pwd_${mail.toLowerCase()}`, pass);
+              }
+              alert(`Welcome, ${fullName}! Patient account created successfully in database. Please log in.`);
+              if (setCurrentPage) {
+                setCurrentPage('login');
+              }
+              return;
+            }
+          } catch (directErr) {
+            console.warn('Direct patient registration fallback notice:', directErr);
+          }
         }
-        errText = errText || 'Registration failed. Please try again.';
-        setErrorMessage(errText);
-        alert(errText);
+
+        // Parse Django REST framework validation errors
+        let errorMessages = [];
+        if (typeof data === 'object' && data !== null && Object.keys(data).length > 0) {
+          if (data.message) errorMessages.push(data.message);
+          if (data.detail) errorMessages.push(data.detail);
+          if (data.error) errorMessages.push(data.error);
+
+          Object.entries(data).forEach(([key, val]) => {
+            if (key === 'message' || key === 'detail' || key === 'error') return;
+            const fieldLabel = key === 'confirm_password' ? 'Confirm Password'
+              : key === 'firstName' || key === 'first_name' ? 'First Name'
+              : key === 'lastName' || key === 'last_name' ? 'Last Name'
+              : key === 'email' ? 'Email'
+              : key === 'contact' || key === 'phone' ? 'Contact'
+              : key === 'hospital' ? 'Hospital'
+              : key === 'password' ? 'Password'
+              : key === 'role' || key === 'Select_User' ? 'Role'
+              : key;
+            const msgContent = Array.isArray(val) ? val.join(' ') : (typeof val === 'object' ? JSON.stringify(val) : String(val));
+            errorMessages.push(`${fieldLabel}: ${msgContent}`);
+          });
+        } else if (rawText) {
+          const titleMatch = rawText.match(/<title>(.*?)<\/title>/i);
+          const excMatch = rawText.match(/<pre class="exception_value">([\s\S]*?)<\/pre>/i) || rawText.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+          
+          if (titleMatch || excMatch) {
+            let excTitle = titleMatch ? titleMatch[1] : 'Server Error';
+            let excDetail = excMatch ? excMatch[1].replace(/<[^>]+>/g, '') : '';
+
+            const cleanEntities = (str) => str
+              .replace(/&#x27;/g, "'")
+              .replace(/&quot;/g, '"')
+              .replace(/&amp;/g, '&')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .trim();
+
+            excTitle = cleanEntities(excTitle);
+            excDetail = cleanEntities(excDetail);
+
+            errorMessages.push(`Server Exception: ${excTitle}${excDetail ? ' - ' + excDetail : ''}`);
+          }
+        }
+
+        const finalErr = errorMessages.length > 0 
+          ? errorMessages.join('\n') 
+          : `Registration failed with status code ${response.status}. Please check your details.`;
+        
+        console.error('Signup error details:', { status: response.status, data, rawText: rawText.slice(0, 500) });
+        setErrorMessage(finalErr);
+        alert(finalErr);
       }
     } catch (error) {
-      console.error('Signup network error:', error);
+      console.error('Signup exception:', error);
       const err = error.message || 'Unable to connect to hospital server. Please verify backend is running.';
       setErrorMessage(err);
       alert(err);
@@ -97,7 +470,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-3 sm:p-4 bg-slate-100 w-full overflow-x-hidden">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg shadow-slate-300/40 border border-slate-200/90 p-5 sm:p-8">
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow-lg shadow-slate-300/40 border border-slate-200/90 p-5 sm:p-8">
         <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
           <button
             type="button"
@@ -116,7 +489,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
             </svg>
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Create User Account</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Create Account</h2>
           <p className="text-xs text-slate-500 mt-1 font-medium">Join Apex Care Hospital Management Portal</p>
         </div>
 
@@ -129,78 +502,127 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
         )}
 
         <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
+          {/* FIRST NAME & LAST NAME */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                First Name
+                First Name <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
-                name="firstName"
+                name="first_name"
                 autoComplete="off"
-                value={formData.firstName}
+                value={formData.first_name}
                 onChange={handleChange}
-                placeholder="First name"
+                placeholder="Enter first name"
                 required
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150"
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                Last Name
+                Last Name <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
-                name="lastName"
+                name="last_name"
                 autoComplete="off"
-                value={formData.lastName}
+                value={formData.last_name}
                 onChange={handleChange}
-                placeholder="Last name"
+                placeholder="Enter last name"
                 required
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150"
               />
             </div>
           </div>
 
+          {/* SELECT USER ROLE */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Select Role
+              Select User <span className="text-rose-500">*</span>
             </label>
             <select
-              name="role"
-              value={formData.role}
+              name="Select_User"
+              value={formData.Select_User}
               onChange={handleChange}
               required
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150 cursor-pointer"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150 cursor-pointer font-medium"
             >
-              <option value="" disabled>Select User Role</option>
+              <option value="">-- Select User --</option>
+              <option value="PATIENTS">Patients</option>
               <option value="DOCTOR">Doctor</option>
-              <option value="NURSES">Nurse</option>
-              <option value="RECEPTIONISTS">Receptionist</option>
-              <option value="PATIENTS">Patient</option>
+              <option value="NURSES">Nurses</option>
+              <option value="RECEPTIONISTS">Receptionists</option>
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Email Address
-            </label>
-            <input
-              type="email"
-              name="email"
-              autoComplete="off"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="name@hospital.com"
-              required
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150"
-            />
-          </div>
+          {/* SELECT HOSPITAL (VISIBLE ONLY IF DOCTOR, NURSE, OR RECEPTIONIST) */}
+          {isHospitalRequiredRole && (
+            <div className="p-3.5 rounded-xl bg-teal-50/70 border border-teal-200 animate-in fade-in duration-200">
+              <label className="block text-xs font-semibold text-teal-900 uppercase tracking-wider mb-1.5">
+                Select Hospital <span className="text-rose-500">*</span>
+              </label>
+              <select
+                name="hospital"
+                value={formData.hospital}
+                onChange={handleChange}
+                required={isHospitalRequiredRole}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-teal-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition duration-150 cursor-pointer font-medium"
+              >
+                <option value="">-- Select Hospital --</option>
+                {hospitalsList.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.Name || h.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-teal-700 mt-1 font-medium">
+                {formData.Select_User === 'DOCTOR' ? 'Select the primary hospital for your clinical OPD & patient consultations.' :
+                 formData.Select_User === 'NURSES' ? 'Select the hospital where you will be assigned ward & floor duty.' :
+                 'Select the hospital where you will manage the reception desk & registrations.'}
+              </p>
+            </div>
+          )}
 
+          {/* EMAIL & CONTACT */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                Password
+                Email Address <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="email"
+                name="email"
+                autoComplete="off"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="Enter email address"
+                required
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                Contact Number <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="contact"
+                autoComplete="off"
+                value={formData.contact}
+                onChange={handleChange}
+                placeholder="Enter phone number"
+                required
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150"
+              />
+            </div>
+          </div>
+
+          {/* PASSWORD & CONFIRM PASSWORD */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                Password <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -209,7 +631,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
                   autoComplete="new-password"
                   value={formData.password}
                   onChange={handleChange}
-                  placeholder="••••••••"
+                  placeholder="Enter password"
                   required
                   minLength={6}
                   className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150"
@@ -236,7 +658,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                Confirm Password
+                Confirm Password <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -245,16 +667,15 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
                   autoComplete="new-password"
                   value={formData.confirm_password}
                   onChange={handleChange}
-                  placeholder="••••••••"
+                  placeholder="Re-enter password"
                   required
                   minLength={6}
-                  className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border ${
-                    formData.confirm_password && formData.password !== formData.confirm_password
+                  className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border ${formData.confirm_password && formData.password !== formData.confirm_password
                       ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20'
                       : formData.confirm_password && formData.password === formData.confirm_password
-                      ? 'border-emerald-400 focus:border-emerald-500 focus:ring-emerald-500/20'
-                      : 'border-slate-300 focus:border-teal-600 focus:ring-teal-600/20'
-                  } bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 transition duration-150`}
+                        ? 'border-emerald-400 focus:border-emerald-500 focus:ring-emerald-500/20'
+                        : 'border-slate-300 focus:border-teal-600 focus:ring-teal-600/20'
+                    } bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 transition duration-150`}
                 />
                 <button
                   type="button"

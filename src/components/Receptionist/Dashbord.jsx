@@ -81,7 +81,7 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
   const recName = receptionistInfo?.name || currentUser?.name || 'Front Desk Staff';
   const roleTitle = receptionistInfo?.role || currentUser?.role || 'Front Desk Receptionist';
   const shiftName = receptionistInfo?.shift || currentUser?.shift || 'Morning Shift';
-  const hospitalName = hospitalInfo?.Name || 'Apex Care Hospital';
+  const hospitalName = hospitalInfo?.Name || hospitalInfo?.name || receptionistInfo?.hospital_name || currentUser?.hospital_name || 'Not Provided';
 
   const unassignedCount = patients.filter(p => !p.doctor || p.doctor === null || p.doctor === '' || !p.doctor_name || !p.bed_number || (p.status || '').toLowerCase().includes('pending')).length;
 

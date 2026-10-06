@@ -8,6 +8,38 @@ const getFloorNumber = (bed) => {
   return Math.floor((num - 1) / 100) + 1;
 };
 
+// Helper: Auto-assign Nurse based on Bed number and hospital
+const getAutoNurseForBed = (bedNumber, nursesList = [], hospitalId = null) => {
+  if (!bedNumber || !nursesList || !Array.isArray(nursesList) || nursesList.length === 0) {
+    return { nurseId: null, nurseName: '', reason: 'No bed specified' };
+  }
+
+  const hospNurses = hospitalId
+    ? nursesList.filter(n => Number(typeof n.hospital === 'object' ? n.hospital?.id : n.hospital) === Number(hospitalId))
+    : nursesList;
+  const activeNurses = hospNurses.length > 0 ? hospNurses : nursesList;
+
+  if (activeNurses.length === 0) return { nurseId: null, nurseName: '', reason: 'No nurses registered' };
+
+  const floor = getFloorNumber(bedNumber);
+
+  // 1. Try to match nurse by floor or ward
+  const floorNurse = activeNurses.find(n => {
+    const nWard = (n.ward || '').toLowerCase();
+    const nFloor = (n.floor || '').toLowerCase();
+    return nWard.includes(`floor ${floor}`) || nWard.includes(`floor${floor}`) ||
+           nFloor.includes(`floor ${floor}`) || nFloor.includes(String(floor));
+  });
+
+  if (floorNurse) {
+    return { nurseId: floorNurse.id, nurseName: floorNurse.name, reason: `Duty Station: Floor ${floor}` };
+  }
+
+  // 2. Fallback: distribute evenly or pick on-duty hospital nurse
+  const chosen = activeNurses[(Number(bedNumber) % activeNurses.length)] || activeNurses[0];
+  return { nurseId: chosen.id, nurseName: chosen.name, reason: `Station Floor ${floor} Ward Staff` };
+};
+
 const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient, setSelectedDoctorForPatient }) => {
   const [patients, setPatients] = useState([]);
   const [doctors, setDoctors] = useState([]);
@@ -20,21 +52,26 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
   const [severityFilter, setSeverityFilter] = useState('ALL');
   const [visibleCount, setVisibleCount] = useState(10);
 
-  // Modal State for Doctor Assignment
+  // Modal State for Doctor & Timing Assignment
   const [doctorModalPatient, setDoctorModalPatient] = useState(null);
   const [selectedDocId, setSelectedDocId] = useState('');
+  const [selectedAppDate, setSelectedAppDate] = useState('');
+  const [selectedAppSlot, setSelectedAppSlot] = useState('10:00 AM');
   const [updatingDoctor, setUpdatingDoctor] = useState(false);
 
-  // Modal State for Bed & Nurse Allocation
+  // Modal State for Bed & Auto-Nurse Allocation
   const [bedModalPatient, setBedModalPatient] = useState(null);
   const [selectedBedNumber, setSelectedBedNumber] = useState('');
   const [selectedNurseId, setSelectedNurseId] = useState('');
+  const [autoNurseNotice, setAutoNurseNotice] = useState('');
   const [updatingBed, setUpdatingBed] = useState(false);
 
-  // Modal State for Quick Triage / Full Assignment
+  // Modal State for Fast Triage / Full Multi-Assignment
   const [triageModalPatient, setTriageModalPatient] = useState(null);
   const [triageFormData, setTriageFormData] = useState({
     doctor: '',
+    appointment_date: '',
+    appointment_time: '10:00 AM',
     bed_number: '',
     nurse: '',
     status: 'Assigned',
@@ -44,6 +81,12 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
   const [updatingTriage, setUpdatingTriage] = useState(false);
 
   const userHospId = currentUser?.hospital || (typeof currentUser?.hospital_data === 'object' ? currentUser?.hospital_data?.id : null);
+
+  const timeSlots = [
+    '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+    '12:00 PM', '02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM', '04:00 PM',
+    '04:30 PM', '05:00 PM', '05:30 PM', '06:00 PM'
+  ];
 
   useEffect(() => {
     fetchAllData();
@@ -86,22 +129,28 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
     }
   };
 
-  // Helper to determine if patient is unassigned
+  // Helper to determine if doctor is unassigned
   const isDoctorUnassigned = (p) => {
     return !p.doctor || p.doctor === null || p.doctor === '' || p.doctor_name === '' || !p.doctor_name;
   };
 
+  // Helper to determine if bed is unassigned (especially if marked for admit or missing bed)
   const isBedUnassigned = (p) => {
-    return !p.bed_number || p.bed_number === null || p.bed_number === '';
+    const isAdmit = (p.status || '').toLowerCase().includes('admit');
+    return (!p.bed_number || p.bed_number === null || p.bed_number === '') && (isAdmit || !p.bed_number);
   };
 
   const isStatusPending = (p) => {
     const s = (p.status || '').toLowerCase();
-    return s.includes('pending') || s.includes('unassign') || s.includes('wait') || s.includes('triage') || s === '';
+    return s.includes('unassign') || s.includes('pending') || s.includes('wait') || s.includes('admit_req') || s === '';
   };
 
   // Patients who are unassigned (missing doctor, missing bed, or pending triage)
+  // And EXCLUDE already discharged patients from this active triage queue
   const unassignedPatientsList = patients.filter(p => {
+    const s = (p.status || '').toLowerCase();
+    if (s.includes('discharg') || s.includes('complet')) return false;
+
     const noDoc = isDoctorUnassigned(p);
     const noBed = isBedUnassigned(p);
     const pending = isStatusPending(p);
@@ -140,10 +189,13 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
     return c.includes('emergency') || c.includes('critical') || c.includes('urgent');
   }).length;
 
-  // Handle Doctor Assignment
+  // 1. Handle Doctor & Timing Assignment Modal
   const handleOpenDoctorModal = (patient) => {
     setDoctorModalPatient(patient);
     setSelectedDocId(patient.doctor ? String(patient.doctor) : '');
+    const todayStr = new Date().toISOString().split('T')[0];
+    setSelectedAppDate(patient.appointment_date || todayStr);
+    setSelectedAppSlot(patient.appointment_time || '10:00 AM');
   };
 
   const handleSaveDoctorAssignment = async (e) => {
@@ -161,14 +213,19 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
 
     try {
       setUpdatingDoctor(true);
-      const patId = doctorModalPatient.id;
+      const hospId = Number(typeof doctorModalPatient.hospital === 'object' ? doctorModalPatient.hospital?.id : doctorModalPatient.hospital) || doctorModalPatient.hospital;
       const updatePayload = {
         ...doctorModalPatient,
+        hospital: hospId,
         doctor: Number(chosenDoc.id),
         doctor_name: chosenDoc.name,
+        doctor_id: chosenDoc.doctor_id || (chosenDoc.id ? `DOC-${chosenDoc.id}` : null),
         doctor_specialization: chosenDoc.specialization || chosenDoc.specialty || '',
+        appointment_date: selectedAppDate,
+        appointment_time: selectedAppSlot,
+        visit_date_time: scheduledVisitIso,
         consultation_fee: chosenDoc.consultation_fee || doctorModalPatient.consultation_fee || 500,
-        status: doctorModalPatient.status === 'Pending' || !doctorModalPatient.status ? 'Assigned' : doctorModalPatient.status
+        status: 'Assigned'
       };
 
       let response = await fetch(`${API_BASE_URL}/super-admin/Patients/${patId}/`, {
@@ -186,7 +243,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
       }
 
       if (response && response.ok) {
-        alert(`Success! Dr. ${chosenDoc.name} has been assigned to patient ${doctorModalPatient.name}.`);
+        alert(`Success! Dr. ${chosenDoc.name} assigned to patient ${doctorModalPatient.name} on ${selectedAppDate} at ${selectedAppSlot}. Patient will now appear in Dr. ${chosenDoc.name}'s active queue.`);
         setDoctorModalPatient(null);
         setSelectedDocId('');
         fetchAllData();
@@ -201,11 +258,35 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
     }
   };
 
-  // Handle Bed & Nurse Allocation
+  // 2. Handle Bed & Auto-Nurse Allocation Modal
   const handleOpenBedModal = (patient) => {
     setBedModalPatient(patient);
-    setSelectedBedNumber(patient.bed_number ? String(patient.bed_number) : '');
-    setSelectedNurseId(patient.nurse ? String(patient.nurse) : '');
+    const existingBed = patient.bed_number ? String(patient.bed_number) : '';
+    setSelectedBedNumber(existingBed);
+
+    const hospId = typeof patient.hospital === 'object' ? patient.hospital?.id : patient.hospital;
+    if (existingBed) {
+      const autoRes = getAutoNurseForBed(existingBed, nurses, hospId);
+      setSelectedNurseId(patient.nurse ? String(patient.nurse) : (autoRes.nurseId ? String(autoRes.nurseId) : ''));
+      setAutoNurseNotice(autoRes.reason);
+    } else {
+      setSelectedNurseId(patient.nurse ? String(patient.nurse) : '');
+      setAutoNurseNotice('');
+    }
+  };
+
+  const handleBedNumberChange = (val) => {
+    setSelectedBedNumber(val);
+    if (val && bedModalPatient) {
+      const hospId = typeof bedModalPatient.hospital === 'object' ? bedModalPatient.hospital?.id : bedModalPatient.hospital;
+      const autoRes = getAutoNurseForBed(val, nurses, hospId);
+      if (autoRes.nurseId) {
+        setSelectedNurseId(String(autoRes.nurseId));
+        setAutoNurseNotice(`Auto-Assigned based on Bed #${val} (Floor ${getFloorNumber(val)}): Nurse ${autoRes.nurseName}`);
+      }
+    } else {
+      setAutoNurseNotice('');
+    }
   };
 
   const handleSaveBedAllocation = async (e) => {
@@ -215,8 +296,12 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
       return;
     }
 
-    const chosenNurse = nurses.find(n => Number(n.id) === Number(selectedNurseId));
     const parsedBed = Number(selectedBedNumber);
+    const hospId = typeof bedModalPatient.hospital === 'object' ? bedModalPatient.hospital?.id : bedModalPatient.hospital;
+    const autoRes = getAutoNurseForBed(parsedBed, nurses, hospId);
+
+    const chosenNurseId = selectedNurseId ? Number(selectedNurseId) : autoRes.nurseId;
+    const chosenNurse = nurses.find(n => Number(n.id) === chosenNurseId);
 
     try {
       setUpdatingBed(true);
@@ -225,8 +310,10 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
         ...bedModalPatient,
         bed_number: parsedBed,
         nurse: chosenNurse ? Number(chosenNurse.id) : null,
-        nurse_name: chosenNurse ? chosenNurse.name : '',
-        status: 'Admitted'
+        nurse_name: chosenNurse ? chosenNurse.name : (autoRes.nurseName || ''),
+        status: 'Admitted',
+        Hospitals_Chargies: bedModalPatient.Hospitals_Chargies || 1500,
+        hospital_charges: bedModalPatient.hospital_charges || 1500
       };
 
       let response = await fetch(`${API_BASE_URL}/super-admin/Patients/${patId}/`, {
@@ -244,7 +331,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
       }
 
       if (response && response.ok) {
-        alert(`Success! Bed #${parsedBed} (Floor ${getFloorNumber(parsedBed)}) allocated to ${bedModalPatient.name}.`);
+        alert(`Success! Bed #${parsedBed} (Floor ${getFloorNumber(parsedBed)}) allocated to ${bedModalPatient.name}. Nurse ${chosenNurse?.name || autoRes.nurseName || 'Station Staff'} has been assigned.`);
         setBedModalPatient(null);
         setSelectedBedNumber('');
         setSelectedNurseId('');
@@ -260,17 +347,34 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
     }
   };
 
-  // Handle Quick Triage & Full Assignment Modal
+  // 3. Handle Full Triage Modal
   const handleOpenTriageModal = (patient) => {
     setTriageModalPatient(patient);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const hospId = typeof patient.hospital === 'object' ? patient.hospital?.id : patient.hospital;
+    const autoRes = patient.bed_number ? getAutoNurseForBed(patient.bed_number, nurses, hospId) : { nurseId: '' };
+
     setTriageFormData({
       doctor: patient.doctor ? String(patient.doctor) : '',
+      appointment_date: patient.appointment_date || todayStr,
+      appointment_time: patient.appointment_time || '10:00 AM',
       bed_number: patient.bed_number ? String(patient.bed_number) : '',
-      nurse: patient.nurse ? String(patient.nurse) : '',
+      nurse: patient.nurse ? String(patient.nurse) : (autoRes.nurseId ? String(autoRes.nurseId) : ''),
       status: patient.status || 'Assigned',
-      Condation: patient.Condation || patient.condition || 'Normal',
+      Condation: patient.Condation || patient.condition || '',
       consultation_fee: patient.consultation_fee || '500'
     });
+  };
+
+  const handleTriageBedChange = (val) => {
+    const hospId = typeof triageModalPatient.hospital === 'object' ? triageModalPatient.hospital?.id : triageModalPatient.hospital;
+    const autoRes = val ? getAutoNurseForBed(val, nurses, hospId) : { nurseId: '' };
+
+    setTriageFormData(prev => ({
+      ...prev,
+      bed_number: val,
+      nurse: autoRes.nurseId ? String(autoRes.nurseId) : prev.nurse
+    }));
   };
 
   const handleSaveTriage = async (e) => {
@@ -279,18 +383,27 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
       setUpdatingTriage(true);
       const patId = triageModalPatient.id;
       const chosenDoc = doctors.find(d => Number(d.id) === Number(triageFormData.doctor));
-      const chosenNurse = nurses.find(n => Number(n.id) === Number(triageFormData.nurse));
       const parsedBed = triageFormData.bed_number ? Number(triageFormData.bed_number) : null;
+      const hospId = Number(typeof triageModalPatient.hospital === 'object' ? triageModalPatient.hospital?.id : triageModalPatient.hospital) || triageModalPatient.hospital;
+      const autoRes = parsedBed ? getAutoNurseForBed(parsedBed, nurses, hospId) : { nurseId: null, nurseName: '' };
+      const chosenNurse = nurses.find(n => Number(n.id) === Number(triageFormData.nurse)) || (autoRes.nurseId ? nurses.find(n => Number(n.id) === autoRes.nurseId) : null);
+
+      const scheduledVisitIso = triageFormData.appointment_date ? `${triageFormData.appointment_date}T10:00:00` : null;
 
       const updatePayload = {
         ...triageModalPatient,
+        hospital: hospId,
         doctor: chosenDoc ? Number(chosenDoc.id) : null,
         doctor_name: chosenDoc ? chosenDoc.name : '',
+        doctor_id: chosenDoc ? (chosenDoc.doctor_id || `DOC-${chosenDoc.id}`) : null,
         doctor_specialization: chosenDoc ? (chosenDoc.specialization || chosenDoc.specialty || '') : '',
+        appointment_date: triageFormData.appointment_date,
+        appointment_time: triageFormData.appointment_time,
+        visit_date_time: scheduledVisitIso,
         bed_number: parsedBed,
         nurse: chosenNurse ? Number(chosenNurse.id) : null,
         nurse_name: chosenNurse ? chosenNurse.name : '',
-        status: triageFormData.status || 'Assigned',
+        status: parsedBed ? 'Admitted' : (triageFormData.status || 'Assigned'),
         Condation: triageFormData.Condation,
         condation: triageFormData.Condation,
         condition: triageFormData.Condation,
@@ -313,7 +426,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
       }
 
       if (response && response.ok) {
-        alert(`Success! Assignment updated for patient ${triageModalPatient.name}.`);
+        alert(`Success! Triage & assignment completed for patient ${triageModalPatient.name}.`);
         setTriageModalPatient(null);
         fetchAllData();
       } else {
@@ -345,13 +458,13 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-semibold border border-amber-400/30">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-              Receptionist Triage & Unassigned Patient Queue
+              Receptionist Triage & Doctor Dispatch Queue
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-2 text-slate-100">
               Unassigned Patients Desk
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 mt-1">
-              Live queue of registered patients awaiting doctor assignment, inpatient bed allocation, or clinical triage.
+              Live queue of self-registered OPD patients awaiting doctor assignment, slot timing, or inpatient bed allocation with auto-nurse mapping.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -373,7 +486,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
               </svg>
-              + Admit New Patient
+              All Admissions Directory
             </button>
           </div>
         </div>
@@ -385,36 +498,36 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
           onClick={() => setActiveTab('ALL_UNASSIGNED')}
           className={`p-4 rounded-2xl bg-white border shadow-xs cursor-pointer transition ${activeTab === 'ALL_UNASSIGNED' ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-slate-200 hover:border-amber-300'}`}
         >
-          <p className="text-[11px] font-semibold text-slate-500 uppercase">Total Unassigned</p>
+          <p className="text-[11px] font-semibold text-slate-500 uppercase">Total Awaiting Action</p>
           <h3 className="text-xl sm:text-2xl font-bold text-slate-800 mt-1">{totalUnassignedCount}</h3>
-          <p className="text-[11px] text-amber-600 font-medium mt-0.5">Patients pending triage</p>
+          <p className="text-[11px] text-amber-600 font-medium mt-0.5">Self-bookings & Admit queue</p>
         </div>
 
         <div 
           onClick={() => setActiveTab('NO_DOCTOR')}
           className={`p-4 rounded-2xl bg-white border shadow-xs cursor-pointer transition ${activeTab === 'NO_DOCTOR' ? 'border-teal-500 ring-2 ring-teal-500/20' : 'border-slate-200 hover:border-teal-300'}`}
         >
-          <p className="text-[11px] font-semibold text-teal-600 uppercase">Awaiting Doctor</p>
+          <p className="text-[11px] font-semibold text-teal-600 uppercase">Awaiting Doctor & Slot</p>
           <h3 className="text-xl sm:text-2xl font-bold text-teal-700 mt-1">{noDoctorCount}</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Need consulting doctor</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Needs Doctor assignment</p>
         </div>
 
         <div 
           onClick={() => setActiveTab('NO_BED')}
           className={`p-4 rounded-2xl bg-white border shadow-xs cursor-pointer transition ${activeTab === 'NO_BED' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-slate-200 hover:border-blue-300'}`}
         >
-          <p className="text-[11px] font-semibold text-blue-600 uppercase">Awaiting Bed / Ward</p>
+          <p className="text-[11px] font-semibold text-blue-600 uppercase">Awaiting Bed & Nurse</p>
           <h3 className="text-xl sm:text-2xl font-bold text-blue-700 mt-1">{noBedCount}</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Need bed allocation</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Needs Bed allocation</p>
         </div>
 
         <div 
           onClick={() => { setActiveTab('ALL_UNASSIGNED'); setSeverityFilter('Emergency'); }}
           className="p-4 rounded-2xl bg-white border border-rose-200 shadow-xs cursor-pointer hover:border-rose-400 transition"
         >
-          <p className="text-[11px] font-semibold text-rose-600 uppercase">Emergency / Urgent</p>
+          <p className="text-[11px] font-semibold text-rose-600 uppercase">Emergency / Critical</p>
           <h3 className="text-xl sm:text-2xl font-bold text-rose-700 mt-1">{emergencyUnassignedCount}</h3>
-          <p className="text-[11px] text-rose-500 font-semibold mt-0.5">Requires immediate attention</p>
+          <p className="text-[11px] text-rose-500 font-semibold mt-0.5">Requires fast triage</p>
         </div>
       </div>
 
@@ -423,8 +536,8 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
         <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-slate-200">
           {[
             { id: 'ALL_UNASSIGNED', label: 'All Unassigned', count: totalUnassignedCount },
-            { id: 'NO_DOCTOR', label: 'Doctor Not Assigned', count: noDoctorCount },
-            { id: 'NO_BED', label: 'Bed / Ward Not Assigned', count: noBedCount },
+            { id: 'NO_DOCTOR', label: 'Doctor Not Assigned (Self-Booked)', count: noDoctorCount },
+            { id: 'NO_BED', label: 'Bed / Ward Required', count: noBedCount },
             { id: 'PENDING', label: 'Pending Triage Status', count: unassignedPatientsList.filter(isStatusPending).length }
           ].map(tab => (
             <button
@@ -451,7 +564,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search unassigned patients by UHID, name, phone, diagnosis..."
+              placeholder="Search unassigned queue by UHID, patient name, phone, symptoms..."
               className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-600/20 transition"
             />
           </div>
@@ -466,6 +579,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
               <option value="Critical">Critical</option>
               <option value="Emergency">Emergency</option>
               <option value="Urgent">Urgent</option>
+              <option value="Serious">Serious</option>
               <option value="Normal">Normal</option>
             </select>
           </div>
@@ -479,19 +593,19 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
             <h2 className="text-sm sm:text-base font-bold text-slate-800">
               Unassigned Patients Roster ({displayedPatients.length})
             </h2>
-            <p className="text-xs text-slate-500">Live reception triage & doctor/bed dispatch table</p>
+            <p className="text-xs text-slate-500">Live reception triage, doctor & timing dispatch, and bed/nurse allocation</p>
           </div>
         </div>
 
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-left text-xs text-slate-600 min-w-[840px]">
+          <table className="w-full text-left text-xs text-slate-600 min-w-[880px]">
             <thead className="bg-slate-100/80 text-slate-700 uppercase font-semibold text-[11px] tracking-wider rounded-lg">
               <tr>
                 <th className="py-3 px-3">Patient UHID & Name</th>
-                <th className="py-3 px-3">Age / Gender</th>
+                <th className="py-3 px-3">Age / Gender / Blood</th>
                 <th className="py-3 px-3">Condition</th>
-                <th className="py-3 px-3">Assigned Doctor</th>
-                <th className="py-3 px-3">Bed & Floor</th>
+                <th className="py-3 px-3">Assigned Doctor & Slot</th>
+                <th className="py-3 px-3">Bed & Nurse</th>
                 <th className="py-3 px-3">Symptoms / Chief Complaint</th>
                 <th className="py-3 px-3">Status</th>
                 <th className="py-3 px-3 text-right">Quick Allocation</th>
@@ -511,8 +625,8 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
-                      <h4 className="text-sm font-bold text-slate-800">All Patients Assigned!</h4>
-                      <p className="text-xs text-slate-500">There are currently no unassigned patients matching this filter.</p>
+                      <h4 className="text-sm font-bold text-slate-800">Queue is Clear!</h4>
+                      <p className="text-xs text-slate-500">All registered patients have been assigned to doctors and beds.</p>
                       <button
                         type="button"
                         onClick={() => { setActiveTab('ALL_UNASSIGNED'); setSeverityFilter('ALL'); setSearchTerm(''); }}
@@ -528,7 +642,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                   const cond = p.Condation || p.condition || p.symptoms_severity || 'Normal';
                   const condColor = cond === 'Critical' ? 'bg-rose-100 text-rose-800 border-rose-200 font-bold' :
                                     cond === 'Emergency' ? 'bg-red-100 text-red-800 border-red-200 font-bold' :
-                                    cond === 'Urgent' ? 'bg-amber-100 text-amber-800 border-amber-200 font-semibold' :
+                                    cond === 'Urgent' || cond === 'Serious' ? 'bg-amber-100 text-amber-800 border-amber-200 font-semibold' :
                                     'bg-emerald-100 text-emerald-800 border-emerald-200';
 
                   const noDoc = isDoctorUnassigned(p);
@@ -559,20 +673,25 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                         {noDoc ? (
                           <div className="space-y-1">
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              No Doctor
+                              No Doctor Assigned
                             </span>
                             <button
                               type="button"
                               onClick={() => handleOpenDoctorModal(p)}
                               className="block text-[11px] font-bold text-teal-700 hover:text-teal-900 hover:underline cursor-pointer"
                             >
-                              + Assign Doctor
+                              + Assign Doctor & Slot
                             </button>
                           </div>
                         ) : (
                           <div>
                             <div className="font-medium text-slate-800">{p.doctor_name || `Dr. #${p.doctor}`}</div>
                             {p.doctor_specialization && <span className="text-[10px] text-teal-600 block">{p.doctor_specialization}</span>}
+                            {p.appointment_time && (
+                              <span className="text-[10px] font-semibold text-slate-500 block">
+                                🕒 {p.appointment_date ? `${p.appointment_date}, ` : ''}{p.appointment_time}
+                              </span>
+                            )}
                           </div>
                         )}
                       </td>
@@ -588,7 +707,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                               onClick={() => handleOpenBedModal(p)}
                               className="block text-[11px] font-bold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer"
                             >
-                              + Allocate Bed
+                              + Allocate Bed & Nurse
                             </button>
                           </div>
                         ) : (
@@ -596,6 +715,11 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                             <span className="px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
                               Bed #{p.bed_number} (Fl {getFloorNumber(p.bed_number)})
                             </span>
+                            {p.nurse_name && (
+                              <span className="text-[10px] text-slate-500 block mt-0.5">
+                                👩‍⚕️ Nurse: {p.nurse_name}
+                              </span>
+                            )}
                           </div>
                         )}
                       </td>
@@ -604,6 +728,9 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                         <p className="text-slate-700 max-w-[160px] truncate" title={p.symptoms_diagnosis || 'General'}>
                           {p.symptoms_diagnosis || 'General Consultation'}
                         </p>
+                        {p.attached_document && (
+                          <span className="text-[10px] font-bold text-teal-700 block">📎 Document Attached</span>
+                        )}
                       </td>
 
                       <td className="py-3 px-3">
@@ -612,7 +739,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                           (p.status || '').toLowerCase().includes('assign') ? 'bg-teal-50 text-teal-700 border-teal-200' :
                           'bg-amber-50 text-amber-700 border-amber-200'
                         }`}>
-                          {p.status || 'Pending'}
+                          {p.status || 'Unassigned'}
                         </span>
                       </td>
 
@@ -622,7 +749,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                             type="button"
                             onClick={() => handleOpenTriageModal(p)}
                             className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px] shadow-xs transition cursor-pointer"
-                            title="Complete Triage & Allocation"
+                            title="Complete Triage & Dispatch"
                           >
                             Triage / Assign
                           </button>
@@ -631,7 +758,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                             onClick={() => handleViewPatientDetails(p)}
                             className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] transition cursor-pointer"
                           >
-                            View
+                            Details
                           </button>
                         </div>
                       </td>
@@ -650,19 +777,19 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
               onClick={() => setVisibleCount((prev) => prev + 10)}
               className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
             >
-              Show More Unassigned Patients ({displayedPatients.length - visibleCount} remaining)
+              Show More ({displayedPatients.length - visibleCount} remaining)
             </button>
           </div>
         )}
       </div>
 
-      {/* MODAL 1: ASSIGN DOCTOR */}
+      {/* MODAL 1: ASSIGN DOCTOR & TIMING */}
       {doctorModalPatient && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-fadeIn">
             <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold">Assign Consulting Doctor</h3>
+                <h3 className="text-base font-bold">Assign Consulting Doctor & Timing</h3>
                 <p className="text-xs text-slate-300">Patient: {doctorModalPatient.name} ({doctorModalPatient.patient_id || `PAT-${doctorModalPatient.id}`})</p>
               </div>
               <button
@@ -676,14 +803,14 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
 
             <form onSubmit={handleSaveDoctorAssignment} className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Select Doctor *</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Select Specialist Doctor *</label>
                 <select
                   value={selectedDocId}
                   onChange={(e) => setSelectedDocId(e.target.value)}
                   required
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
                 >
-                  <option value="">-- Choose Specialist Doctor --</option>
+                  <option value="">-- Select Doctor --</option>
                   {doctors.map(d => (
                     <option key={d.id} value={d.id}>
                       {d.name} ({d.specialization || d.specialty || 'General'}) - Fee: ₹{d.consultation_fee || 500}
@@ -692,10 +819,39 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                 </select>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Appointment Date *</label>
+                  <input
+                    type="date"
+                    value={selectedAppDate}
+                    onChange={(e) => setSelectedAppDate(e.target.value)}
+                    required
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Consultation Slot *</label>
+                  <select
+                    value={selectedAppSlot}
+                    onChange={(e) => setSelectedAppSlot(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
+                  >
+                    <option value="">-- Select Time Slot --</option>
+                    {timeSlots.map(slot => (
+                      <option key={slot} value={slot}>{slot}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-                <p className="font-semibold text-slate-700">Patient Complaints:</p>
+                <p className="font-semibold text-slate-700">Patient Complaints / Symptoms:</p>
                 <p className="text-slate-600">{doctorModalPatient.symptoms_diagnosis || 'General Consultation / Regular OPD'}</p>
-                <p className="text-slate-500 pt-1">Condition: <span className="font-bold text-slate-700">{doctorModalPatient.Condation || doctorModalPatient.condition || 'Normal'}</span></p>
+                <p className="text-slate-500 pt-1">Priority: <span className="font-bold text-slate-700">{doctorModalPatient.Condation || doctorModalPatient.condition || 'Normal'}</span></p>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
@@ -709,9 +865,9 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                 <button
                   type="submit"
                   disabled={updatingDoctor}
-                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
                 >
-                  {updatingDoctor ? 'Assigning...' : 'Confirm Doctor Assignment'}
+                  {updatingDoctor ? 'Assigning...' : 'Confirm Doctor & Slot'}
                 </button>
               </div>
             </form>
@@ -719,10 +875,10 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
         </div>
       )}
 
-      {/* MODAL 2: ALLOCATE BED & NURSE */}
+      {/* MODAL 2: ALLOCATE BED & AUTO-ASSIGN NURSE */}
       {bedModalPatient && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-fadeIn">
             <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold">Allocate Inpatient Bed & Nurse</h3>
@@ -742,11 +898,11 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                 <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Bed Number *</label>
                 <input
                   type="number"
-                  placeholder="e.g. 102 (Floor 2)"
+                  placeholder="e.g. 102 (Floor 1), 205 (Floor 2)"
                   value={selectedBedNumber}
-                  onChange={(e) => setSelectedBedNumber(e.target.value)}
+                  onChange={(e) => handleBedNumberChange(e.target.value)}
                   required
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white font-medium"
                 />
                 {selectedBedNumber && (
                   <p className="text-[11px] text-teal-700 font-semibold mt-1">
@@ -755,14 +911,21 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                 )}
               </div>
 
+              {autoNurseNotice && (
+                <div className="p-3 rounded-xl bg-teal-50 border border-teal-200 text-xs text-teal-900 flex items-center gap-1.5">
+                  <span className="text-teal-600 font-bold">✨</span>
+                  <span className="font-semibold">{autoNurseNotice}</span>
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Station Nurse (Optional)</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Assigned Station Nurse</label>
                 <select
                   value={selectedNurseId}
                   onChange={(e) => setSelectedNurseId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
                 >
-                  <option value="">-- Auto-assign or Select Nurse --</option>
+                  <option value="">-- Auto-assigned from Bed Duty --</option>
                   {nurses.map(n => (
                     <option key={n.id} value={n.id}>{n.name} ({n.ward || 'Ward Staff'})</option>
                   ))}
@@ -780,9 +943,9 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                 <button
                   type="submit"
                   disabled={updatingBed}
-                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
                 >
-                  {updatingBed ? 'Allocating...' : 'Confirm Bed Allocation'}
+                  {updatingBed ? 'Allocating...' : 'Confirm Bed & Nurse'}
                 </button>
               </div>
             </form>
@@ -793,11 +956,11 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
       {/* MODAL 3: FULL TRIAGE & MULTI ALLOCATION */}
       {triageModalPatient && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-fadeIn">
             <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold">Fast Triage & Complete Allocation</h3>
-                <p className="text-xs text-slate-300">Assign Doctor, Bed, Severity & Admission Status</p>
+                <p className="text-xs text-slate-300">Assign Doctor, Slot, Bed, Auto-Nurse & Priority</p>
               </div>
               <button
                 type="button"
@@ -808,14 +971,15 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
               </button>
             </div>
 
-            <form onSubmit={handleSaveTriage} className="p-5 space-y-3.5">
+            <form onSubmit={handleSaveTriage} className="p-5 space-y-3.5 max-h-[80vh] overflow-y-auto">
               <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
                 <p className="text-xs font-bold text-amber-900">{triageModalPatient.name} • {triageModalPatient.patient_id || `PAT-${triageModalPatient.id}`}</p>
                 <p className="text-[11px] text-amber-700 mt-0.5">{triageModalPatient.age ? `${triageModalPatient.age} Yrs` : ''} • {triageModalPatient.gender || 'Male'} • Phone: {triageModalPatient.contact || 'N/A'}</p>
+                <p className="text-[11px] text-slate-600 mt-1">Chief complaint: {triageModalPatient.symptoms_diagnosis || 'OPD Checkup'}</p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Consulting Doctor</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Consulting Doctor *</label>
                 <select
                   value={triageFormData.doctor}
                   onChange={(e) => setTriageFormData({ ...triageFormData, doctor: e.target.value })}
@@ -830,17 +994,41 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Bed Number (Optional)</label>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Appointment Date</label>
                   <input
-                    type="number"
-                    placeholder="e.g. 102"
-                    value={triageFormData.bed_number}
-                    onChange={(e) => setTriageFormData({ ...triageFormData, bed_number: e.target.value })}
+                    type="date"
+                    value={triageFormData.appointment_date}
+                    onChange={(e) => setTriageFormData({ ...triageFormData, appointment_date: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Designated Nurse</label>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Time Slot</label>
+                  <select
+                    value={triageFormData.appointment_time}
+                    onChange={(e) => setTriageFormData({ ...triageFormData, appointment_time: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
+                  >
+                    {timeSlots.map(slot => (
+                      <option key={slot} value={slot}>{slot}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Bed Number (Leave blank for OPD)</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 102"
+                    value={triageFormData.bed_number}
+                    onChange={(e) => handleTriageBedChange(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Station Nurse (Auto-Assigned)</label>
                   <select
                     value={triageFormData.nurse}
                     onChange={(e) => setTriageFormData({ ...triageFormData, nurse: e.target.value })}
@@ -862,6 +1050,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                     onChange={(e) => setTriageFormData({ ...triageFormData, Condation: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
                   >
+                    <option value="">-- Select Condition --</option>
                     <option value="Normal">Normal Condition</option>
                     <option value="Urgent">Urgent</option>
                     <option value="Emergency">Emergency</option>
@@ -878,7 +1067,6 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                     <option value="Assigned">Assigned</option>
                     <option value="Admitted">Admitted</option>
                     <option value="Pending">Pending</option>
-                    <option value="Confirmed">Confirmed</option>
                   </select>
                 </div>
               </div>
@@ -894,7 +1082,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient,
                 <button
                   type="submit"
                   disabled={updatingTriage}
-                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
                 >
                   {updatingTriage ? 'Saving...' : 'Save & Update Triage'}
                 </button>

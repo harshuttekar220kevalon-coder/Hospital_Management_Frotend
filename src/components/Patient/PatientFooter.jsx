@@ -153,7 +153,7 @@ const PatientFooter = ({ setCurrentPage }) => {
                   <div className="space-y-0.5 text-[11px] text-slate-300">
                     {hospitals.slice(0, 5).map((h) => (
                       <p key={h.id} className="truncate">
-                        • {h.Name || h.name} {h.City || h.city ? `(${h.City || h.city})` : ''}
+                        • {h.Name || h.name}
                       </p>
                     ))}
                     {hospitals.length > 5 && (

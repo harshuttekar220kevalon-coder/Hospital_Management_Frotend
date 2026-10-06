@@ -8,22 +8,7 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
       const saved = localStorage.getItem('selectedDoctor');
       if (saved) return JSON.parse(saved);
     } catch {}
-    return {
-      id: 1,
-      name: 'Dr. Doctor',
-      doctor_id: 'DOC-001',
-      specialization: 'Cardiology',
-      additional_skills: 'Interventional Cardiology, Echocardiography',
-      department: 'Cardiology Department',
-      qualification: 'MBBS, MD (Cardiology)',
-      experience: '12 Years',
-      consultation_fee: 500.00,
-      opd_timings: 'Mon - Fri (10:00 AM - 02:00 PM)',
-      phone: '+91 98765 43210',
-      email: 'doctor@hospital.com',
-      hospitals: [],
-      is_active: true
-    };
+    return null;
   });
 
   const [activeTab, setActiveTab] = useState('overview');
@@ -42,13 +27,13 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
 
   const [editFormData, setEditFormData] = useState({
     name: '',
-    specialization: 'Cardiology',
+    specialization: '',
     additional_skills: '',
     department: '',
     qualification: '',
     experience: '',
-    consultation_fee: 500,
-    opd_timings: 'Mon - Fri (10:00 AM - 02:00 PM)',
+    consultation_fee: '',
+    opd_timings: '',
     phone: '',
     email: '',
     is_active: true
@@ -197,20 +182,20 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
 
   const handleOpenEditModal = () => {
     setEditFormData({
-      name: doctorData.name || '',
-      specialization: doctorData.specialization || 'Cardiology',
-      additional_skills: doctorData.additional_skills || '',
-      department: doctorData.department || '',
-      qualification: doctorData.qualification || '',
-      experience: doctorData.experience || '',
-      consultation_fee: doctorData.consultation_fee ?? 0.00,
-      opd_timings: doctorData.opd_timings || 'Mon - Fri (10:00 AM - 02:00 PM)',
-      phone: doctorData.phone || '',
-      email: doctorData.email || '',
-      password: doctorData.password || 'Doctor@123',
-      hospitals: hospitalData?.id ? [hospitalData.id] : (doctorData.hospitals || []),
-      status: doctorData.status === 'Off_Duty' ? 'Off_Duty' : (doctorData.status === 'On_Duty' ? 'On_Duty' : (doctorData.is_active !== false ? 'On_Duty' : 'Off_Duty')),
-      is_active: doctorData.is_active !== false
+      name: doctorData?.name || '',
+      specialization: doctorData?.specialization || '',
+      additional_skills: doctorData?.additional_skills || '',
+      department: doctorData?.department || '',
+      qualification: doctorData?.qualification || '',
+      experience: doctorData?.experience || '',
+      consultation_fee: doctorData?.consultation_fee ?? '',
+      opd_timings: doctorData?.opd_timings || '',
+      phone: doctorData?.phone || '',
+      email: doctorData?.email || '',
+      password: doctorData?.password || '',
+      hospitals: hospitalData?.id ? [hospitalData.id] : (doctorData?.hospitals || []),
+      status: doctorData?.status || 'On_Duty',
+      is_active: doctorData?.is_active !== false
     });
     setIsEditModalOpen(true);
   };
@@ -404,33 +389,35 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
             <div>
               <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-200 text-[10px] font-semibold border border-teal-400/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
-                {hospitalData?.Name || 'Branch Hospital'}
+                {hospitalData?.Name || doctorData.hospital_name || 'Not Provided'}
               </div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1 tracking-tight text-slate-100">
-                {doctorData.name || 'Doctor Name'}
+                {doctorData.name || 'Not Provided'}
               </h1>
               <div className="flex items-center gap-2 flex-wrap text-xs text-slate-300 mt-1.5 font-medium">
                 <div className="flex items-center gap-1 flex-wrap">
-                  {parseSpecializations(doctorData.specialization || 'Clinical Specialist').map((spec, i) => (
+                  {doctorData.specialization ? parseSpecializations(doctorData.specialization).map((spec, i) => (
                     <span key={i} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-teal-500/20 text-teal-300 border border-teal-400/40">
                       {spec}
                     </span>
-                  ))}
+                  )) : (
+                    <span className="text-slate-400">Not Provided</span>
+                  )}
                 </div>
                 <span>•</span>
                 <span className="font-mono bg-slate-700/60 px-2 py-0.5 rounded border border-slate-600 text-[11px] text-teal-200">
-                  {doctorData.doctor_id || `DOC-${doctorData.id}`}
+                  {doctorData.doctor_id || (doctorData.id ? `DOC-${doctorData.id}` : 'Not Provided')}
                 </span>
                 <span>•</span>
-                <span>{doctorData.qualification || 'MBBS'}</span>
+                <span>{doctorData.qualification || 'Not Provided'}</span>
               </div>
             </div>
           </div>
 
           <div className="flex flex-col sm:items-end gap-1 text-xs">
             <span className="text-slate-400 text-[11px]">Consultation Fee</span>
-            <span className="text-2xl font-bold text-teal-300">₹{doctorData.consultation_fee || 500}</span>
-            <span className="text-slate-400 text-[10px]">{doctorData.opd_timings || 'Mon - Fri'}</span>
+            <span className="text-2xl font-bold text-teal-300">{doctorData.consultation_fee !== undefined && doctorData.consultation_fee !== null && doctorData.consultation_fee !== '' ? `₹${doctorData.consultation_fee}` : 'Not Provided'}</span>
+            <span className="text-slate-400 text-[10px]">{doctorData.opd_timings || 'Not Provided'}</span>
           </div>
         </div>
       </div>
@@ -439,25 +426,27 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">Specialization</p>
           <div className="flex flex-wrap items-center gap-1 mt-1">
-            {parseSpecializations(doctorData.specialization || 'General').map((spec, i) => (
+            {doctorData.specialization ? parseSpecializations(doctorData.specialization).map((spec, i) => (
               <span key={i} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
                 {spec}
               </span>
-            ))}
+            )) : (
+              <span className="text-xs text-slate-500">Not Provided</span>
+            )}
           </div>
-          <p className="text-xs text-slate-500 mt-1">{doctorData.department || 'Clinical Department'}</p>
+          <p className="text-xs text-slate-500 mt-1">{doctorData.department || 'Not Provided'}</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">OPD Timings</p>
-          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{doctorData.opd_timings || '09:00 AM - 02:00 PM'}</p>
+          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{doctorData.opd_timings || 'Not Provided'}</p>
           <p className="text-xs text-emerald-600 mt-0.5">Active OPD Schedule</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">Experience & Degree</p>
-          <p className="text-sm font-bold text-slate-800 mt-1">{doctorData.experience || '5+ Years'}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{doctorData.qualification || 'MBBS, MD'}</p>
+          <p className="text-sm font-bold text-slate-800 mt-1">{doctorData.experience || 'Not Provided'}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{doctorData.qualification || 'Not Provided'}</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
@@ -516,22 +505,24 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
             <div className="space-y-3 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Medical Degree & Qualifications</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">{doctorData.qualification || 'MBBS, MD'}</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{doctorData.qualification || 'Not Provided'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Specialization & Skills</p>
                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                  {parseSpecializations(doctorData.specialization || 'Clinical Specialist').map((spec, i) => (
+                  {doctorData.specialization ? parseSpecializations(doctorData.specialization).map((spec, i) => (
                     <span key={i} className="px-2 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200">
                       {spec}
                     </span>
-                  ))}
+                  )) : (
+                    <span className="text-slate-500">Not Provided</span>
+                  )}
                 </div>
-                <p className="text-slate-600 mt-1.5">{doctorData.additional_skills || 'Advanced diagnostic and surgical procedures.'}</p>
+                <p className="text-slate-600 mt-1.5">{doctorData.additional_skills || 'Not Provided'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Consultation Charges</p>
-                <p className="text-sm font-bold text-teal-700 mt-0.5">₹{doctorData.consultation_fee || 500} per patient</p>
+                <p className="text-sm font-bold text-teal-700 mt-0.5">{doctorData.consultation_fee !== undefined && doctorData.consultation_fee !== null && doctorData.consultation_fee !== '' ? `₹${doctorData.consultation_fee} per patient` : 'Not Provided'}</p>
               </div>
             </div>
           </div>
@@ -541,8 +532,10 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
             <div className="space-y-3 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Assigned Branch Hospital</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">{hospitalData?.Name || 'Apex Care Main Hospital'}</p>
-                <p className="text-slate-500 mt-0.5">{hospitalData?.city} • {hospitalData?.address || 'Medical Facility Road'}</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{hospitalData?.Name || doctorData.hospital_name || 'Not Provided'}</p>
+                {(hospitalData?.city || hospitalData?.address) && (
+                  <p className="text-slate-500 mt-0.5">{hospitalData?.city} {hospitalData?.address ? `• ${hospitalData.address}` : ''}</p>
+                )}
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Clinical Departments</p>
@@ -553,13 +546,13 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
                     </span>
                   ))}
                   {parseDoctorDepartments(doctorData.department).length === 0 && (
-                    <p className="text-sm font-bold text-slate-800 mt-0.5">{doctorData.department || 'General'}</p>
+                    <p className="text-sm font-bold text-slate-800 mt-0.5">{doctorData.department || 'Not Provided'}</p>
                   )}
                 </div>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Duty Shift & Timings</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">{doctorData.opd_timings || 'Mon - Fri (10:00 AM - 02:00 PM)'}</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{doctorData.opd_timings || 'Not Provided'}</p>
               </div>
             </div>
           </div>
@@ -844,6 +837,7 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
                     onChange={(e) => setEditFormData({ ...editFormData, opd_timings: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-medium cursor-pointer"
                   >
+                    <option value="">-- Select OPD Timings --</option>
                     {opdTimingsList.map((timing, i) => (
                       <option key={i} value={timing}>{timing}</option>
                     ))}
@@ -884,14 +878,14 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Hospital Branch</label>
                 <div className="p-2.5 bg-slate-100 rounded-xl border border-slate-200 text-slate-700 font-medium">
-                  {hospitalData?.Name || 'Branch Hospital'} ({hospitalData?.city || 'Main Branch'})
+                  {hospitalData?.Name || doctorData?.hospital_name || 'Not Provided'}
                 </div>
               </div>
 
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Duty Status *</label>
                 <select
-                  value={editFormData.status || 'On_Duty'}
+                  value={editFormData.status || ''}
                   onChange={(e) => {
                     const val = e.target.value;
                     setEditFormData(prev => ({
@@ -901,6 +895,7 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
                   }}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-bold focus:outline-none focus:border-sky-600 focus:bg-white cursor-pointer"
                 >
+                  <option value="">-- Select Duty Status --</option>
                   <option value="On_Duty">On_Duty</option>
                   <option value="Off_Duty">Off_Duty</option>
                 </select>

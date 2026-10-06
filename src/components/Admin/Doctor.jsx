@@ -96,17 +96,17 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
   const initialAddFormState = {
     doctor_id: '',
     name: '',
-    specialization: 'Cardiology',
+    specialization: '',
     additional_skills: '',
     department: '',
     qualification: '',
     experience: '',
-    consultation_fee: '500',
-    opd_timings: 'Mon - Fri (10:00 AM - 02:00 PM)',
+    consultation_fee: '',
+    opd_timings: '',
     phone: '',
     email: '',
     password: '',
-    status: 'On_Duty',
+    status: '',
     is_active: true
   };
 
@@ -233,7 +233,7 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
       ...initialAddFormState,
       doctor_id: '',
       password: '',
-      department: hospitalData?.departments?.[0] || (specializationsList[0] ? `${specializationsList[0]} Department` : 'General Medicine')
+      department: ''
     });
     setShowAddPassword(false);
     setIsAddModalOpen(true);
@@ -498,30 +498,32 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
                   return (
                     <tr key={doc.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-bold text-slate-800 break-words">{doc.name || 'Doctor'}</div>
+                        <div className="font-bold text-slate-800 break-words">{doc.name || 'Not Provided'}</div>
                         <span className="font-mono text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
-                          {doc.doctor_id || `DOC-${doc.id}`}
+                          {doc.doctor_id || (doc.id ? `DOC-${doc.id}` : 'Not Provided')}
                         </span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-wrap items-center justify-center gap-1 max-w-[220px] mx-auto">
-                          {parseSpecializations(doc.specialization || doc.specialty || 'General').map((specItem, idx) => (
+                          {doc.specialization || doc.specialty ? parseSpecializations(doc.specialization || doc.specialty).map((specItem, idx) => (
                             <span key={idx} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 inline-block">
                               {specItem}
                             </span>
-                          ))}
+                          )) : (
+                            <span className="text-slate-400">Not Provided</span>
+                          )}
                         </div>
                       </td>
 
                       <td className="py-3.5 px-4 text-center font-medium text-slate-700">
-                        {doc.opd_timings || 'Mon - Fri (10:00 AM - 02:00 PM)'}
+                        {doc.opd_timings || 'Not Provided'}
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-col items-center justify-center gap-0.5">
                           <span className="font-bold text-slate-800 text-xs">
-                            {doc.phone || doc.contact || '-'}
+                            {doc.phone || doc.contact || 'Not Provided'}
                           </span>
                           {emailLower ? (
                             <a
@@ -532,7 +534,7 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
                               {emailLower}
                             </a>
                           ) : (
-                            <span className="text-[11px] text-slate-400">-</span>
+                            <span className="text-[11px] text-slate-400">Not Provided</span>
                           )}
                         </div>
                       </td>
@@ -672,7 +674,7 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Hospital Branch</label>
                 <div className="p-2.5 bg-slate-100 rounded-xl border border-slate-200 text-slate-700 font-medium">
-                  {hospitalData?.Name || 'Apex Care'} ({hospitalData?.city || 'Branch'})
+                  {hospitalData?.Name || 'Assigned Hospital'}
                 </div>
               </div>
 
@@ -849,6 +851,7 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
                     onChange={handleAddFormChange}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-600 focus:bg-white font-medium cursor-pointer"
                   >
+                    <option value="">-- Select OPD Timings --</option>
                     {opdTimingsList.map((timing, i) => (
                       <option key={i} value={timing}>{timing}</option>
                     ))}
@@ -861,7 +864,7 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Duty Status *</label>
                 <select
                   name="status"
-                  value={addFormData.status || 'On_Duty'}
+                  value={addFormData.status || ''}
                   onChange={(e) => {
                     const val = e.target.value;
                     setAddFormData(prev => ({
@@ -871,6 +874,7 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
                   }}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-bold focus:outline-none focus:border-teal-600 focus:bg-white cursor-pointer"
                 >
+                  <option value="">-- Select Duty Status --</option>
                   <option value="On_Duty">On_Duty</option>
                   <option value="Off_Duty">Off_Duty</option>
                 </select>

@@ -3,128 +3,226 @@ import PatientNavbar from './PatientNavbar';
 import PatientFooter from './PatientFooter';
 import { API_BASE_URL } from '../Api/Api';
 
-const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser }) => {
-  const [currentStep, setCurrentStep] = useState(1);
+const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => {
   const [hospitals, setHospitals] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-
-  // Selected State
-  const [selectedHospitalId, setSelectedHospitalId] = useState('');
-  const [selectedDepartment, setSelectedDepartment] = useState('ALL');
-  const [selectedDoctorId, setSelectedDoctorId] = useState('');
-  const [appointmentDate, setAppointmentDate] = useState(() => {
-    const today = new Date();
-    today.setDate(today.getDate() + 1);
-    return today.toISOString().split('T')[0];
-  });
-  const [appointmentSlot, setAppointmentSlot] = useState('10:30 AM');
-  const [consultationMode, setConsultationMode] = useState('IN_PERSON');
-
-  // Patient Info
-  const [patientData, setPatientData] = useState({
-    name: currentUser?.name || '',
-    phone: currentUser?.phone || '',
-    email: currentUser?.email || '',
-    age: '',
-    gender: 'Male',
-    bloodGroup: 'O+',
-    symptoms: '',
-    severity: 'Normal'
-  });
-
-  // Confirmed Booking Output
   const [confirmedBooking, setConfirmedBooking] = useState(null);
 
-  // Fetch Hospitals and Doctors from Backend
+  // Model-aligned Choices
+  const bloodGroupChoices = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
+  const conditionChoices = [
+    { value: 'Normal', label: 'Normal' },
+    { value: 'Urgent', label: 'Urgent' },
+    { value: 'Emergency', label: 'Emergency' },
+    { value: 'Critical', label: 'Critical' }
+  ];
+  const paymentStatusChoices = [
+    { value: 'Pending', label: 'Pending (Pay at Reception Counter)' },
+    { value: 'Paid', label: 'Paid (Pre-paid Online / Advance)' },
+    { value: 'Partial', label: 'Partial (Partial Deposit Paid)' },
+    { value: 'Failed', label: 'Failed (Payment Transaction Failed)' }
+  ];
+  const paymentMethodChoices = [
+    { value: 'UPI', label: 'UPI (GPay, PhonePe, Paytm)' },
+    { value: 'Credit Card', label: 'Credit Card / Debit Card' },
+    { value: 'Net Banking', label: 'Net Banking' },
+    { value: 'Cash', label: 'Cash (Pay at Hospital Counter)' }
+  ];
+  const statusChoices = ['Pending', 'Assigned', 'Admitted', 'Discharged', 'Cancelled'];
+
+  // Default visit date time to tomorrow at 10:00 AM
+  const getDefaultVisitDateTime = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(10, 0, 0, 0);
+    return d.toISOString().slice(0, 16);
+  };
+
+  // Form State: Patient fields (name, patient_Name, contact, email, address, hospital, blood_group, condition) start empty
+  // so nothing is pre-selected and user explicitly selects them
+  const [formData, setFormData] = useState({
+    // Patient Model Fields (Blank by default)
+    name: '',
+    patient_Name: '',
+    contact: '',
+    email: '',
+    address: '',
+    patient_id: '',
+
+    // Clinical & Hospital Fields (Empty by default)
+    hospital: '',
+    blood_group: '',
+    condition: '',
+
+    // Appointment Model Fields
+    doctor: '',
+    visit_date_time: getDefaultVisitDateTime(),
+    symptoms_diagnosis: '',
+    bed_number: '',
+    consultation_fee: '0.00',
+    hospitals_charges: '0.00',
+    amount_paid: '0.00',
+    payment_status: 'Pending',
+    payment_method: 'Cash',
+    status: 'Pending'
+  });
+
+  const [attachedFile, setAttachedFile] = useState(null);
+
+  // Helper for Floor Calculation from bed_number (Django @property floor equivalent)
+  const getFloorLabel = (bedNum) => {
+    if (!bedNum || isNaN(Number(bedNum))) return 'Not Assigned (Outpatient OPD)';
+    const floorNumber = Math.floor((Number(bedNum) - 1) / 100) + 1;
+    return `Floor ${floorNumber}`;
+  };
+
+  // Fetch Hospitals and Doctors list from backend
   useEffect(() => {
     let isMounted = true;
-    const fetchBookingData = async () => {
+    const loadData = async () => {
       setLoading(true);
       try {
-        const [hospRes, docRes] = await Promise.allSettled([
-          fetch(`${API_BASE_URL}/super-admin/Hospital/`),
-          fetch(`${API_BASE_URL}/super-admin/Doctors/`)
+        const [hospRes, docRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null),
+          fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null)
         ]);
 
         let hospList = [];
         let docList = [];
 
-        if (hospRes.status === 'fulfilled' && hospRes.value.ok) {
-          hospList = await hospRes.value.json().catch(() => []);
+        if (hospRes && hospRes.ok) {
+          hospList = await hospRes.json().catch(() => []);
         }
-        if (docRes.status === 'fulfilled' && docRes.value.ok) {
-          docList = await docRes.value.json().catch(() => []);
+        if (docRes && docRes.ok) {
+          docList = await docRes.json().catch(() => []);
         }
 
         if (isMounted) {
           const validHospitals = Array.isArray(hospList) ? hospList : [];
-          const validDoctors = Array.isArray(docList) ? docList : [];
           setHospitals(validHospitals);
-          setDoctors(validDoctors);
-
-          // Check if user clicked "Book at Branch" or "Book Doctor" from other pages
-          const targetHosp = localStorage.getItem('booking_target_hospital');
-          const targetDoc = localStorage.getItem('booking_target_doctor');
-
-          if (targetHosp && validHospitals.some((h) => String(h.id) === String(targetHosp))) {
-            setSelectedHospitalId(String(targetHosp));
-            localStorage.removeItem('booking_target_hospital');
-          } else if (validHospitals.length > 0) {
-            setSelectedHospitalId(String(validHospitals[0].id));
-          }
-
-          if (targetDoc && validDoctors.some((d) => String(d.id) === String(targetDoc))) {
-            setSelectedDoctorId(String(targetDoc));
-            localStorage.removeItem('booking_target_doctor');
-          }
+          setDoctors(Array.isArray(docList) ? docList : []);
         }
       } catch (err) {
-        console.error('Error fetching appointment form data:', err);
+        console.error('Error fetching data in Appointment page:', err);
       } finally {
         if (isMounted) setLoading(false);
       }
     };
 
-    fetchBookingData();
+    loadData();
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // Filter Doctors by selected Hospital & Department
-  const activeHospital = hospitals.find((h) => String(h.id) === String(selectedHospitalId)) || hospitals[0] || {};
-  const hospitalDoctors = doctors.filter(
-    (d) => !selectedHospitalId || String(d.hospital) === String(selectedHospitalId)
-  );
+  // Quick Action: Autofill logged-in user's own details
+  const handleAutofillMyself = () => {
+    if (!currentUser) return;
+    const currentPatName = currentUser.patient_Name || currentUser.patient_name || currentUser.name || '';
+    setFormData(prev => ({
+      ...prev,
+      name: currentPatName,
+      patient_Name: currentPatName,
+      contact: currentUser.contact || currentUser.phone || '',
+      email: currentUser.email || '',
+      address: currentUser.address || '',
+      patient_id: currentUser.patient_id || (currentUser.id ? `PAT-${currentUser.id}` : ''),
+      blood_group: currentUser.blood_group || currentUser.Blood_Group || prev.blood_group || 'B+'
+    }));
+  };
 
-  const availableDepartments = Array.from(
-    new Set(
-      hospitalDoctors
-        .map((d) => d.specialization || d.department)
-        .filter((s) => s && typeof s === 'string' && s.trim().length > 0)
-    )
-  );
+  // Quick Action: Clear details to book for family member / another person
+  const handleClearPatientInfo = () => {
+    setFormData(prev => ({
+      ...prev,
+      name: '',
+      patient_Name: '',
+      contact: '',
+      email: '',
+      address: '',
+      patient_id: ''
+    }));
+  };
 
-  const displayedDoctors = hospitalDoctors.filter((d) => {
-    if (selectedDepartment === 'ALL') return true;
-    const spec = (d.specialization || d.department || '').toLowerCase();
-    return spec.includes(selectedDepartment.toLowerCase());
-  });
+  const activeHospital = hospitals.find((h) => String(h.id) === String(formData.hospital)) || hospitals[0] || {};
+  const filteredDoctors = formData.hospital
+    ? doctors.filter(d => String(typeof d.hospital === 'object' ? d.hospital?.id : d.hospital) === String(formData.hospital))
+    : doctors;
 
-  const selectedDoctorObj = doctors.find((d) => String(d.id) === String(selectedDoctorId));
+  const handleGoToLogin = () => {
+    try {
+      localStorage.setItem('login_return_page', 'appoint');
+    } catch {}
+    if (setCurrentPage) {
+      setCurrentPage('login');
+    }
+  };
 
-  const morningSlots = ['09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM'];
-  const afternoonSlots = ['02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM'];
-  const eveningSlots = ['05:00 PM', '05:30 PM', '06:00 PM', '06:30 PM', '07:00 PM', '07:30 PM'];
+  const handleGoToSignUp = () => {
+    try {
+      localStorage.setItem('login_return_page', 'appoint');
+    } catch {}
+    if (setCurrentPage) {
+      setCurrentPage('signin');
+    }
+  };
 
-  // Handle Real Backend POST Submission
-  const handleFinalBookingSubmit = async (e) => {
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setAttachedFile(e.target.files[0]);
+    }
+  };
+
+  // Submit Handler: Saves the specific entered Patient details and the Appointment
+  const handleBookingSubmit = async (e) => {
     e.preventDefault();
-    if (!patientData.name.trim() || !patientData.phone.trim()) {
-      alert('Please enter patient name and contact phone number.');
+
+    if (!isLoggedIn) {
+      alert('Please log in to your account first to book an appointment.');
+      handleGoToLogin();
+      return;
+    }
+
+    if (!formData.hospital) {
+      alert('Please select a hospital branch.');
+      return;
+    }
+
+    const enteredName = (formData.patient_Name || formData.name || '').trim();
+    if (!enteredName) {
+      alert('Please enter patient full name.');
+      return;
+    }
+
+    const enteredContact = (formData.contact || currentUser?.contact || currentUser?.phone || '').trim();
+    if (!enteredContact) {
+      alert('Please enter contact phone number.');
+      return;
+    }
+
+    const enteredEmail = (formData.email || currentUser?.email || '').trim();
+    const patientUhid = (formData.patient_id || currentUser?.patient_id || (currentUser?.id ? `PAT-${currentUser.id}` : '')).trim();
+
+    if (!formData.blood_group) {
+      alert('Please select patient blood group.');
+      return;
+    }
+
+    if (!formData.condition) {
+      alert('Please select patient condition severity.');
+      return;
+    }
+
+    if (!formData.symptoms_diagnosis.trim()) {
+      alert('Please enter symptoms or medical diagnosis.');
       return;
     }
 
@@ -132,93 +230,190 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser }) => {
     setSubmitError('');
 
     try {
-      const generatedDocPatId = `PAT-${Date.now().toString().slice(-6)}`;
-      const payload = {
-        name: patientData.name.trim(),
-        email: patientData.email ? patientData.email.trim() : `patient_${Date.now()}@apexcare.com`,
-        phone: patientData.phone.trim(),
-        contact: patientData.phone.trim(),
-        hospital: activeHospital.id ? Number(activeHospital.id) : null,
-        doctor: selectedDoctorId ? Number(selectedDoctorId) : null,
-        doctor_name: selectedDoctorObj?.name || 'Assigned OPD Specialist',
-        specialization: selectedDoctorObj?.specialization || selectedDoctorObj?.department || selectedDepartment || 'General Medicine',
-        department: selectedDoctorObj?.specialization || selectedDoctorObj?.department || selectedDepartment || 'General Medicine',
-        gender: patientData.gender || 'Male',
-        age: patientData.age ? Number(patientData.age) : null,
-        Blood_Group: patientData.bloodGroup || 'O+',
-        blood_group: patientData.bloodGroup || 'O+',
-        symptoms_diagnosis: patientData.symptoms.trim() || 'General Health Checkup & OPD Consultation',
-        status: 'Pending',
-        is_active: true,
-        condation: patientData.severity || 'Normal',
-        condition: patientData.severity || 'Normal',
-        symptoms_severity: patientData.severity || 'Normal',
-        payment_status: 'Paid',
-        consultation_fee: selectedDoctorObj?.consultation_fee || selectedDoctorObj?.fee || 500,
-        Hospitals_Chargies: 300,
-        hospital_charges: 300,
-        appointment_date: appointmentDate,
-        appointment_time: appointmentSlot,
-        visit_date_time: appointmentDate ? `${appointmentDate}T10:00:00` : null
+      const selectedHospId = Number(formData.hospital);
+      const chosenHosp = hospitals.find(h => Number(h.id) === selectedHospId);
+      const hospName = chosenHosp?.Name || chosenHosp?.name || activeHospital?.Name || activeHospital?.name || 'Apex Care Hospital';
+      const hospAddr = chosenHosp?.Address || chosenHosp?.address || activeHospital?.Address || activeHospital?.address || 'Hospital Branch Campus';
+      const hospCity = chosenHosp?.City || chosenHosp?.city || activeHospital?.City || activeHospital?.city || '';
+
+      const selectedDocId = formData.doctor ? Number(formData.doctor) : null;
+      const chosenDoc = selectedDocId ? doctors.find(d => Number(d.id) === selectedDocId) : null;
+      const docName = chosenDoc ? (chosenDoc.name.startsWith('Dr.') ? chosenDoc.name : `Dr. ${chosenDoc.name}`) : 'Awaiting Receptionist Assignment';
+
+      // ==========================================
+      // SAVE DIRECTLY TO APPOINTMENTS TABLE ONLY
+      // ==========================================
+      const appointmentPayload = {
+        // Patient Model Field: patient_Name = models.CharField(max_length=100)
+        patient_Name: enteredName,
+        patient_name: enteredName,
+        name: enteredName,
+        hospital: selectedHospId,
+        doctor: selectedDocId,
+        visit_date_time: formData.visit_date_time ? new Date(formData.visit_date_time).toISOString() : new Date().toISOString(),
+        symptoms_diagnosis: formData.symptoms_diagnosis.trim(),
+        blood_group: formData.blood_group || 'B+',
+        hospitals_charges: parseFloat(formData.hospitals_charges || '0.00'),
+        consultation_fee: parseFloat(formData.consultation_fee || '0.00'),
+        amount_paid: parseFloat(formData.amount_paid || '0.00'),
+        payment_status: formData.payment_status || 'Pending',
+        payment_method: formData.payment_method || 'Cash',
+        status: formData.status || 'Pending',
+        condition: formData.condition || 'Normal',
+        bed_number: formData.bed_number ? parseInt(formData.bed_number, 10) : null,
+        
+        // Demographics & Aliases directly in Appointment record
+        hospital_name: hospName,
+        doctor_name: docName,
+        contact: enteredContact,
+        phone: enteredContact,
+        email: enteredEmail,
+        address: formData.address ? formData.address.trim() : '',
+        patient_id: `PAT-${Date.now().toString().slice(-4)}`
       };
 
-      const response = await fetch(`${API_BASE_URL}/super-admin/Patients/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      }).catch(() => null);
+      let apptResponse = null;
 
-      let resData = {};
-      if (response && response.ok) {
-        resData = await response.json().catch(() => ({}));
+      if (attachedFile instanceof File) {
+        const data = new FormData();
+        Object.keys(appointmentPayload).forEach(key => {
+          if (appointmentPayload[key] !== null && appointmentPayload[key] !== undefined) {
+            data.append(key, appointmentPayload[key]);
+          }
+        });
+        data.append('attached_document', attachedFile);
+
+        apptResponse = await fetch(`${API_BASE_URL}/super-admin/Appointments/`, {
+          method: 'POST',
+          body: data
+        }).catch(() => null);
+
+        if (!apptResponse || !apptResponse.ok) {
+          apptResponse = await fetch(`${API_BASE_URL}/super-admin/Appointment/`, {
+            method: 'POST',
+            body: data
+          }).catch(() => null);
+        }
+
+        if (!apptResponse || !apptResponse.ok) {
+          apptResponse = await fetch(`${API_BASE_URL}/appointments/`, {
+            method: 'POST',
+            body: data
+          }).catch(() => null);
+        }
+      } else {
+        apptResponse = await fetch(`${API_BASE_URL}/super-admin/Appointments/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(appointmentPayload)
+        }).catch(() => null);
+
+        if (!apptResponse || !apptResponse.ok) {
+          apptResponse = await fetch(`${API_BASE_URL}/super-admin/Appointment/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(appointmentPayload)
+          }).catch(() => null);
+        }
+
+        if (!apptResponse || !apptResponse.ok) {
+          apptResponse = await fetch(`${API_BASE_URL}/appointments/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(appointmentPayload)
+          }).catch(() => null);
+        }
       }
 
-      const assignedUhid = resData.patient_id || resData.uhid || resData.id ? `PAT-${resData.id || resData.patient_id}` : generatedDocPatId;
-      const assignedToken = `OPD-TK-${Math.floor(100 + Math.random() * 900)}`;
+      if (!apptResponse || !apptResponse.ok) {
+        let serverErrDetail = '';
+        if (apptResponse) {
+          try {
+            const errJson = await apptResponse.json();
+            serverErrDetail = errJson.message || errJson.detail || errJson.error;
+            if (!serverErrDetail && typeof errJson === 'object') {
+              serverErrDetail = Object.entries(errJson)
+                .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? JSON.stringify(v) : v)}`)
+                .join('; ');
+            }
+          } catch {}
+        }
+        throw new Error(serverErrDetail || 'Unable to connect to hospital backend server. Please try again.');
+      }
 
-      setConfirmedBooking({
+      let apptData = {};
+      try {
+        apptData = await apptResponse.json().catch(() => ({}));
+      } catch {}
+
+      const assignedUhid = apptData.patient_id || patientUhid || `PAT-${Date.now().toString().slice(-4)}`;
+      const assignedToken = `TOKEN-${Math.floor(100 + Math.random() * 900)}`;
+
+      const bookingRecord = {
+        ...appointmentPayload,
+        ...apptData,
+        id: apptData.id || Date.now(),
         uhid: assignedUhid,
+        patient_id: assignedUhid,
         token: assignedToken,
-        patientName: patientData.name,
-        patientPhone: patientData.phone,
-        hospitalName: activeHospital.Name || activeHospital.name || 'Hospital Campus',
-        hospitalAddress: activeHospital.Address || activeHospital.address || 'Address registered in system',
-        hospitalCity: activeHospital.City || activeHospital.city || '',
-        doctorName: selectedDoctorObj ? (selectedDoctorObj.name?.startsWith('Dr.') ? selectedDoctorObj.name : `Dr. ${selectedDoctorObj.name}`) : 'Assigned OPD Specialist',
-        specialization: selectedDoctorObj?.specialization || selectedDoctorObj?.department || 'General Medicine',
-        cabin: selectedDoctorObj?.cabin_number || selectedDoctorObj?.cabin || 'OPD Room',
-        appointmentDate: appointmentDate,
-        appointmentSlot: appointmentSlot,
-        fee: selectedDoctorObj?.consultation_fee || selectedDoctorObj?.fee || 500,
-        mode: consultationMode === 'IN_PERSON' ? 'In-Person Hospital Visit' : 'Video Consultation'
-      });
+        patientName: enteredName,
+        patientPhone: enteredContact,
+        patientEmail: enteredEmail,
+        patientAddress: formData.address,
+        hospitalName: hospName,
+        hospitalAddress: hospAddr,
+        hospitalCity: hospCity,
+        doctorName: docName,
+        visitDateTime: formData.visit_date_time,
+        bloodGroup: formData.blood_group,
+        conditionStatus: formData.condition,
+        fileName: attachedFile ? attachedFile.name : null,
+        floor: getFloorLabel(formData.bed_number)
+      };
 
-      setCurrentStep(4);
+      try {
+        localStorage.setItem('last_booked_appointment', JSON.stringify(bookingRecord));
+      } catch (e) {
+        console.error('LocalStorage sync error:', e);
+      }
+
+      setConfirmedBooking(bookingRecord);
+
     } catch (err) {
       console.error('Error submitting appointment:', err);
-      setSubmitError('Backend submission error. Please try again.');
+      setSubmitError(err.message || 'Unable to connect to hospital backend server. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const resetForm = () => {
-    setCurrentStep(1);
     setConfirmedBooking(null);
-    setSelectedDoctorId('');
-    setPatientData({
+    setAttachedFile(null);
+    setFormData({
       name: '',
-      phone: '',
+      patient_Name: '',
+      contact: '',
       email: '',
-      age: '',
-      gender: 'Male',
-      bloodGroup: 'O+',
-      symptoms: '',
-      severity: 'Normal'
+      address: '',
+      patient_id: '',
+      hospital: '',
+      doctor: '',
+      visit_date_time: getDefaultVisitDateTime(),
+      symptoms_diagnosis: '',
+      blood_group: '',
+      condition: '',
+      bed_number: '',
+      consultation_fee: '500.00',
+      hospitals_charges: '300.00',
+      amount_paid: '0.00',
+      payment_status: 'Pending',
+      payment_method: 'Cash',
+      status: 'Pending'
     });
   };
+
+  const totalBill = (parseFloat(formData.consultation_fee || '0') + parseFloat(formData.hospitals_charges || '0')).toFixed(2);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
@@ -227,696 +422,460 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser }) => {
         currentPage="appointment"
         setCurrentPage={setCurrentPage}
         isLoggedIn={isLoggedIn}
+        onLogout={onLogout}
         currentUser={currentUser}
       />
 
-      <main className="flex-1 space-y-10 sm:space-y-14 pb-16">
-        {/* HEADER SECTION */}
-        <section className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white py-12 sm:py-16 px-4 sm:px-6 lg:px-8">
+      <main className="flex-1 space-y-6 sm:space-y-8 pb-16">
+        {/* HEADER HERO */}
+        <section className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white py-10 sm:py-14 px-4 sm:px-6 lg:px-8 shadow-md">
           <div className="max-w-4xl mx-auto text-center space-y-3">
-            <span className="px-3.5 py-1.5 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold border border-teal-400/30 uppercase tracking-wider">
-              Multi-Hospital OPD Portal
+            <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold border border-teal-400/30 uppercase tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
+              OPD & Inpatient Appointment Scheduling
             </span>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight">
-              Book OPD Checkup at Your Chosen Hospital Branch
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight">
+              Hospital Appointment Booking
             </h1>
-            <p className="text-xs sm:text-sm md:text-base text-slate-300 max-w-2xl mx-auto leading-relaxed">
-              Select any network hospital campus, choose your specialist doctor, and generate an OPD checkup token to visit the hospital directly.
+            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl mx-auto leading-relaxed">
+              Book a doctor consultation for yourself or any family member. Fill in the patient's personal name, contact number, and medical symptoms below.
             </p>
           </div>
         </section>
 
-        {/* STEP PROGRESS BAR */}
-        <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs">
-            <div className="grid grid-cols-4 gap-2 text-center text-xs font-bold">
-              <div
-                className={`p-2.5 rounded-xl transition ${
-                  currentStep === 1
-                    ? 'bg-teal-600 text-white'
-                    : currentStep > 1
-                    ? 'bg-teal-50 text-teal-700'
-                    : 'bg-slate-100 text-slate-400'
-                }`}
-              >
-                <span className="block text-[10px] uppercase font-semibold">Step 1</span>
-                <span>Branch & Doctor</span>
+        {/* AUTHENTICATION LOCK SCREEN (WHEN NOT LOGGED IN) */}
+        {!isLoggedIn ? (
+          <section className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="bg-white rounded-3xl border border-slate-200 p-8 sm:p-10 shadow-lg text-center space-y-6">
+              <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto shadow-xs">
+                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
               </div>
 
-              <div
-                className={`p-2.5 rounded-xl transition ${
-                  currentStep === 2
-                    ? 'bg-teal-600 text-white'
-                    : currentStep > 2
-                    ? 'bg-teal-50 text-teal-700'
-                    : 'bg-slate-100 text-slate-400'
-                }`}
-              >
-                <span className="block text-[10px] uppercase font-semibold">Step 2</span>
-                <span>Slot & Mode</span>
+              <div className="space-y-2">
+                <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900">
+                  Login or Sign Up to Book Appointment
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Please log in to your patient account or sign up to schedule an appointment.
+                </p>
               </div>
 
-              <div
-                className={`p-2.5 rounded-xl transition ${
-                  currentStep === 3
-                    ? 'bg-teal-600 text-white'
-                    : currentStep > 3
-                    ? 'bg-teal-50 text-teal-700'
-                    : 'bg-slate-100 text-slate-400'
-                }`}
-              >
-                <span className="block text-[10px] uppercase font-semibold">Step 3</span>
-                <span>Patient Info</span>
-              </div>
+              <div className="flex flex-col gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleGoToLogin}
+                  className="w-full py-3 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm shadow-md transition duration-200 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                  </svg>
+                  <span>Log In to Account</span>
+                </button>
 
-              <div
-                className={`p-2.5 rounded-xl transition ${
-                  currentStep === 4 ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-400'
-                }`}
-              >
-                <span className="block text-[10px] uppercase font-semibold">Step 4</span>
-                <span>OPD Token Slip</span>
+                <button
+                  type="button"
+                  onClick={handleGoToSignUp}
+                  className="w-full py-3 px-5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm shadow-md transition duration-200 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                  <span>Create Account (Sign Up)</span>
+                </button>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        ) : confirmedBooking ? (
+          /* ================= CONFIRMATION RECEIPT & SLIP ================= */
+          <section className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="bg-white rounded-3xl border-2 border-teal-600 p-6 sm:p-8 shadow-xl space-y-6">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                <div>
+                  <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block">
+                    Appointment Booking Slip • {confirmedBooking.status}
+                  </span>
+                  <h3 className="text-xl font-extrabold text-slate-900">
+                    {confirmedBooking.hospitalName}
+                  </h3>
+                  <p className="text-xs text-slate-500">{confirmedBooking.hospitalAddress} {confirmedBooking.hospitalCity ? `• ${confirmedBooking.hospitalCity}` : ''}</p>
+                </div>
 
-        {/* STEP CONTENT CONTAINER */}
-        <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          {loading ? (
-            <div className="p-16 text-center bg-white rounded-3xl border border-slate-200">
-              <div className="w-8 h-8 border-3 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-              <p className="text-xs font-bold text-slate-600">Connecting to hospital network database...</p>
+                <div className="text-right">
+                  <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-bold uppercase">
+                    ✓ Confirmed
+                  </span>
+                  <p className="font-mono text-[11px] text-slate-400 mt-1">
+                    {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+
+              {/* TOKEN & UHID BANNER */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white flex items-center justify-between shadow-sm">
+                <div>
+                  <span className="text-[10px] text-teal-400 uppercase font-bold tracking-wider block">
+                    Patient UHID (ID)
+                  </span>
+                  <span className="text-2xl sm:text-3xl font-extrabold font-mono text-teal-300">
+                    {confirmedBooking.uhid}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
+                    Condition Severity
+                  </span>
+                  <span className="text-xs sm:text-sm font-bold px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-400/30">
+                    {confirmedBooking.conditionStatus}
+                  </span>
+                </div>
+              </div>
+
+              {/* DETAILS SUMMARY */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Patient Details</span>
+                  <p className="font-bold text-slate-900 text-sm">{confirmedBooking.patientName}</p>
+                  <p className="text-slate-500 text-[11px]">{confirmedBooking.patientPhone} • Blood: {confirmedBooking.bloodGroup}</p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Doctor & Consultation Slot</span>
+                  <p className="font-bold text-slate-900 text-sm">{confirmedBooking.doctorName}</p>
+                  <p className="text-slate-500 text-[11px]">
+                    🕒 Assigned upon Receptionist Review
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Reception Desk & Triage</span>
+                  <p className="font-bold text-teal-900 text-sm">{confirmedBooking.bed_number ? `Bed #${confirmedBooking.bed_number}` : 'OPD Consultation'}</p>
+                  <p className="text-slate-500 text-[11px]">Handled by Duty Receptionist</p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 sm:col-span-2 space-y-0.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Symptoms / Medical Diagnosis</span>
+                  <p className="text-slate-800 text-xs font-medium">{confirmedBooking.symptoms_diagnosis}</p>
+                </div>
+
+                {confirmedBooking.fileName && (
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 sm:col-span-2 space-y-0.5 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Attached Medical Document</span>
+                      <p className="text-teal-800 font-semibold text-xs truncate max-w-xs">📎 {confirmedBooking.fileName}</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[10px] bg-teal-100 text-teal-800 font-bold">Uploaded</span>
+                  </div>
+                )}
+              </div>
+
+              {/* ACTION BUTTONS */}
+              <div className="flex flex-wrap gap-3 justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage && setCurrentPage('patient_dashboard')}
+                  className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md shadow-teal-700/20 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                  <span>Go to Patient Dashboard</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  <span>Print Slip</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs shadow-sm transition cursor-pointer"
+                >
+                  Book Another Appointment
+                </button>
+              </div>
             </div>
-          ) : (
-            <>
-              {/* ================= STEP 1: HOSPITAL & DOCTOR ================= */}
-              {currentStep === 1 && (
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-8">
-                  {/* SELECT HOSPITAL */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <h3 className="text-base font-bold text-slate-900">
-                        1. Select Hospital Branch Campus *
-                      </h3>
-                      <span className="text-xs font-semibold text-teal-700">
-                        {hospitals.length} Campuses Available
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {hospitals.map((hosp) => {
-                        const isSelected = String(selectedHospitalId) === String(hosp.id);
-                        return (
-                          <div
-                            key={hosp.id}
-                            onClick={() => {
-                              setSelectedHospitalId(String(hosp.id));
-                              setSelectedDoctorId('');
-                            }}
-                            className={`p-4 rounded-2xl border cursor-pointer transition flex flex-col justify-between ${
-                              isSelected
-                                ? 'bg-teal-50/70 border-teal-600 ring-2 ring-teal-600/30 shadow-xs'
-                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            <div className="space-y-1">
-                              <span className="px-2 py-0.5 rounded-full bg-white text-slate-800 text-[10px] font-bold border border-slate-200 uppercase">
-                                {hosp.City || hosp.city || 'Campus'}
-                              </span>
-                              <h4 className="text-sm font-bold text-slate-900 mt-1">
-                                {hosp.Name || hosp.name}
-                              </h4>
-                              <p className="text-[11px] text-slate-500 line-clamp-2">
-                                {hosp.Address || hosp.address}
-                              </p>
-                            </div>
-                            <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px] font-semibold text-teal-800">
-                              <span>OPD Available</span>
-                              <span className="font-bold">{isSelected ? 'Selected' : 'Click to Pick'}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* SELECT DEPARTMENT & DOCTOR */}
-                  <div className="space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                      <h3 className="text-base font-bold text-slate-900">
-                        2. Select Specialist Doctor (Optional)
-                      </h3>
-
-                      {availableDepartments.length > 0 && (
-                        <div className="flex items-center gap-2">
-                          <label className="text-xs font-semibold text-slate-600">Department:</label>
-                          <select
-                            value={selectedDepartment}
-                            onChange={(e) => setSelectedDepartment(e.target.value)}
-                            className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-800 text-xs font-semibold border border-slate-300 focus:outline-none focus:border-teal-600 cursor-pointer"
-                          >
-                            <option value="ALL">All Departments</option>
-                            {availableDepartments.map((dept, idx) => (
-                              <option key={idx} value={dept}>
-                                {dept}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                    </div>
-
-                    {displayedDoctors.length === 0 ? (
-                      <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-1">
-                        <p className="text-xs font-bold text-slate-700">
-                          General OPD triage will assign the best available physician upon arrival.
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          You can still proceed to next step to reserve your OPD checkup slot.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {displayedDoctors.map((doc) => {
-                          const isSelected = String(selectedDoctorId) === String(doc.id);
-                          return (
-                            <div
-                              key={doc.id}
-                              onClick={() => setSelectedDoctorId(String(doc.id))}
-                              className={`p-4 rounded-2xl border cursor-pointer transition flex flex-col justify-between ${
-                                isSelected
-                                  ? 'bg-teal-50/70 border-teal-600 ring-2 ring-teal-600/30 shadow-xs'
-                                  : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                              }`}
-                            >
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="px-2 py-0.5 rounded-md bg-white text-teal-800 text-[10px] font-bold border border-slate-200 uppercase">
-                                    {doc.specialization || doc.department || 'Specialist'}
-                                  </span>
-                                  <span className="text-[11px] font-mono font-bold text-slate-800">
-                                    ₹{doc.consultation_fee || doc.fee || 500}
-                                  </span>
-                                </div>
-
-                                <div>
-                                  <h4 className="text-sm font-bold text-slate-900">
-                                    {doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`}
-                                  </h4>
-                                  <p className="text-[11px] text-slate-500">
-                                    {doc.experience ? `${doc.experience} Years Experience` : 'Senior Physician'}
-                                  </p>
-                                </div>
-
-                                <div className="text-[10px] text-slate-600 pt-1 border-t border-slate-200/50">
-                                  <span>Room: {doc.cabin_number || doc.cabin || 'OPD Desk'}</span>
-                                </div>
-                              </div>
-
-                              <div className="mt-3 text-right">
-                                <span className={`text-[10px] font-bold ${isSelected ? 'text-teal-700' : 'text-slate-400'}`}>
-                                  {isSelected ? 'Selected Doctor' : 'Select Doctor'}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* STEP 1 ACTION */}
-                  <div className="pt-4 border-t border-slate-200 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setCurrentStep(2)}
-                      className="px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
-                    >
-                      Continue to Slot & Date
-                    </button>
-                  </div>
+          </section>
+        ) : (
+          /* ================= APPOINTMENT & PATIENT MODEL BOOKING FORM ================= */
+          <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-5 bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold">Appointment Registration Form</h2>
+                  <p className="text-xs text-slate-300">Enter patient personal information and select visit parameters.</p>
                 </div>
-              )}
-
-              {/* ================= STEP 2: DATE, TIME & MODE ================= */}
-              {currentStep === 2 && (
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">
-                      Choose OPD Consultation Slot & Date
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Hospital: <span className="font-bold text-teal-800">{activeHospital.Name || activeHospital.name}</span>
-                      {selectedDoctorObj && ` • Attending Doctor: Dr. ${selectedDoctorObj.name}`}
-                    </p>
-                  </div>
-
-                  {/* CONSULTATION MODE */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-bold uppercase text-slate-700">
-                      Consultation Format *
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div
-                        onClick={() => setConsultationMode('IN_PERSON')}
-                        className={`p-4 rounded-2xl border cursor-pointer transition ${
-                          consultationMode === 'IN_PERSON'
-                            ? 'bg-teal-50 border-teal-600 ring-2 ring-teal-600/30'
-                            : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        <span className="font-bold text-sm text-slate-900 block">
-                          In-Person Hospital OPD Checkup (Recommended)
-                        </span>
-                        <p className="text-xs text-slate-500 mt-1">
-                          Visit the hospital branch campus with your generated token slip for clinical examination.
-                        </p>
-                      </div>
-
-                      <div
-                        onClick={() => setConsultationMode('VIDEO')}
-                        className={`p-4 rounded-2xl border cursor-pointer transition ${
-                          consultationMode === 'VIDEO'
-                            ? 'bg-teal-50 border-teal-600 ring-2 ring-teal-600/30'
-                            : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        <span className="font-bold text-sm text-slate-900 block">
-                          Tele-Consultation / Video Call
-                        </span>
-                        <p className="text-xs text-slate-500 mt-1">
-                          Connect with your attending physician remotely via high-definition secure audio/video link.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* DATE SELECTOR */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-bold uppercase text-slate-700">
-                      Select Preferred Date *
-                    </label>
-                    <input
-                      type="date"
-                      min={new Date().toISOString().split('T')[0]}
-                      value={appointmentDate}
-                      onChange={(e) => setAppointmentDate(e.target.value)}
-                      className="w-full sm:w-72 px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-600 cursor-pointer"
-                    />
-                  </div>
-
-                  {/* TIME SLOTS */}
-                  <div className="space-y-4">
-                    <label className="block text-xs font-bold uppercase text-slate-700">
-                      Select OPD Time Slot *
-                    </label>
-
-                    <div className="space-y-3">
-                      <div>
-                        <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1.5">
-                          Morning Sessions
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                          {morningSlots.map((slot) => (
-                            <button
-                              key={slot}
-                              type="button"
-                              onClick={() => setAppointmentSlot(slot)}
-                              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                                appointmentSlot === slot
-                                  ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
-                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                              }`}
-                            >
-                              {slot}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1.5">
-                          Afternoon Sessions
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                          {afternoonSlots.map((slot) => (
-                            <button
-                              key={slot}
-                              type="button"
-                              onClick={() => setAppointmentSlot(slot)}
-                              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                                appointmentSlot === slot
-                                  ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
-                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                              }`}
-                            >
-                              {slot}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1.5">
-                          Evening Sessions
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                          {eveningSlots.map((slot) => (
-                            <button
-                              key={slot}
-                              type="button"
-                              onClick={() => setAppointmentSlot(slot)}
-                              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                                appointmentSlot === slot
-                                  ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
-                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                              }`}
-                            >
-                              {slot}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* NAVIGATION */}
-                  <div className="pt-4 border-t border-slate-200 flex justify-between">
-                    <button
-                      type="button"
-                      onClick={() => setCurrentStep(1)}
-                      className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
-                    >
-                      Back to Doctor
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCurrentStep(3)}
-                      className="px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
-                    >
-                      Continue to Patient Details
-                    </button>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-full bg-teal-500/20 text-teal-300 text-[11px] font-bold border border-teal-400/30">
+                    Patient & Appointment
+                  </span>
                 </div>
-              )}
+              </div>
 
-              {/* ================= STEP 3: PATIENT INFORMATION ================= */}
-              {currentStep === 3 && (
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">
-                      Enter Patient Information
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Your booking will be saved in the hospital database and registered in the OPD queue.
-                    </p>
-                  </div>
-
+              {loading ? (
+                <div className="p-16 text-center">
+                  <div className="w-8 h-8 border-3 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                  <p className="text-xs font-bold text-slate-600">Loading hospitals and doctors...</p>
+                </div>
+              ) : (
+                <form onSubmit={handleBookingSubmit} className="p-6 sm:p-8 space-y-6">
                   {submitError && (
-                    <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold">
+                    <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-semibold">
                       {submitError}
                     </div>
                   )}
 
-                  <form onSubmit={handleFinalBookingSubmit} className="space-y-4 text-xs">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* SECTION 1: PATIENT PERSONAL DETAILS (BLANK BY DEFAULT, CAN ENTER ANY PERSON'S INFO) */}
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-200 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
-                        <label className="block font-semibold text-slate-700 uppercase mb-1">
+                        <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-full bg-teal-600 text-white text-[11px] font-bold flex items-center justify-center">1</span>
+                          <span>Patient Personal Information (Self or Family Member)</span>
+                        </h3>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Enter the full name, phone number, and email of the patient visiting the doctor.
+                        </p>
+                      </div>
+
+                      {/* QUICK ACTION BUTTONS */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {currentUser?.name && (
+                          <button
+                            type="button"
+                            onClick={handleAutofillMyself}
+                            className="px-2.5 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-[11px] font-bold cursor-pointer transition flex items-center gap-1"
+                            title="Fill with logged in user details"
+                          >
+                            <span>👤</span>
+                            <span>Fill My Info</span>
+                          </button>
+                        )}
+                        {(formData.name || formData.contact) && (
+                          <button
+                            type="button"
+                            onClick={handleClearPatientInfo}
+                            className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-semibold cursor-pointer transition"
+                            title="Clear patient inputs"
+                          >
+                            Clear Form
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* PATIENT NAME */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                           Patient Full Name *
                         </label>
                         <input
                           type="text"
+                          name="patient_Name"
                           required
                           placeholder="e.g. Ramesh Sharma"
-                          value={patientData.name}
-                          onChange={(e) => setPatientData({ ...patientData, name: e.target.value })}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-800 focus:outline-none focus:border-teal-600"
+                          value={formData.patient_Name || formData.name || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormData(prev => ({ ...prev, patient_Name: val, name: val }));
+                          }}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
                         />
                       </div>
 
+                      {/* PATIENT CONTACT */}
                       <div>
-                        <label className="block font-semibold text-slate-700 uppercase mb-1">
-                          Contact Phone Number *
+                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                          Patient Phone Number *
                         </label>
                         <input
                           type="tel"
+                          name="contact"
                           required
-                          placeholder="+91 98765 43210"
-                          value={patientData.phone}
-                          onChange={(e) => setPatientData({ ...patientData, phone: e.target.value })}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-800 focus:outline-none focus:border-teal-600"
+                          placeholder="e.g. 9876543210"
+                          value={formData.contact}
+                          onChange={handleChange}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
                         />
                       </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* PATIENT EMAIL */}
                       <div>
-                        <label className="block font-semibold text-slate-700 uppercase mb-1">
+                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                           Email Address
                         </label>
                         <input
                           type="email"
-                          placeholder="patient@gmail.com"
-                          value={patientData.email}
-                          onChange={(e) => setPatientData({ ...patientData, email: e.target.value })}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-800 focus:outline-none focus:border-teal-600"
+                          name="email"
+                          placeholder="e.g. patient@gmail.com"
+                          value={formData.email}
+                          onChange={handleChange}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
                         />
                       </div>
 
+                      {/* RESIDENTIAL ADDRESS */}
                       <div>
-                        <label className="block font-semibold text-slate-700 uppercase mb-1">
-                          Age (Years)
+                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                          Residential Address
                         </label>
                         <input
-                          type="number"
-                          placeholder="e.g. 38"
-                          value={patientData.age}
-                          onChange={(e) => setPatientData({ ...patientData, age: e.target.value })}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-800 focus:outline-none focus:border-teal-600"
+                          type="text"
+                          name="address"
+                          placeholder="City, Area, House No."
+                          value={formData.address}
+                          onChange={handleChange}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
                         />
                       </div>
-
-                      <div>
-                        <label className="block font-semibold text-slate-700 uppercase mb-1">
-                          Gender
-                        </label>
-                        <select
-                          value={patientData.gender}
-                          onChange={(e) => setPatientData({ ...patientData, gender: e.target.value })}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-800 focus:outline-none focus:border-teal-600 cursor-pointer"
-                        >
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                          <option value="Other">Other</option>
-                        </select>
-                      </div>
                     </div>
+                  </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block font-semibold text-slate-700 uppercase mb-1">
-                          Blood Group
-                        </label>
-                        <select
-                          value={patientData.bloodGroup}
-                          onChange={(e) => setPatientData({ ...patientData, bloodGroup: e.target.value })}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-800 focus:outline-none focus:border-teal-600 cursor-pointer"
-                        >
-                          <option value="A+">A+</option>
-                          <option value="A-">A-</option>
-                          <option value="B+">B+</option>
-                          <option value="B-">B-</option>
-                          <option value="O+">O+</option>
-                          <option value="O-">O-</option>
-                          <option value="AB+">AB+</option>
-                          <option value="AB-">AB-</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block font-semibold text-slate-700 uppercase mb-1">
-                          Condition Severity
-                        </label>
-                        <select
-                          value={patientData.severity}
-                          onChange={(e) => setPatientData({ ...patientData, severity: e.target.value })}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-800 focus:outline-none focus:border-teal-600 cursor-pointer"
-                        >
-                          <option value="Normal">Routine OPD Consultation (Normal)</option>
-                          <option value="Moderate">Moderate Symptoms (Needs early check)</option>
-                          <option value="Critical">Urgent Medical Attention Required</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-slate-700 uppercase mb-1">
-                        Chief Complaints & Symptoms
-                      </label>
-                      <textarea
-                        rows={3}
-                        placeholder="Briefly describe health concerns, fever, pain, past prescriptions..."
-                        value={patientData.symptoms}
-                        onChange={(e) => setPatientData({ ...patientData, symptoms: e.target.value })}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-800 focus:outline-none focus:border-teal-600"
-                      ></textarea>
-                    </div>
-
-                    {/* BOOKING SUMMARY BOX */}
-                    <div className="p-4 rounded-2xl bg-teal-50 border border-teal-200 text-xs space-y-1.5 text-teal-900">
-                      <div className="flex justify-between font-semibold">
-                        <span>Selected Campus:</span>
-                        <span>{activeHospital.Name || activeHospital.name}</span>
-                      </div>
-                      <div className="flex justify-between font-semibold">
-                        <span>Attending Doctor:</span>
-                        <span>{selectedDoctorObj?.name || 'General OPD Specialist'}</span>
-                      </div>
-                      <div className="flex justify-between font-semibold">
-                        <span>Date & Time:</span>
-                        <span>{appointmentDate} at {appointmentSlot}</span>
-                      </div>
-                      <div className="flex justify-between font-bold pt-1 border-t border-teal-200 text-teal-950">
-                        <span>Total Consultation Fee:</span>
-                        <span>₹{selectedDoctorObj?.consultation_fee || selectedDoctorObj?.fee || 500} (Pay at OPD Desk)</span>
-                      </div>
-                    </div>
-
-                    {/* ACTIONS */}
-                    <div className="pt-4 border-t border-slate-200 flex justify-between items-center">
-                      <button
-                        type="button"
-                        onClick={() => setCurrentStep(2)}
-                        className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
-                      >
-                        Back to Slot
-                      </button>
-
-                      <button
-                        type="submit"
-                        disabled={submitting}
-                        className="px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md transition cursor-pointer disabled:opacity-60"
-                      >
-                        {submitting ? 'Confirming with Hospital Backend...' : 'Confirm Appointment & Generate Slip'}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
-              {/* ================= STEP 4: CONFIRMED OPD TOKEN SLIP ================= */}
-              {currentStep === 4 && confirmedBooking && (
-                <div className="max-w-2xl mx-auto space-y-6">
-                  {/* PRINTABLE SLIP */}
-                  <div className="bg-white rounded-3xl border-2 border-teal-600 p-6 sm:p-8 shadow-md space-y-6">
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-                      <div>
-                        <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block">
-                          OPD Registration Slip
-                        </span>
-                        <h3 className="text-xl font-extrabold text-slate-900">
-                          {confirmedBooking.hospitalName}
-                        </h3>
-                        <p className="text-xs text-slate-500">{confirmedBooking.hospitalAddress}</p>
-                      </div>
-
-                      <div className="text-right">
-                        <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold uppercase">
-                          Confirmed
-                        </span>
-                        <p className="font-mono text-xs text-slate-400 mt-1">
-                          {new Date().toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* TOKEN BADGE */}
-                    <div className="p-4 rounded-2xl bg-slate-900 text-white flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] text-teal-400 uppercase font-bold block">
-                          OPD Token Number
-                        </span>
-                        <span className="text-2xl font-extrabold font-mono text-white">
-                          {confirmedBooking.token}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[10px] text-slate-400 uppercase font-bold block">
-                          Patient UHID / ID
-                        </span>
-                        <span className="text-base font-bold font-mono text-teal-300">
-                          {confirmedBooking.uhid}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* DETAILS GRID */}
-                    <div className="grid grid-cols-2 gap-4 text-xs">
-                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-0.5">
-                        <span className="text-[10px] uppercase font-semibold text-slate-400">
-                          Patient Name
-                        </span>
-                        <p className="font-bold text-slate-900">{confirmedBooking.patientName}</p>
-                        <p className="text-slate-500 text-[11px]">{confirmedBooking.patientPhone}</p>
-                      </div>
-
-                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-0.5">
-                        <span className="text-[10px] uppercase font-semibold text-slate-400">
-                          Attending Doctor
-                        </span>
-                        <p className="font-bold text-slate-900">{confirmedBooking.doctorName}</p>
-                        <p className="text-teal-700 text-[11px] font-semibold">{confirmedBooking.specialization}</p>
-                      </div>
-
-                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-0.5">
-                        <span className="text-[10px] uppercase font-semibold text-slate-400">
-                          Date & Reporting Slot
-                        </span>
-                        <p className="font-bold text-slate-900">{confirmedBooking.appointmentDate}</p>
-                        <p className="text-slate-500 text-[11px]">{confirmedBooking.appointmentSlot}</p>
-                      </div>
-
-                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-0.5">
-                        <span className="text-[10px] uppercase font-semibold text-slate-400">
-                          Consultation Room
-                        </span>
-                        <p className="font-bold text-slate-900">{confirmedBooking.cabin}</p>
-                        <p className="text-slate-500 text-[11px]">{confirmedBooking.mode}</p>
-                      </div>
-                    </div>
-
-                    {/* INSTRUCTIONS */}
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 space-y-1">
-                      <span className="font-bold block">Important Instructions for Your Hospital Visit:</span>
-                      <p>
-                        Please arrive 15 minutes before your scheduled slot ({confirmedBooking.appointmentSlot}) at {confirmedBooking.hospitalName}. Present this token at the OPD front desk.
+                  {/* SECTION 2: CLINICAL DETAILS & HOSPITAL SELECTION */}
+                  <div className="space-y-4 pt-2">
+                    <div className="border-b border-slate-200 pb-2">
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-teal-600 text-white text-[11px] font-bold flex items-center justify-center">2</span>
+                        <span>Clinical Details & Hospital Selection</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Select preferred hospital branch, blood group, condition severity, and describe medical symptoms. The duty receptionist will assign the consulting doctor and schedule the appointment.
                       </p>
                     </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {/* HOSPITAL SELECTION */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                          Hospital Branch *
+                        </label>
+                        <select
+                          name="hospital"
+                          value={formData.hospital}
+                          onChange={handleChange}
+                          required
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 cursor-pointer shadow-2xs font-medium"
+                        >
+                          <option value="">Select Hospital</option>
+                          {hospitals.map((hosp) => (
+                            <option key={hosp.id} value={hosp.id}>
+                              {hosp.Name || hosp.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* BLOOD GROUP */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                          Blood Group *
+                        </label>
+                        <select
+                          name="blood_group"
+                          value={formData.blood_group}
+                          onChange={handleChange}
+                          required
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 cursor-pointer shadow-2xs font-medium"
+                        >
+                          <option value="">Select Blood</option>
+                          {bloodGroupChoices.map((bg) => (
+                            <option key={bg} value={bg}>{bg}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* CONDITION STATUS */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                          Condition Severity *
+                        </label>
+                        <select
+                          name="condition"
+                          value={formData.condition}
+                          onChange={handleChange}
+                          required
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 cursor-pointer shadow-2xs font-medium"
+                        >
+                          <option value="">Select Condition</option>
+                          {conditionChoices.map((c) => (
+                            <option key={c.value} value={c.value}>{c.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* SYMPTOMS / DIAGNOSIS */}
+                      <div className="sm:col-span-2 lg:col-span-3">
+                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                          Chief Symptoms / Diagnosis (symptoms_diagnosis) *
+                        </label>
+                        <textarea
+                          name="symptoms_diagnosis"
+                          rows={3}
+                          required
+                          placeholder="Describe symptoms, illness duration, past medical history or consultation reason..."
+                          value={formData.symptoms_diagnosis}
+                          onChange={handleChange}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
+                        ></textarea>
+                      </div>
+
+                      {/* ATTACHED DOCUMENT */}
+                      <div className="sm:col-span-2 lg:col-span-3">
+                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                          Attached Document (Optional - Prescriptions, Lab Reports)
+                        </label>
+                        <div className="p-3.5 rounded-xl border border-dashed border-slate-300 bg-slate-50/70 hover:bg-slate-50 transition">
+                          <input
+                            type="file"
+                            accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                            onChange={handleFileChange}
+                            className="block w-full text-xs text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer"
+                          />
+                          {attachedFile && (
+                            <p className="text-[11px] text-teal-700 font-semibold mt-1.5 flex items-center gap-1">
+                              <span>✓ File:</span>
+                              <span className="font-mono">{attachedFile.name} ({(attachedFile.size / 1024).toFixed(1)} KB)</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* SLIP BUTTONS */}
-                  <div className="flex flex-wrap gap-3 justify-center">
+                  {/* SUBMIT BUTTON */}
+                  <div className="pt-4 border-t border-slate-200 flex justify-end">
                     <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+                      type="submit"
+                      disabled={submitting}
+                      className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-teal-700/20 transition duration-200 cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
                     >
-                      Print OPD Token Slip
-                    </button>
-                    <button
-                      type="button"
-                      onClick={resetForm}
-                      className="px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
-                    >
-                      Book Another OPD Checkup
+                      {submitting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Saving Appointment Records...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span>Confirm & Book Appointment</span>
+                        </>
+                      )}
                     </button>
                   </div>
-                </div>
+                </form>
               )}
-            </>
-          )}
-        </section>
+            </div>
+          </section>
+        )}
       </main>
 
       {/* PATIENT FOOTER */}

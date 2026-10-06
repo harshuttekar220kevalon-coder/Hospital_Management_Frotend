@@ -9,17 +9,17 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
       if (saved) return JSON.parse(saved);
     } catch {}
     return {
-      id: 1,
-      name: 'Sister Priya Sharma',
-      nurse_id: 'NUR-1001',
-      role: 'Staff Nurse',
-      nurse_role: 'Staff Nurse',
-      ward: 'ICU / Critical Ward',
-      shift: 'Morning Shift (07:00 AM - 03:00 PM)',
-      qualification: 'B.Sc Nursing, Critical Care Cert.',
-      experience: '5 Years',
-      contact: '+91 98765 43210',
-      email: 'priya.sharma@hospital.com',
+      id: null,
+      name: '',
+      nurse_id: '',
+      role: '',
+      nurse_role: '',
+      ward: '',
+      shift: '',
+      qualification: '',
+      experience: '',
+      contact: '',
+      email: '',
       is_active: true
     };
   });
@@ -63,16 +63,16 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
   const [editFormData, setEditFormData] = useState({
     nurse_id: '',
     name: '',
-    role: 'Staff Nurse',
-    ward: 'General Ward',
-    shift: 'Morning (08:00 AM - 04:00 PM)',
+    role: '',
+    ward: '',
+    shift: '',
     qualification: '',
     experience: '',
     contact: '',
     email: '',
     password: '',
     hospital: '',
-    status: 'On_Duty',
+    status: '',
     is_active: true
   });
 
@@ -129,18 +129,18 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
 
   const handleOpenEditModal = () => {
     setEditFormData({
-      nurse_id: nurseData.nurse_id || `NUR-${nurseData.id}`,
+      nurse_id: nurseData.nurse_id || (nurseData.id ? `NUR-${nurseData.id}` : ''),
       name: nurseData.name || '',
-      role: nurseData.role || nurseData.nurse_role || 'Staff Nurse',
-      ward: nurseData.ward || 'General Ward',
-      shift: nurseData.shift || 'Morning (08:00 AM - 04:00 PM)',
+      role: nurseData.role || nurseData.nurse_role || '',
+      ward: nurseData.ward || '',
+      shift: nurseData.shift || '',
       qualification: nurseData.qualification || '',
       experience: nurseData.experience || '',
       contact: (nurseData.contact || nurseData.phone || '').replace(/\D/g, '').slice(0, 15),
       email: nurseData.email || '',
-      password: nurseData.password || 'Nurse@123',
+      password: nurseData.password || '',
       hospital: nurseData.hospital || currentUser?.hospital || (hospitalData ? hospitalData.id : ''),
-      status: nurseData.status === 'Off_Duty' ? 'Off_Duty' : (nurseData.status === 'On_Duty' ? 'On_Duty' : (nurseData.is_active !== false ? 'On_Duty' : 'Off_Duty')),
+      status: nurseData.status || (nurseData.is_active !== false ? 'On_Duty' : 'Off_Duty'),
       is_active: nurseData.is_active !== false
     });
     setShowEditPassword(false);
@@ -152,7 +152,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
     if (!nurseData || !nurseData.id) return;
     try {
       const nurseIdToSend = editFormData.nurse_id || nurseData.nurse_id || `NUR-${nurseData.id}`;
-      const nurseRole = editFormData.role || editFormData.nurse_role || nurseData.role || 'Staff Nurse';
+      const nurseRole = editFormData.role || editFormData.nurse_role || nurseData.role || '';
       const hospId = Number(editFormData.hospital || nurseData.hospital || currentUser?.hospital || (hospitalData ? hospitalData.id : 1));
       
       const currentStatus = editFormData.status || 'On_Duty';
@@ -164,7 +164,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
         designation: nurseRole,
         name: editFormData.name.trim(),
         contact: editFormData.contact.trim(),
-        password: nurseData.password || editFormData.password || 'Nurse@123',
+        password: editFormData.password || nurseData.password || '',
         hospital: hospId,
         status: currentStatus,
         is_active: editFormData.is_active !== undefined ? editFormData.is_active : true
@@ -328,27 +328,27 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
             <div>
               <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-200 text-[10px] font-semibold border border-teal-400/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
-                {hospitalData?.Name || 'Branch Hospital'}
+                {hospitalData?.Name || nurseData.hospital_name || 'Not Provided'}
               </div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1 tracking-tight text-slate-100">
-                {nurseData.name || 'Nurse Name'}
+                {nurseData.name || 'Not Provided'}
               </h1>
               <div className="flex items-center gap-2 flex-wrap text-xs text-slate-300 mt-1 font-medium">
-                <span className="text-teal-300 font-bold">{nurseData.role || nurseData.nurse_role || 'Staff Nurse'}</span>
+                <span className="text-teal-300 font-bold">{nurseData.role || nurseData.nurse_role || 'Not Provided'}</span>
                 <span>•</span>
                 <span className="font-mono bg-slate-800 px-2 py-0.5 rounded border border-slate-700 text-[11px] text-teal-200">
-                  {nurseData.nurse_id || `NUR-${nurseData.id}`}
+                  {nurseData.nurse_id || (nurseData.id ? `NUR-${nurseData.id}` : 'Not Provided')}
                 </span>
                 <span>•</span>
-                <span>{nurseData.ward || 'General Ward'}</span>
+                <span>{nurseData.ward || 'Not Provided'}</span>
               </div>
             </div>
           </div>
 
           <div className="flex flex-col sm:items-end gap-1 text-xs">
             <span className="text-slate-400 text-[11px]">Shift Assignment</span>
-            <span className="text-sm font-bold text-teal-300">{nurseData.shift || 'Morning Shift'}</span>
-            <span className="text-slate-400 text-[10px]">{nurseData.qualification || 'Nursing Degree'}</span>
+            <span className="text-sm font-bold text-teal-300">{nurseData.shift || 'Not Provided'}</span>
+            <span className="text-slate-400 text-[10px]">{nurseData.qualification || 'Not Provided'}</span>
           </div>
         </div>
       </div>
@@ -356,31 +356,31 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">Designation / Role</p>
-          <p className="text-base font-bold text-slate-800 mt-1">{nurseData.role || nurseData.nurse_role || 'Staff Nurse'}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{nurseData.ward || 'Assigned Ward'}</p>
+          <p className="text-base font-bold text-slate-800 mt-1">{nurseData.role || nurseData.nurse_role || 'Not Provided'}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{nurseData.ward || 'Not Provided'}</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">Duty Shift</p>
-          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{nurseData.shift || '07:00 AM - 03:00 PM'}</p>
+          <p className="text-sm font-bold text-slate-800 mt-1 truncate">{nurseData.shift || 'Not Provided'}</p>
           <p className="text-xs text-emerald-600 mt-0.5">Active Duty Schedule</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">Experience & Degree</p>
-          <p className="text-sm font-bold text-slate-800 mt-1">{nurseData.experience || '3+ Years'}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{nurseData.qualification || 'B.Sc Nursing'}</p>
+          <p className="text-sm font-bold text-slate-800 mt-1">{nurseData.experience || 'Not Provided'}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{nurseData.qualification || 'Not Provided'}</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">Contact Details</p>
-          <p className="text-sm font-bold text-slate-800 mt-1">{nurseData.contact || nurseData.phone || '-'}</p>
+          <p className="text-sm font-bold text-slate-800 mt-1">{nurseData.contact || nurseData.phone || 'Not Provided'}</p>
           {emailLower ? (
             <a href={`mailto:${emailLower}`} className="text-xs text-sky-700 hover:underline block lowercase truncate">
               {emailLower}
             </a>
           ) : (
-            <span className="text-xs text-slate-400">-</span>
+            <span className="text-xs text-slate-400">Not Provided</span>
           )}
         </div>
       </div>
@@ -417,15 +417,15 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
             <div className="space-y-3 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Academic Qualification</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">{nurseData.qualification || 'B.Sc Nursing, GNM'}</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{nurseData.qualification || 'Not Provided'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Clinical Nursing Experience</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">{nurseData.experience || '3 Years Clinical Experience'}</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{nurseData.experience || 'Not Provided'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Specialized Skills & Unit Training</p>
-                <p className="text-sm font-bold text-teal-700 mt-0.5">Emergency Patient Triage, IV Cannulation, Vital Monitoring</p>
+                <p className="text-sm font-bold text-teal-700 mt-0.5">{nurseData.skills || nurseData.unit_training || 'Not Provided'}</p>
               </div>
             </div>
           </div>
@@ -435,16 +435,18 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
             <div className="space-y-3 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Hospital Facility</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">{hospitalData?.Name || 'Apex Care Hospital'}</p>
-                <p className="text-slate-500 mt-0.5">{hospitalData?.city} • {hospitalData?.address || 'Medical Facility Road'}</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{hospitalData?.Name || nurseData.hospital_name || 'Not Provided'}</p>
+                {(hospitalData?.city || hospitalData?.address) && (
+                  <p className="text-slate-500 mt-0.5">{hospitalData?.city} {hospitalData?.address ? `• ${hospitalData.address}` : ''}</p>
+                )}
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Assigned Ward / Station</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">{nurseData.ward || 'General Medical Ward'}</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{nurseData.ward || 'Not Provided'}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Assigned Shift Hours</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">{nurseData.shift || 'Morning Shift (07:00 AM - 03:00 PM)'}</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{nurseData.shift || 'Not Provided'}</p>
               </div>
             </div>
           </div>
@@ -547,6 +549,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
                     onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-indigo-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Role --</option>
                     {rolesList.map((r, i) => (
                       <option key={i} value={r}>{r}</option>
                     ))}
@@ -560,6 +563,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
                     onChange={(e) => setEditFormData({ ...editFormData, ward: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-indigo-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Ward --</option>
                     {wardsList.map((w, i) => (
                       <option key={i} value={w}>{w}</option>
                     ))}
@@ -576,6 +580,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
                     onChange={(e) => setEditFormData({ ...editFormData, shift: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-indigo-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Shift --</option>
                     {shiftsList.map((s, i) => (
                       <option key={i} value={s}>{s}</option>
                     ))}
@@ -638,7 +643,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
                     type="text"
                     readOnly
                     tabIndex={-1}
-                    value={hospitalData?.Name ? `${hospitalData.Name} (${hospitalData.city || ''})` : 'Assigned Hospital Branch'}
+                    value={hospitalData?.Name || nurseData?.hospital_name || 'Not Provided'}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed select-none focus:outline-none"
                   />
                 </div>
@@ -648,13 +653,14 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Duty Status *</label>
                 <select
-                  value={editFormData.status || 'On_Duty'}
+                  value={editFormData.status || ''}
                   onChange={(e) => setEditFormData({ 
                     ...editFormData, 
                     status: e.target.value
                   })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
                 >
+                  <option value="">-- Select Duty Status --</option>
                   <option value="On_Duty">On_Duty</option>
                   <option value="Off_Duty">Off_Duty</option>
                 </select>

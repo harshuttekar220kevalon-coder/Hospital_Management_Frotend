@@ -38,16 +38,16 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
   const initialFormState = {
     nurse_id: '',
     name: '',
-    role: 'Staff Nurse',
-    nurse_role: 'Staff Nurse',
-    ward: 'General Ward',
-    shift: 'Morning',
+    role: '',
+    nurse_role: '',
+    ward: '',
+    shift: '',
     qualification: '',
     experience: '',
     contact: '',
     email: '',
     password: '',
-    status: 'On_Duty',
+    status: '',
     is_active: true
   };
 
@@ -168,8 +168,9 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
         name: formData.name.trim(),
         nurse_id: generatedNurseId,
         contact: formData.contact.trim(),
+        phone: formData.contact.trim(),
         password: formData.password || '',
-        hospital: Number(hospitalData?.id),
+        hospital: hospitalData?.id ? Number(hospitalData.id) : (currentUser?.hospital ? Number(currentUser.hospital) : null),
         status: currentStatus,
         is_active: formData.is_active !== undefined ? formData.is_active : true
       };
@@ -398,25 +399,25 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
                   return (
                     <tr key={nurse.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-bold text-slate-800 break-words">{nurse.name || 'Nurse'}</div>
+                        <div className="font-bold text-slate-800 break-words">{nurse.name || 'Not Provided'}</div>
                         <span className="font-mono text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
-                          {nurse.nurse_id || `NUR-${nurse.id}`}
+                          {nurse.nurse_id || (nurse.id ? `NUR-${nurse.id}` : 'Not Provided')}
                         </span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-semibold text-slate-800">{nurse.role || nurse.nurse_role || 'Staff Nurse'}</div>
-                        <span className="text-[11px] text-slate-500 block mt-0.5">{nurse.ward || 'General Ward'}</span>
+                        <div className="font-semibold text-slate-800">{nurse.role || nurse.nurse_role || 'Not Provided'}</div>
+                        <span className="text-[11px] text-slate-500 block mt-0.5">{nurse.ward || 'Not Provided'}</span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center font-medium text-slate-700">
-                        {nurse.shift || 'Morning Shift (07:00 AM - 03:00 PM)'}
+                        {nurse.shift || 'Not Provided'}
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-col items-center justify-center gap-0.5">
                           <span className="font-bold text-slate-800 text-xs">
-                            {nurse.contact || nurse.phone || '-'}
+                            {nurse.contact || nurse.phone || 'Not Provided'}
                           </span>
                           {emailLower ? (
                             <a
@@ -427,7 +428,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
                               {emailLower}
                             </a>
                           ) : (
-                            <span className="text-[11px] text-slate-400">-</span>
+                            <span className="text-[11px] text-slate-400">Not Provided</span>
                           )}
                         </div>
                       </td>
@@ -565,6 +566,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
                   onChange={(e) => setFormData({ ...formData, nurse_role: e.target.value, role: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-medium cursor-pointer"
                 >
+                  <option value="">-- Select Role --</option>
                   {rolesList.map((r, i) => (
                     <option key={i} value={r}>{r}</option>
                   ))}
@@ -580,6 +582,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
                     onChange={(e) => setFormData({ ...formData, ward: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Ward --</option>
                     {wardsList.map((w, i) => (
                       <option key={i} value={w}>{w}</option>
                     ))}
@@ -593,6 +596,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
                     onChange={(e) => setFormData({ ...formData, shift: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Shift --</option>
                     {shiftsList.map((s, i) => (
                       <option key={i} value={s}>{s}</option>
                     ))}
@@ -626,7 +630,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Hospital Branch</label>
                 <div className="p-2.5 bg-slate-100 rounded-xl border border-slate-200 text-slate-700 font-medium">
-                  {hospitalData?.Name || 'Branch Hospital'} ({hospitalData?.city || 'Main Branch'})
+                  {hospitalData?.Name || 'Not Provided'}
                 </div>
               </div>
 
@@ -634,13 +638,14 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Duty Status *</label>
                 <select
-                  value={formData.status || 'On_Duty'}
+                  value={formData.status || ''}
                   onChange={(e) => setFormData({ 
                     ...formData, 
                     status: e.target.value
                   })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
                 >
+                  <option value="">-- Select Duty Status --</option>
                   <option value="On_Duty">On_Duty</option>
                   <option value="Off_Duty">Off_Duty</option>
                 </select>

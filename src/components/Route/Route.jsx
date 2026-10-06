@@ -56,6 +56,7 @@ import ReceptionistPatientDetails from '../Receptionist/Patient_Details';
 import ReceptionistSetting from '../Receptionist/Setting';
 import ReceptionistAnassine from '../Receptionist/Anassine';
 import PatientDashboard from '../Patient/Dashbord';
+import PatientSetting from '../Patient/Setting';
 
 // Patient Main Frontend Pages (Static)
 import PatientHome from '../Patient/Home';
@@ -244,6 +245,16 @@ const AppRoutes = () => {
       localStorage.setItem('currentUser', JSON.stringify(userData));
     }
 
+    const isPatientRole = (userData?.role || '').toString().toUpperCase().includes('PATIENT');
+    const returnPage = localStorage.getItem('login_return_page');
+    if (returnPage && isPatientRole) {
+      localStorage.removeItem('login_return_page');
+      setCurrentPage(returnPage);
+      localStorage.setItem('currentPage', returnPage);
+      return;
+    }
+    localStorage.removeItem('login_return_page');
+
     const targetDashboard = getDashboardByRole(userData?.role);
     setCurrentPage(targetDashboard);
     localStorage.setItem('currentPage', targetDashboard);
@@ -272,10 +283,11 @@ const AppRoutes = () => {
 
   const isSuperAdmin = (currentUser?.role || '').toString().toUpperCase().includes('SUPER');
   const isAdmin = (currentUser?.role || '').toString().toUpperCase().includes('ADMIN') && !isSuperAdmin;
+  const isPatient = (currentUser?.role || '').toString().toUpperCase().includes('PATIENT');
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans antialiased w-full overflow-x-hidden">
-      {isLoggedIn && (
+      {isLoggedIn && !isPatient && (
         isSuperAdmin ? (
           <SuperAdminNavbar
             currentPage={currentPage}
@@ -324,24 +336,28 @@ const AppRoutes = () => {
               setCurrentPage={setCurrentPage}
               isLoggedIn={isLoggedIn}
               currentUser={currentUser}
+              onLogout={handleLogout}
             />
           ) : currentPage === 'contact' || currentPage === 'patient_contact' ? (
             <PatientContact
               setCurrentPage={setCurrentPage}
               isLoggedIn={isLoggedIn}
               currentUser={currentUser}
+              onLogout={handleLogout}
             />
           ) : currentPage === 'appointment' || currentPage === 'appoint' || currentPage === 'patient_appointment' ? (
             <PatientAppointment
               setCurrentPage={setCurrentPage}
               isLoggedIn={isLoggedIn}
               currentUser={currentUser}
+              onLogout={handleLogout}
             />
           ) : (
             <PatientHome
               setCurrentPage={setCurrentPage}
               isLoggedIn={isLoggedIn}
               currentUser={currentUser}
+              onLogout={handleLogout}
             />
           )
         ) : (
@@ -351,6 +367,7 @@ const AppRoutes = () => {
                 setCurrentPage={setCurrentPage}
                 isLoggedIn={isLoggedIn}
                 currentUser={currentUser}
+                onLogout={handleLogout}
               />
             )}
             {(currentPage === 'about' || currentPage === 'patient_about') && (
@@ -358,6 +375,7 @@ const AppRoutes = () => {
                 setCurrentPage={setCurrentPage}
                 isLoggedIn={isLoggedIn}
                 currentUser={currentUser}
+                onLogout={handleLogout}
               />
             )}
             {(currentPage === 'contact' || currentPage === 'patient_contact') && (
@@ -365,6 +383,7 @@ const AppRoutes = () => {
                 setCurrentPage={setCurrentPage}
                 isLoggedIn={isLoggedIn}
                 currentUser={currentUser}
+                onLogout={handleLogout}
               />
             )}
             {(currentPage === 'appointment' || currentPage === 'appoint' || currentPage === 'patient_appointment') && (
@@ -372,6 +391,7 @@ const AppRoutes = () => {
                 setCurrentPage={setCurrentPage}
                 isLoggedIn={isLoggedIn}
                 currentUser={currentUser}
+                onLogout={handleLogout}
               />
             )}
             {currentPage === 'super_admin_dashboard' && (
@@ -651,7 +671,21 @@ const AppRoutes = () => {
               />
             )}
             {currentPage === 'patient_dashboard' && (
-              <PatientDashboard currentUser={currentUser} />
+              <PatientDashboard
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                isLoggedIn={isLoggedIn}
+                onLogout={handleLogout}
+              />
+            )}
+            {(currentPage === 'patient_setting' || currentPage === 'patient_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('PATIENT'))) && (
+              <PatientSetting
+                currentUser={currentUser}
+                setCurrentUser={setCurrentUser}
+                setCurrentPage={setCurrentPage}
+                isLoggedIn={isLoggedIn}
+                onLogout={handleLogout}
+              />
             )}
           </>
         )}

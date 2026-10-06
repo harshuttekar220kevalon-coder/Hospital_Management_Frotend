@@ -50,26 +50,28 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     patient_id: '',
     name: '',
     age: '',
-    gender: 'Male',
+    gender: '',
     blood_group: '',
     contact: '',
     email: '',
+    password: '',
+    Password: '',
     address: '',
     hospital: '',
     doctor: '',
     bed_number: '',
     nurse: '',
     nurse_name: '',
-    consultation_fee: 0.00,
-    Hospitals_Chargies: 0.00,
-    amount_paid: 0.00,
-    payment_status: 'Pending',
+    consultation_fee: '',
+    Hospitals_Chargies: '',
+    amount_paid: '',
+    payment_status: '',
     payment_method: '',
     symptoms_diagnosis: '',
-    Condation: 'Normal',
-    condation: 'Normal',
-    condition: 'Normal',
-    symptoms_severity: 'Normal',
+    Condation: '',
+    condation: '',
+    condition: '',
+    symptoms_severity: '',
     visit_date_time: '',
     status: '',
     is_active: true,
@@ -287,6 +289,8 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
         name: addFormData.name.trim(),
         contact: addFormData.contact.trim(),
         email: addFormData.email.trim(),
+        password: (addFormData.password || addFormData.Password || '').trim(),
+        Password: (addFormData.password || addFormData.Password || '').trim(),
         age: addFormData.age ? Number(addFormData.age) : null,
         gender: addFormData.gender,
         blood_group: addFormData.blood_group,
@@ -584,10 +588,10 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
             onChange={(e) => setHospitalFilter(e.target.value)}
             className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-medium focus:outline-none focus:border-sky-600 cursor-pointer"
           >
-            <option value="ALL">All Hospital Branches</option>
+            <option value="ALL">-- Select Hospital (All) --</option>
             {hospitalsList.map((h) => (
               <option key={h.id} value={h.id}>
-                {h.Name} ({h.city})
+                {h.Name || h.name}
               </option>
             ))}
           </select>
@@ -851,6 +855,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                     onChange={(e) => setAddFormData({ ...addFormData, gender: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Gender --</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
@@ -863,6 +868,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                     onChange={(e) => setAddFormData({ ...addFormData, blood_group: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Blood Group --</option>
                     {bloodGroups.map((bg, idx) => (
                       <option key={idx} value={bg}>{bg}</option>
                     ))}
@@ -870,16 +876,16 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
                     maxLength={15}
                     required
-                    placeholder="e.g. 9876543210 / 02212345678"
+                    placeholder="e.g. 9876543210"
                     value={addFormData.contact}
                     onChange={(e) => setAddFormData({ ...addFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
@@ -893,6 +899,17 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                     value={addFormData.email}
                     onChange={(e) => setAddFormData({ ...addFormData, email: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Account Password</label>
+                  <input
+                    type="password"
+                    maxLength={20}
+                    placeholder="Set patient password"
+                    value={addFormData.password || addFormData.Password || ''}
+                    onChange={(e) => setAddFormData({ ...addFormData, password: e.target.value, Password: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
               </div>
@@ -926,16 +943,16 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                             ...prev,
                             hospital: newHospId,
                             doctor: currentDocStillValid ? prev.doctor : '',
-                            consultation_fee: currentDocStillValid ? prev.consultation_fee : 0.00,
-                            amount_paid: currentDocStillValid ? prev.amount_paid : 0.00
+                            consultation_fee: currentDocStillValid ? prev.consultation_fee : '',
+                            amount_paid: currentDocStillValid ? prev.amount_paid : ''
                           }));
                         }}
                         className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                       >
-                        <option value="" disabled>Select Target Hospital Branch *</option>
+                        <option value="">-- Select Hospital --</option>
                         {hospitalsList.map((h) => (
                           <option key={h.id} value={h.id}>
-                            {h.Name} ({h.city}) - {h.Branch_Code}
+                            {h.Name || h.name}
                           </option>
                         ))}
                       </select>
@@ -1180,7 +1197,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Patient Condition (Triage) *</label>
                   <select
-                    value={addFormData.Condation || 'Normal'}
+                    value={addFormData.Condation || addFormData.condation || addFormData.condition || addFormData.symptoms_severity || ''}
                     onChange={(e) => setAddFormData({
                       ...addFormData,
                       Condation: e.target.value,
@@ -1190,6 +1207,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                     })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-bold focus:outline-none focus:border-sky-600 focus:bg-white cursor-pointer"
                   >
+                    <option value="">-- Select Condition --</option>
                     <option value="Critical">Critical</option>
                     <option value="Emergency">Emergency</option>
                     <option value="Urgent">Urgent</option>

@@ -22,28 +22,28 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
       if (saved) return JSON.parse(saved);
     } catch {}
     return {
-      id: 1,
-      name: 'Ramesh Patel',
-      patient_id: 'PAT-1001',
-      age: 42,
-      gender: 'Male',
-      blood_group: 'B+',
-      contact: '+91 98765 43210',
-      email: 'ramesh.patel@gmail.com',
-      address: '124, MG Road, Mumbai',
+      id: null,
+      name: '',
+      patient_id: '',
+      age: '',
+      gender: '',
+      blood_group: '',
+      contact: '',
+      email: '',
+      address: '',
       doctor: null,
-      doctor_name: 'Dr. Ramesh Sethi',
-      bed_number: 45,
+      doctor_name: '',
+      bed_number: null,
       nurse: null,
       nurse_name: '',
-      consultation_fee: 500.00,
-      amount_paid: 500.00,
-      payment_status: 'Paid',
-      payment_method: 'UPI',
-      symptoms_diagnosis: 'Acute chest pain and severe respiratory discomfort.',
-      symptoms_severity: 'Urgent',
-      visit_date_time: '2026-09-24T10:30:00',
-      status: 'Admitted',
+      consultation_fee: 0.00,
+      amount_paid: 0.00,
+      payment_status: '',
+      payment_method: '',
+      symptoms_diagnosis: '',
+      symptoms_severity: '',
+      visit_date_time: '',
+      status: '',
       is_active: true
     };
   });
@@ -71,10 +71,12 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
     patient_id: '',
     name: '',
     age: '',
-    gender: 'Male',
+    gender: '',
     blood_group: '',
     contact: '',
     email: '',
+    password: '',
+    Password: '',
     address: '',
     hospital: '',
     doctor: '',
@@ -90,10 +92,10 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
     payment_method: '',
     symptoms_diagnosis: '',
     reason_for_visit: '',
-    Condation: 'Normal',
-    condation: 'Normal',
-    condition: 'Normal',
-    symptoms_severity: 'Normal',
+    Condation: '',
+    condation: '',
+    condition: '',
+    symptoms_severity: '',
     visit_date_time: '',
     status: '',
     is_active: true,
@@ -171,10 +173,12 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
       patient_id: patientData.patient_id || patientData.uhid || `PAT-${patientData.id}`,
       name: patientData.name || '',
       age: patientData.age || '',
-      gender: patientData.gender || 'Male',
-      blood_group: patientData.Blood_Group || patientData.blood_group || 'O+',
+      gender: patientData.gender || '',
+      blood_group: patientData.Blood_Group || patientData.blood_group || '',
       contact: (patientData.contact || patientData.phone || '').replace(/\D/g, '').slice(0, 15),
       email: patientData.email || '',
+      password: patientData.Password || patientData.password || '',
+      Password: patientData.Password || patientData.password || '',
       address: patientData.address || '',
       hospital: patientData.hospital || currentUser?.hospital || (hospitalData ? hospitalData.id : ''),
       doctor: patientData.doctor || (doctorData ? doctorData.id : ''),
@@ -186,16 +190,16 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
       consultation_fee: Number(patientData.consultation_fee ?? 0),
       Hospitals_Chargies: Number(patientData.Hospitals_Chargies ?? patientData.hospital_charges ?? 0),
       amount_paid: Number(patientData.amount_paid ?? 0),
-      payment_status: patientData.payment_status || 'Pending',
-      payment_method: patientData.payment_method || 'Cash',
+      payment_status: patientData.payment_status || '',
+      payment_method: patientData.payment_method || '',
       symptoms_diagnosis: patientData.symptoms_diagnosis || '',
       reason_for_visit: patientData.reason_for_visit || patientData.symptoms_diagnosis || '',
-      Condation: patientData.Condation || patientData.condation || patientData.condition || patientData.symptoms_severity || 'Normal',
-      condation: patientData.Condation || patientData.condation || patientData.condition || patientData.symptoms_severity || 'Normal',
-      condition: patientData.Condation || patientData.condation || patientData.condition || patientData.symptoms_severity || 'Normal',
-      symptoms_severity: patientData.Condation || patientData.condation || patientData.condition || patientData.symptoms_severity || 'Normal',
+      Condation: patientData.Condation || patientData.condation || patientData.condition || patientData.symptoms_severity || '',
+      condation: patientData.Condation || patientData.condation || patientData.condition || patientData.symptoms_severity || '',
+      condition: patientData.Condation || patientData.condation || patientData.condition || patientData.symptoms_severity || '',
+      symptoms_severity: patientData.Condation || patientData.condation || patientData.condition || patientData.symptoms_severity || '',
       visit_date_time: patientData.visit_date_time || patientData.appointment_time || '',
-      status: patientData.status || 'Pending',
+      status: patientData.status || '',
       is_active: patientData.is_active !== undefined ? patientData.is_active : true,
       attached_document: attachedDocVal,
       attached_document_name: docName
@@ -217,13 +221,15 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
       const parsedBedNum = editFormData.bed_number ? Number(editFormData.bed_number) : null;
       let response;
 
-      const chosenCondition = editFormData.Condation || editFormData.condation || editFormData.condition || editFormData.symptoms_severity || 'Normal';
+      const chosenCondition = editFormData.Condation || editFormData.condation || editFormData.condition || editFormData.symptoms_severity || '';
 
       const payloadData = {
         patient_id: editFormData.patient_id || patientData.patient_id || `PAT-${patientData.id}`,
         name: editFormData.name.trim(),
         contact: editFormData.contact.trim(),
         email: editFormData.email.trim(),
+        password: (editFormData.password || editFormData.Password || '').trim(),
+        Password: (editFormData.password || editFormData.Password || '').trim(),
         age: editFormData.age ? Number(editFormData.age) : null,
         gender: editFormData.gender,
         blood_group: editFormData.blood_group,
@@ -407,24 +413,24 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
             <div>
               <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-200 text-[10px] font-semibold border border-teal-400/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
-                {hospitalData?.Name || 'Branch Hospital'}
+                {hospitalData?.Name || patientData.hospital_name || 'Not Provided'}
               </div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1 tracking-tight text-slate-100">
-                {patientData.name || 'Patient Name'}
+                {patientData.name || 'Not Provided'}
               </h1>
               <div className="flex items-center gap-2 flex-wrap text-xs text-slate-300 mt-1 font-medium">
                 <span className="font-mono bg-slate-800 px-2 py-0.5 rounded border border-slate-700 text-[11px] text-teal-200">
-                  {patientData.patient_id || patientData.uhid || `PAT-${patientData.id}`}
+                  {patientData.patient_id || patientData.uhid || (patientData.id ? `PAT-${patientData.id}` : 'Not Provided')}
                 </span>
                 <span>•</span>
-                <span>{patientData.age} Years</span>
+                <span>{patientData.age !== undefined && patientData.age !== null && patientData.age !== '' ? `${patientData.age} Years` : 'Not Provided'}</span>
                 <span>•</span>
-                <span>{patientData.gender || 'Male'}</span>
+                <span>{patientData.gender || 'Not Provided'}</span>
                 <span>•</span>
-                <span className="text-rose-300 font-bold">Blood: {patientData.Blood_Group || patientData.blood_group || 'O+'}</span>
+                <span className="text-rose-300 font-bold">Blood: {patientData.Blood_Group || patientData.blood_group || 'Not Provided'}</span>
                 <span>•</span>
                 <span className="text-teal-300 font-bold font-mono">
-                  {patientData.bed_number ? `Bed #${patientData.bed_number} (${patientData.floor || `Floor ${Math.floor((patientData.bed_number - 1) / 100) + 1}`})` : 'Bed: Unassigned'}
+                  {patientData.bed_number ? `Bed #${patientData.bed_number} (${patientData.floor || `Floor ${Math.floor((patientData.bed_number - 1) / 100) + 1}`})` : 'Bed: Not Assigned'}
                 </span>
               </div>
             </div>
@@ -432,11 +438,11 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
 
           <div className="flex flex-col sm:items-end gap-1 text-xs">
             <span className="text-slate-400 text-[11px]">Assigned Doctor</span>
-            <span className="text-sm font-bold text-teal-300">{doctorData?.name || patientData.doctor_name || 'Dr. Consultant'}</span>
-            <span className="text-slate-400 text-[10px]">{doctorData?.specialization || 'Clinical Department'}</span>
+            <span className="text-sm font-bold text-teal-300">{doctorData?.name || patientData.doctor_name || 'Not Provided'}</span>
+            <span className="text-slate-400 text-[10px]">{doctorData?.specialization || 'Not Provided'}</span>
             {patientData.bed_number && (
               <span className="text-emerald-300 text-[11px] font-semibold mt-1">
-                Nurse: {patientData.nurse_name || 'Floor Nurse'}
+                Nurse: {patientData.nurse_name || 'Not Provided'}
               </span>
             )}
           </div>
@@ -448,35 +454,35 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
           <p className="text-[10px] uppercase font-bold text-slate-400">Clinical Severity</p>
           <div className="mt-1">
             <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border inline-block ${severityBadgeClass}`}>
-              {severity} Severity
+              {severity || 'Not Provided'}
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1 truncate">{patientData.symptoms_diagnosis || 'Under Observation'}</p>
+          <p className="text-xs text-slate-500 mt-1 truncate">{patientData.symptoms_diagnosis || 'Not Provided'}</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">Inpatient Bed & Floor</p>
           <p className="text-base font-bold text-teal-800 font-mono mt-1">
-            {patientData.bed_number ? `Bed #${patientData.bed_number}` : 'Unassigned'}
+            {patientData.bed_number ? `Bed #${patientData.bed_number}` : 'Not Assigned'}
           </p>
           <p className="text-xs text-slate-500 mt-0.5 font-medium">{patientData.floor || (patientData.bed_number ? `Floor ${Math.floor((patientData.bed_number - 1) / 100) + 1}` : 'Not Assigned')}</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">Billing & Payment</p>
-          <p className="text-base font-bold text-slate-800 mt-1">₹{patientData.amount_paid || patientData.consultation_fee || 500}</p>
-          <p className="text-xs text-emerald-600 mt-0.5">Status: {patientData.payment_status || 'Paid'} ({patientData.payment_method || 'Cash'})</p>
+          <p className="text-base font-bold text-slate-800 mt-1">{patientData.amount_paid !== undefined && patientData.amount_paid !== null && patientData.amount_paid !== '' ? `₹${patientData.amount_paid}` : (patientData.consultation_fee ? `₹${patientData.consultation_fee}` : 'Not Provided')}</p>
+          <p className="text-xs text-emerald-600 mt-0.5">Status: {patientData.payment_status || 'Not Provided'} {patientData.payment_method ? `(${patientData.payment_method})` : ''}</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
           <p className="text-[10px] uppercase font-bold text-slate-400">Contact Details</p>
-          <p className="text-sm font-bold text-slate-800 mt-1">{patientData.contact || patientData.phone || '-'}</p>
+          <p className="text-sm font-bold text-slate-800 mt-1">{patientData.contact || patientData.phone || 'Not Provided'}</p>
           {emailLower ? (
             <a href={`mailto:${emailLower}`} className="text-xs text-sky-700 hover:underline block lowercase truncate">
               {emailLower}
             </a>
           ) : (
-            <span className="text-xs text-slate-400">-</span>
+            <span className="text-xs text-slate-400">Not Provided</span>
           )}
         </div>
       </div>
@@ -525,22 +531,22 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Diagnosis Details</p>
                 <p className="text-sm font-medium text-slate-800 mt-1 leading-relaxed">
-                  {patientData.symptoms_diagnosis || 'Patient undergoing routine clinical observation.'}
+                  {patientData.symptoms_diagnosis || 'Not Provided'}
                 </p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                 <div>
                   <p className="text-[10px] uppercase font-bold text-slate-400">Severity Assessment</p>
-                  <p className="text-sm font-bold text-slate-800 mt-0.5">{severity} Condition</p>
+                  <p className="text-sm font-bold text-slate-800 mt-0.5">{severity || 'Not Provided'}</p>
                 </div>
                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${severityBadgeClass}`}>
-                  {severity}
+                  {severity || 'Not Provided'}
                 </span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Assigned Doctor & Specialist</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">{doctorData?.name || patientData.doctor_name || 'Dr. Consultant'}</p>
-                <p className="text-teal-700 text-xs font-semibold">{doctorData?.specialization || 'Clinical Specialist'}</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{doctorData?.name || patientData.doctor_name || 'Not Provided'}</p>
+                <p className="text-teal-700 text-xs font-semibold">{doctorData?.specialization || 'Not Provided'}</p>
               </div>
             </div>
           </div>
@@ -560,13 +566,13 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                   <div className="p-2.5 bg-white rounded-lg border border-teal-100">
                     <span className="text-[9px] text-slate-400 uppercase font-bold block">Assigned Bed</span>
                     <span className="font-mono text-sm font-black text-teal-800">
-                      {patientData.bed_number ? `Bed #${patientData.bed_number}` : 'Unassigned'}
+                      {patientData.bed_number ? `Bed #${patientData.bed_number}` : 'Not Assigned'}
                     </span>
                   </div>
                   <div className="p-2.5 bg-white rounded-lg border border-teal-100">
                     <span className="text-[9px] text-slate-400 uppercase font-bold block">Assigned Nurse</span>
                     <span className="text-xs font-bold text-emerald-800 truncate block">
-                      {patientData.nurse_name || 'Assigned Nurse'}
+                      {patientData.nurse_name || 'Not Provided'}
                     </span>
                   </div>
                 </div>
@@ -575,20 +581,26 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <p className="text-[10px] uppercase font-bold text-slate-400">Age & Gender</p>
-                  <p className="text-sm font-bold text-slate-800 mt-0.5">{patientData.age} Years • {patientData.gender || 'Male'}</p>
+                  <p className="text-sm font-bold text-slate-800 mt-0.5">{patientData.age !== undefined && patientData.age !== null && patientData.age !== '' ? `${patientData.age} Years` : 'Not Provided'} • {patientData.gender || 'Not Provided'}</p>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <p className="text-[10px] uppercase font-bold text-slate-400">Blood Group</p>
-                  <p className="text-sm font-bold text-rose-700 mt-0.5">{patientData.Blood_Group || patientData.blood_group || '-'}</p>
+                  <p className="text-sm font-bold text-rose-700 mt-0.5">{patientData.Blood_Group || patientData.blood_group || 'Not Provided'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Emergency Phone</p>
+                  <p className="text-slate-800 font-bold mt-0.5">{patientData.contact || patientData.phone || 'Not Provided'}</p>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Account Password</p>
+                  <p className="font-mono font-bold text-slate-800 mt-0.5">{patientData.Password || patientData.password || '••••••••'}</p>
                 </div>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-[10px] uppercase font-bold text-slate-400">Residential Address</p>
-                <p className="text-slate-800 mt-0.5">{patientData.address || 'Address on record'}</p>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-[10px] uppercase font-bold text-slate-400">Emergency Phone</p>
-                <p className="text-slate-800 font-bold mt-0.5">{patientData.contact || patientData.phone || '-'}</p>
+                <p className="text-slate-800 mt-0.5">{patientData.address || 'Not Provided'}</p>
               </div>
             </div>
           </div>
@@ -618,7 +630,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
             <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-1">
               <p className="text-emerald-700 uppercase font-bold text-[10px]">Total Bill / Paid</p>
               <p className="text-xl font-bold text-emerald-800">₹{Number(patientData.amount_paid || (Number(patientData.consultation_fee || 0) + Number(patientData.Hospitals_Chargies ?? patientData.hospital_charges ?? 0))).toFixed(2)}</p>
-              <p className="text-emerald-600 text-[11px]">Mode: {patientData.payment_method || 'Cash'}</p>
+              <p className="text-emerald-600 text-[11px]">Mode: {patientData.payment_method || 'Not Provided'}</p>
             </div>
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
               <p className="text-slate-400 uppercase font-bold text-[10px]">Invoice Status</p>
@@ -627,7 +639,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                 patientData.payment_status === 'Partial' ? 'bg-amber-100 text-amber-800 border-amber-300' :
                 'bg-rose-100 text-rose-800 border-rose-300'
               }`}>
-                {patientData.payment_status || 'Paid'}
+                {patientData.payment_status || 'Not Provided'}
               </span>
               <p className="text-slate-500 text-[11px]">Total Due: ₹{Math.max(0, (Number(patientData.consultation_fee || 0) + Number(patientData.Hospitals_Chargies ?? patientData.hospital_charges ?? 0)) - Number(patientData.amount_paid || 0)).toFixed(2)}</p>
             </div>
@@ -641,26 +653,28 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
           <div className="space-y-3 text-xs">
             <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
               <p className="text-[10px] uppercase font-bold text-slate-400">Assigned Facility</p>
-              <p className="text-sm font-bold text-slate-800 mt-0.5">{hospitalData?.Name || 'Apex Care Hospital'}</p>
-              <p className="text-slate-500 mt-0.5">{hospitalData?.city} • {hospitalData?.address || 'Medical Facility Road'}</p>
+              <p className="text-sm font-bold text-slate-800 mt-0.5">{hospitalData?.Name || patientData?.hospital_name || 'Not Provided'}</p>
+              {(hospitalData?.city || hospitalData?.address) && (
+                <p className="text-slate-500 mt-0.5">{hospitalData?.city} {hospitalData?.address ? `• ${hospitalData.address}` : ''}</p>
+              )}
             </div>
             <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
               <p className="text-[10px] uppercase font-bold text-slate-400">Inpatient Bed & Ward Assignment</p>
               <div className="flex items-center gap-3 mt-1">
                 <span className="font-mono text-base font-bold text-teal-700">
-                  {patientData.bed_number ? `Bed #${patientData.bed_number}` : 'Unassigned Bed'}
+                  {patientData.bed_number ? `Bed #${patientData.bed_number}` : 'Not Assigned'}
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
                   {patientData.floor || (patientData.bed_number ? `Floor ${Math.floor((patientData.bed_number - 1) / 100) + 1}` : 'Not Assigned')}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 mt-1">
-                Assigned Nurse: <strong>{patientData.nurse_name || 'Assigned Nurse'}</strong>
+                Assigned Nurse: <strong>{patientData.nurse_name || 'Not Provided'}</strong>
               </p>
             </div>
             <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
               <p className="text-[10px] uppercase font-bold text-slate-400">Admission Status</p>
-              <p className="text-sm font-bold text-teal-700 mt-0.5">{patientData.status || 'Admitted In-Patient'}</p>
+              <p className="text-sm font-bold text-teal-700 mt-0.5">{patientData.status || 'Not Provided'}</p>
             </div>
           </div>
         </div>
@@ -728,6 +742,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                     onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Gender --</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
@@ -740,6 +755,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                     onChange={(e) => setEditFormData({ ...editFormData, blood_group: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                   >
+                    <option value="">-- Select Blood Group --</option>
                     {bloodGroups.map((bg, idx) => (
                       <option key={idx} value={bg}>{bg}</option>
                     ))}
@@ -747,16 +763,16 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
                     maxLength={15}
                     required
-                    placeholder="e.g. 9876543210 / 02212345678"
+                    placeholder="e.g. 9876543210"
                     value={editFormData.contact}
                     onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
@@ -766,9 +782,21 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Email Address</label>
                   <input
                     type="email"
+                    placeholder="patient@example.com"
                     value={editFormData.email}
                     onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Account Password</label>
+                  <input
+                    type="password"
+                    maxLength={20}
+                    placeholder="Set patient password"
+                    value={editFormData.password || editFormData.Password || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value, Password: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
               </div>
@@ -777,6 +805,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Address / City</label>
                 <input
                   type="text"
+                  placeholder="Enter address..."
                   value={editFormData.address}
                   onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
@@ -790,7 +819,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                     type="text"
                     readOnly
                     tabIndex={-1}
-                    value={hospitalData?.Name ? `${hospitalData.Name} (${hospitalData.city || ''})` : 'Assigned Hospital Branch'}
+                    value={hospitalData?.Name || patientData?.hospital_name || 'Not Provided'}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed select-none focus:outline-none"
                   />
                 </div>
@@ -812,7 +841,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                     }}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                   >
-                    <option value="">Select Doctor</option>
+                    <option value="">-- Select Doctor --</option>
                     {doctorsList.map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.name} ({d.specialization || d.specialty || 'Doctor'}) [₹{d.consultation_fee ?? 0}]
@@ -906,20 +935,18 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-slate-700 uppercase mb-1">Doctor Consultation Fee (₹)</label>
+                    <label className="block font-semibold text-slate-700 uppercase mb-1">
+                      Doctor Consultation Fee (₹) <span className="text-[10px] text-amber-700 font-normal">(Doctor Set)</span>
+                    </label>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
+                      readOnly
                       value={editFormData.consultation_fee}
-                      onChange={(e) => {
-                        const fee = parseFloat(e.target.value) || 0.00;
-                        const hosp = Number(editFormData.Hospitals_Chargies) || 0.00;
-                        setEditFormData({ ...editFormData, consultation_fee: e.target.value, amount_paid: fee + hosp });
-                      }}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono font-bold focus:outline-none focus:border-emerald-600"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono font-bold focus:outline-none cursor-not-allowed"
                     />
-                    <p className="text-[10px] text-slate-500 mt-0.5">Doctor professional fee</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Fixed consultation fee set on Doctor profile</p>
                   </div>
                   <div>
                     <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital Charges / Services (₹)</label>
@@ -965,6 +992,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                       type="number"
                       step="0.01"
                       min="0"
+                      placeholder="e.g. 500.00"
                       value={editFormData.amount_paid}
                       onChange={(e) => setEditFormData({ ...editFormData, amount_paid: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono font-bold focus:outline-none focus:border-emerald-600"
@@ -977,6 +1005,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                       onChange={(e) => setEditFormData({ ...editFormData, payment_status: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-semibold cursor-pointer"
                     >
+                      <option value="">-- Select Payment Status --</option>
                       {paymentStatuses.map((ps, idx) => (
                         <option key={idx} value={ps}>{ps}</option>
                       ))}
@@ -989,6 +1018,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                       onChange={(e) => setEditFormData({ ...editFormData, payment_method: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-medium cursor-pointer"
                     >
+                      <option value="">-- Select Payment Method --</option>
                       {paymentMethods.map((pm, idx) => (
                         <option key={idx} value={pm}>{pm}</option>
                       ))}
@@ -1011,7 +1041,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Patient Condition (Triage) *</label>
                   <select
-                    value={editFormData.Condation || editFormData.condation || editFormData.condition || editFormData.symptoms_severity || 'Normal'}
+                    value={editFormData.Condation || editFormData.condation || editFormData.condition || editFormData.symptoms_severity || ''}
                     onChange={(e) => setEditFormData({
                       ...editFormData,
                       Condation: e.target.value,
@@ -1021,6 +1051,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                     })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-600 font-bold cursor-pointer"
                   >
+                    <option value="">-- Select Condition --</option>
                     <option value="Critical">Critical</option>
                     <option value="Emergency">Emergency</option>
                     <option value="Urgent">Urgent</option>
@@ -1029,12 +1060,13 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Status:</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Status</label>
                   <select
                     value={editFormData.status}
                     onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-semibold cursor-pointer"
                   >
+                    <option value="">-- Select Status --</option>
                     {statusOptions.map((st, idx) => (
                       <option key={idx} value={st}>{st}</option>
                     ))}

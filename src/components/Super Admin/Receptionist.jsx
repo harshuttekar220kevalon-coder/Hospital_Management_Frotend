@@ -314,10 +314,10 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
             onChange={(e) => setHospitalFilter(e.target.value)}
             className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-semibold focus:outline-none focus:border-sky-600 cursor-pointer"
           >
-            <option value="ALL">All Hospital Branches</option>
+            <option value="ALL">-- Select Hospital (All) --</option>
             {hospitalsList.map((h) => (
               <option key={h.id} value={h.id}>
-                {h.Name} ({h.city})
+                {h.Name || h.name}
               </option>
             ))}
           </select>
@@ -370,7 +370,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                   return (
                     <tr key={rec.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-bold text-slate-800 break-words">{rec.name || 'Receptionist'}</div>
+                        <div className="font-bold text-slate-800 break-words">{rec.name || 'Not Provided'}</div>
                         <span className="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block mt-0.5">
                           {rec.receptionist_id || `REC-${rec.id}`}
                         </span>
@@ -378,10 +378,10 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
 
                       <td className="py-3.5 px-4 text-center">
                         <div className="font-semibold text-slate-800 text-xs">
-                          {rec.role || rec.designation || 'Front Desk Receptionist'}
+                          {rec.role || rec.designation || 'Not Provided'}
                         </div>
                         <span className="text-[11px] text-slate-500">
-                          {rec.shift || 'Morning Shift'}
+                          {rec.shift || 'Not Provided'}
                         </span>
                       </td>
 
@@ -392,7 +392,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                           </span>
                         ) : (
                           <span className="text-slate-400 font-medium text-xs">
-                            Unassigned
+                            Not Provided
                           </span>
                         )}
                       </td>
@@ -400,7 +400,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-col items-center justify-center gap-0.5">
                           <span className="font-bold text-slate-800 text-xs">
-                            {rec.contact || rec.phone || '-'}
+                            {rec.contact || rec.phone || 'Not Provided'}
                           </span>
                           {emailLower ? (
                             <a
@@ -411,7 +411,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                               {emailLower}
                             </a>
                           ) : (
-                            <span className="text-[11px] text-slate-400">-</span>
+                            <span className="text-[11px] text-slate-400">Not Provided</span>
                           )}
                         </div>
                       </td>
@@ -604,10 +604,10 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                   onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
                 >
-                  <option value="" disabled>Select Hospital Branch *</option>
+                  <option value="">-- Select Hospital --</option>
                   {hospitalsList.map((h) => (
                     <option key={h.id} value={h.id}>
-                      {h.Name} ({h.city}) - {h.Branch_Code}
+                      {h.Name || h.name}
                     </option>
                   ))}
                 </select>
