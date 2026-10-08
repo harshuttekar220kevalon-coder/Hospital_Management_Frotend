@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API_BASE_URL } from '../Api/Api';
+import { API_BASE_URL, extractArray } from '../Api/Api';
 
 const getFloorDisplay = (floorOrBed) => {
   if (!floorOrBed) return 'Not Assigned';
@@ -8,6 +8,98 @@ const getFloorDisplay = (floorOrBed) => {
   if (isNaN(num) || num <= 0) return 'Not Assigned';
   const floorNum = Math.floor((num - 1) / 100) + 1;
   return `Floor ${floorNum}`;
+};
+
+const isAppointmentInHospital = (item, targetHospId, targetHospName = '', hospList = []) => {
+  if (!item) return false;
+
+  // 1. Resolve Target Hospital ID & Name
+  let targetId = targetHospId && !isNaN(Number(targetHospId)) ? Number(targetHospId) : null;
+  let targetName = (targetHospName || '').toString().toLowerCase().trim();
+
+  if (targetId && !targetName && Array.isArray(hospList) && hospList.length > 0) {
+    const matched = hospList.find(h => Number(h.id) === targetId);
+    if (matched) targetName = (matched.Name || matched.name || '').toLowerCase().trim();
+  } else if (!targetId && targetName && Array.isArray(hospList) && hospList.length > 0) {
+    const matched = hospList.find(h => (h.Name || h.name || '').toLowerCase().trim() === targetName);
+    if (matched) targetId = Number(matched.id);
+  }
+
+  // If target hospital is not specified, do NOT leak records
+  if (!targetId && !targetName) return false;
+
+  // 2. Resolve Appointment's Hospital ID & Name
+  const rawHosp = typeof item.hospital === 'object' && item.hospital !== null 
+    ? (item.hospital.id || item.hospital.hospital_id || item.hospital.Name || item.hospital.name) 
+    : item.hospital;
+  const rawHospName = item.hospital_name || (typeof item.hospital === 'object' && item.hospital !== null ? (item.hospital.Name || item.hospital.name) : '') || '';
+
+  let itemHospId = null;
+  let itemHospName = '';
+
+  if (rawHosp && !isNaN(Number(rawHosp)) && Number(rawHosp) > 0) {
+    itemHospId = Number(rawHosp);
+    if (Array.isArray(hospList) && hospList.length > 0) {
+      const matched = hospList.find(h => Number(h.id) === itemHospId);
+      if (matched) itemHospName = (matched.Name || matched.name || '').toLowerCase().trim();
+    }
+  } else if (rawHosp && typeof rawHosp === 'string' && rawHosp.trim() !== '') {
+    const cleanRaw = rawHosp.trim().toLowerCase();
+    if (Array.isArray(hospList) && hospList.length > 0) {
+      const matched = hospList.find(h => (h.Name || h.name || '').toLowerCase().trim() === cleanRaw);
+      if (matched) {
+        itemHospId = Number(matched.id);
+        itemHospName = (matched.Name || matched.name || '').toLowerCase().trim();
+      } else {
+        itemHospName = cleanRaw;
+      }
+    } else {
+      itemHospName = cleanRaw;
+    }
+  }
+
+  if (!itemHospName && rawHospName && rawHospName.trim() !== '') {
+    const cleanRawName = rawHospName.trim().toLowerCase();
+    if (Array.isArray(hospList) && hospList.length > 0) {
+      const matched = hospList.find(h => (h.Name || h.name || '').toLowerCase().trim() === cleanRawName);
+      if (matched) {
+        if (!itemHospId) itemHospId = Number(matched.id);
+        itemHospName = (matched.Name || matched.name || '').toLowerCase().trim();
+      } else {
+        itemHospName = cleanRawName;
+      }
+    } else {
+      itemHospName = cleanRawName;
+    }
+  }
+
+  // If appointment has no hospital assigned, it does NOT belong to this hospital
+  if (!itemHospId && !itemHospName) return false;
+
+  // 3. Strict Comparison
+  if (targetId && itemHospId) {
+    return itemHospId === targetId;
+  }
+
+  if (targetId && itemHospName && Array.isArray(hospList) && hospList.length > 0) {
+    const matched = hospList.find(h => (h.Name || h.name || '').toLowerCase().trim() === itemHospName);
+    if (matched) {
+      return Number(matched.id) === targetId;
+    }
+  }
+
+  if (targetName && itemHospId && Array.isArray(hospList) && hospList.length > 0) {
+    const matched = hospList.find(h => Number(h.id) === itemHospId);
+    if (matched) {
+      return (matched.Name || matched.name || '').toLowerCase().trim() === targetName;
+    }
+  }
+
+  if (targetName && itemHospName) {
+    return targetName === itemHospName;
+  }
+
+  return false;
 };
 
 const NursePatients = ({ currentUser, setCurrentPage }) => {
@@ -74,18 +166,34 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
         }
 
         // 2. Fetch Hospital info
-        const targetHospId = typeof currentNurse?.hospital === 'object' ? currentNurse?.hospital?.id : (currentNurse?.hospital || currentUser?.hospital);
+        let targetHospId = typeof currentNurse?.hospital === 'object' ? currentNurse?.hospital?.id : (currentNurse?.hospital || currentUser?.hospital);
         
+        let hospitals = [];
         const hospListRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
         let matchedHospital = null;
         if (hospListRes && hospListRes.ok) {
-          const hospitals = await hospListRes.json();
+          hospitals = await hospListRes.json();
           if (Array.isArray(hospitals)) {
             matchedHospital = hospitals.find(h => 
               (targetHospId && Number(h.id) === Number(targetHospId)) ||
               (currentNurse?.hospital_name && h.Name && h.Name.toLowerCase() === currentNurse.hospital_name.toLowerCase()) ||
               (typeof currentNurse?.hospital === 'string' && h.Name && h.Name.toLowerCase() === currentNurse.hospital.toLowerCase())
             );
+            if (!matchedHospital && email) {
+              const savedHospId = localStorage.getItem(`user_hospital_${email}`);
+              if (savedHospId) {
+                matchedHospital = hospitals.find(h => Number(h.id) === Number(savedHospId));
+                if (matchedHospital) targetHospId = matchedHospital.id;
+              }
+            }
+            if (!matchedHospital) {
+              const checkStr = `${email} ${currentUser?.name || ''} ${currentNurse?.name || ''}`.toLowerCase();
+              matchedHospital = hospitals.find(h => {
+                const hn = (h.Name || h.name || '').toLowerCase().trim();
+                return hn && checkStr.includes(hn);
+              });
+              if (matchedHospital) targetHospId = matchedHospital.id;
+            }
           }
         }
 
@@ -100,16 +208,23 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
           setHospitalInfo(matchedHospital);
         }
 
-        // 3. Fetch Inpatients
-        const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
-        if (patRes && patRes.ok) {
-          const allPats = await patRes.json();
-          const filtered = targetHospId
-            ? allPats.filter(p => Number(typeof p.hospital === 'object' ? p.hospital?.id : p.hospital) === Number(targetHospId))
-            : allPats;
-          if (isMounted) {
-            setPatients(filtered);
+        const targetHospName = matchedHospital?.Name || matchedHospital?.name || currentNurse?.hospital_name || currentUser?.hospital_name || '';
+
+        // 3. Fetch Inpatients / Appointments
+        let allPats = [];
+        try {
+          const patRes = await fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null);
+          if (patRes && patRes.ok) {
+            const resData = await patRes.json().catch(() => []);
+            allPats = extractArray(resData);
           }
+        } catch (e) {}
+
+        const filtered = targetHospId || targetHospName
+          ? allPats.filter(p => isAppointmentInHospital(p, targetHospId, targetHospName, hospitals))
+          : [];
+        if (isMounted) {
+          setPatients(filtered);
         }
       } catch (err) {
         console.error('Error loading nurse patients data:', err);
@@ -197,16 +312,81 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
       const parsedBed = newBedNumber ? parseInt(newBedNumber, 10) : null;
       const floorCalculated = getFloorDisplay(parsedBed);
 
-      const response = await fetch(`${API_BASE_URL}/super-admin/Patients/${selectedPatientModal.id}/`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bed_number: parsedBed,
-          floor: floorCalculated,
-          nurse: activeNurse?.id || null,
-          nurse_name: activeNurse?.name || ''
-        })
-      });
+      const bedPayload = {
+        bed_number: parsedBed,
+        floor: floorCalculated,
+        nurse: activeNurse?.id || null,
+        nurse_name: activeNurse?.name || ''
+      };
+
+      const candidateIds = [
+        selectedPatientModal.appointment_pk,
+        selectedPatientModal.appointment_id,
+        selectedPatientModal.Appoment_id,
+        selectedPatientModal.appoment_id,
+        selectedPatientModal.id,
+        typeof selectedPatientModal.id === 'string' && selectedPatientModal.id.startsWith('APT-') ? selectedPatientModal.id.replace('APT-', '') : null,
+        typeof selectedPatientModal.id === 'string' ? selectedPatientModal.id.replace(/\D/g, '') : null
+      ].filter(Boolean);
+
+      let response = null;
+      for (const targetId of Array.from(new Set(candidateIds))) {
+        try {
+          response = await fetch(`${API_BASE_URL}/super-admin/appointments/${targetId}/`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bedPayload)
+          });
+          if (response && response.ok) break;
+
+          response = await fetch(`${API_BASE_URL}/super-admin/appointments/${targetId}/`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...selectedPatientModal,
+              ...bedPayload
+            })
+          });
+          if (response && response.ok) break;
+        } catch (e) {}
+      }
+
+      if (!response || !response.ok) {
+        try {
+          const allApptsRes = await fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null);
+          if (allApptsRes && allApptsRes.ok) {
+            const allAppts = extractArray(await allApptsRes.json().catch(() => []));
+            const patName = (selectedPatientModal.name || selectedPatientModal.patient_name || '').toLowerCase().trim();
+            const patPhone = String(selectedPatientModal.contact || selectedPatientModal.phone || '').replace(/\D/g, '');
+            const patEmail = (selectedPatientModal.email || '').toLowerCase().trim();
+
+            const matched = allAppts.find(a => {
+              const aId = Number(a.id);
+              const aApptId = String(a.Appoment_id || a.appoment_id || a.appointment_id || '');
+              const aName = (a.patient_name || a.patient_Name || a.name || '').toLowerCase().trim();
+              const aEmail = (a.email || '').toLowerCase().trim();
+              const aPhone = String(a.contact || a.phone || '').replace(/\D/g, '');
+
+              if (candidateIds.includes(aId) || candidateIds.includes(String(a.id))) return true;
+              if (aApptId && candidateIds.includes(aApptId)) return true;
+              if (patName && aName && patName === aName && patPhone && aPhone && patPhone === aPhone) return true;
+              if (patName && aName && patName === aName && patEmail && aEmail && patEmail === aEmail) return true;
+              if (patEmail && aEmail && patEmail === aEmail && patEmail.length > 4) return true;
+              if (patPhone && aPhone && patPhone === aPhone && patPhone.length > 5) return true;
+              if (patName && aName && patName === aName && patName.length > 2) return true;
+              return false;
+            });
+
+            if (matched && matched.id) {
+              response = await fetch(`${API_BASE_URL}/super-admin/appointments/${matched.id}/`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(bedPayload)
+              }).catch(() => null);
+            }
+          }
+        } catch (e) {}
+      }
 
       if (response && response.ok) {
         const updated = await response.json();
@@ -546,7 +726,7 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
 
                       {/* AGE / GENDER */}
                       <td className="py-3 px-3 font-medium text-slate-700">
-                        {patient.age ? `${patient.age} Yrs` : 'Adult'} • {patient.gender || 'M'}
+                        {patient.age ? `${patient.age} Yrs` : 'Adult'} • {patient.Gender || patient.gender || 'Not Specified'}
                       </td>
 
                       {/* CONDITION & TRIAGE */}

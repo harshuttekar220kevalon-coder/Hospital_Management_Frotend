@@ -12,15 +12,15 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
   const [editFormData, setEditFormData] = useState({
     name: '',
     nurse_id: '',
-    role: '',
-    ward: '',
-    shift: '',
+    role: 'Staff Nurse',
+    ward: 'General Ward',
+    shift: 'Morning (08:00 AM - 04:00 PM)',
     qualification: '',
     experience: '',
     contact: '',
     email: '',
     password: '',
-    status: '',
+    status: 'On_Duty',
     is_active: true,
     max_patient_capacity: '',
     assigned_floor: '',
@@ -47,7 +47,11 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
 
   const rolesList = [
     'Head Nurse',
-    'Staff Nurse'
+    'Staff Nurse',
+    'ICU Nurse',
+    'Emergency Nurse',
+    'General Nurse',
+    'Nurse'
   ];
 
   const wardsList = [
@@ -60,8 +64,8 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
   ];
 
   const statusChoices = [
-    'On_Duty',
-    'Off_Duty'
+    { value: 'On_Duty', label: 'On Duty' },
+    { value: 'Off_Duty', label: 'Off Duty' }
   ];
 
   const shiftsList = [
@@ -113,18 +117,20 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
         ? (typeof activeNurse.hospital === 'object' ? activeNurse.hospital.id : activeNurse.hospital)
         : (currentUser?.hospital || '');
 
+      const resolvedRole = (activeNurse.role && activeNurse.role.trim()) || (activeNurse.nurse_role && activeNurse.nurse_role.trim()) || currentUser?.role || 'Staff Nurse';
+
       setEditFormData({
         name: activeNurse.name || currentUser?.name || '',
-        nurse_id: activeNurse.nurse_id || (activeNurse.id ? `NUR-${activeNurse.id}` : ''),
-        role: activeNurse.role || '',
-        ward: activeNurse.ward || '',
-        shift: activeNurse.shift || '',
+        nurse_id: activeNurse.nurse_id || (activeNurse.id ? `NUR-${activeNurse.id}` : (currentUser?.nurse_id || '')),
+        role: resolvedRole,
+        ward: activeNurse.ward || 'General Ward',
+        shift: activeNurse.shift || 'Morning (08:00 AM - 04:00 PM)',
         qualification: activeNurse.qualification || '',
         experience: activeNurse.experience || '',
         contact: activeNurse.contact || activeNurse.phone || currentUser?.contact || '',
         email: activeNurse.email || currentUser?.email || '',
         password: activeNurse.password || '',
-        status: activeNurse.status || '',
+        status: activeNurse.status || 'On_Duty',
         is_active: activeNurse.is_active !== undefined ? Boolean(activeNurse.is_active) : true,
         max_patient_capacity: activeNurse.max_patient_capacity !== undefined && activeNurse.max_patient_capacity !== null ? activeNurse.max_patient_capacity : '',
         assigned_floor: activeNurse.assigned_floor !== undefined && activeNurse.assigned_floor !== null ? activeNurse.assigned_floor : '',
@@ -154,9 +160,13 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
+    let finalValue = type === 'checkbox' ? checked : value;
+    if (name === 'role' && (!finalValue || finalValue.trim() === '')) {
+      finalValue = currentUser?.role || 'Staff Nurse';
+    }
     setEditFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: finalValue
     }));
     if (saveSuccessMsg) setSaveSuccessMsg('');
     if (saveErrorMsg) setSaveErrorMsg('');
@@ -392,24 +402,24 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
             <div className="space-y-6">
               <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-2xs text-center">
                 <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center font-black text-2xl shadow-md mb-3">
-                  {(editFormData.name || 'NUR').slice(0, 2).toUpperCase()}
+                  {(editFormData.name || currentUser?.name || 'NU').slice(0, 2).toUpperCase()}
                 </div>
-                <h3 className="text-base font-bold text-slate-900">{editFormData.name || 'Not Provided'}</h3>
+                <h3 className="text-base font-bold text-slate-900">{editFormData.name || currentUser?.name || 'Nurse'}</h3>
                 <p className="text-xs text-emerald-700 font-semibold mt-0.5">
-                  {editFormData.role || 'Not Provided'} • {editFormData.ward || 'Not Provided'}
+                  {editFormData.role || currentUser?.role || 'Staff Nurse'} • {editFormData.ward || 'General Ward'}
                 </p>
 
                 <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2 text-xs">
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Nurse ID:</span>
                     <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
-                      {editFormData.nurse_id || 'Not Provided'}
+                      {editFormData.nurse_id || (currentUser?.id ? `NUR-${currentUser.id}` : 'NUR-101')}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Assigned Floor:</span>
                     <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      {editFormData.assigned_floor !== '' && editFormData.assigned_floor !== undefined ? `Floor ${editFormData.assigned_floor}` : 'Not Provided'}
+                      {editFormData.assigned_floor !== '' && editFormData.assigned_floor !== undefined ? `Floor ${editFormData.assigned_floor}` : 'Floor 1'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
@@ -449,12 +459,9 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
               <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                   <div>
-                    <h2 className="text-sm font-bold text-slate-900">Nurse Model Details</h2>
-                    <p className="text-[11px] text-slate-500">Edit all fields in Nurse model (Nurse ID is system-protected)</p>
+                    <h2 className="text-sm font-bold text-slate-900">Nurse Profile & Duty Information</h2>
+                    <p className="text-[11px] text-slate-500">Edit nursing credentials and ward assignment (Nurse ID is system-protected)</p>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                    Django Model: Nurse
-                  </span>
                 </div>
 
                 <form onSubmit={handleProfileUpdate} className="p-6 space-y-5">
@@ -528,11 +535,11 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                       </label>
                       <select
                         name="role"
-                        value={editFormData.role}
+                        value={editFormData.role || 'Staff Nurse'}
                         onChange={handleInputChange}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition"
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 font-semibold focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition cursor-pointer"
                       >
-                        <option value="">-- Select Role --</option>
                         {rolesList.map(r => (
                           <option key={r} value={r}>{r}</option>
                         ))}
@@ -575,21 +582,19 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                       </select>
                     </div>
 
-                    {/* 8. STATUS */}
+                    {/* 8. STATUS (AVAILABILITY) */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Duty Status
+                        Status (Availability) <span className="text-rose-500">*</span>
                       </label>
                       <select
                         name="status"
-                        value={editFormData.status}
+                        value={editFormData.status === 'Off_Duty' || editFormData.status === 'Off Duty' ? 'Off_Duty' : 'On_Duty'}
                         onChange={handleInputChange}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition cursor-pointer"
                       >
-                        <option value="">-- Select Duty Status --</option>
-                        {statusChoices.map(st => (
-                          <option key={st} value={st}>{st}</option>
-                        ))}
+                        <option value="On_Duty">On Duty</option>
+                        <option value="Off_Duty">Off Duty</option>
                       </select>
                     </div>
 
@@ -656,7 +661,7 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                     </div>
 
                     {/* 13. HOSPITAL */}
-                    <div>
+                    <div className="sm:col-span-2">
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                         Hospital
                       </label>
@@ -675,45 +680,40 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                       </select>
                     </div>
 
-                    {/* 14. IS ACTIVE */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Account Status
-                      </label>
-                      <select
-                        name="is_active"
-                        value={editFormData.is_active ? 'true' : 'false'}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, is_active: e.target.value === 'true' }))}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition"
-                      >
-                        <option value="true">Active (Duty Enabled)</option>
-                        <option value="false">Inactive (Disabled)</option>
-                      </select>
-                    </div>
-
-                    {/* 15. PASSWORD */}
+                    {/* 15. PASSWORD (READ-ONLY IN PROFILE) */}
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Login Password
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Login Password
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('security')}
+                          className="text-[11px] text-emerald-600 hover:text-emerald-700 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          <span>🔒 Change in Password & Security &rarr;</span>
+                        </button>
+                      </div>
                       <div className="relative">
                         <input
                           type={showPassword ? 'text' : 'password'}
                           name="password"
                           value={editFormData.password}
-                          onChange={handleInputChange}
-                          maxLength="12"
+                          readOnly
                           placeholder="••••••••"
-                          className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition"
+                          className="w-full px-3.5 py-2.5 pr-20 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm text-slate-700 font-mono cursor-not-allowed select-all focus:outline-none"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(p => !p)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
                         >
                           {showPassword ? 'Hide' : 'Show'}
                         </button>
                       </div>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        🔒 Read-only field. Password can only be edited in the <strong>Password & Security</strong> section.
+                      </p>
                     </div>
                   </div>
 

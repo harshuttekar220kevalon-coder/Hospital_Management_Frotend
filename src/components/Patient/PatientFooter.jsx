@@ -30,7 +30,7 @@ const PatientFooter = ({ setCurrentPage }) => {
   return (
     <footer className="bg-slate-900 text-slate-300 border-t border-slate-800 pt-12 pb-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 pb-10 border-b border-slate-800">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 pb-10 border-b border-slate-800">
           
           {/* COLUMN 1: HOSPITAL BRAND & ABOUT */}
           <div className="lg:col-span-2 space-y-4">
@@ -80,7 +80,7 @@ const PatientFooter = ({ setCurrentPage }) => {
                   onClick={() => handleNavClick('home')}
                   className="hover:text-teal-300 transition cursor-pointer text-left"
                 >
-                  Network Home
+                  Home
                 </button>
               </li>
               <li>
@@ -89,7 +89,7 @@ const PatientFooter = ({ setCurrentPage }) => {
                   onClick={() => handleNavClick('about')}
                   className="hover:text-teal-300 transition cursor-pointer text-left"
                 >
-                  About Our Network
+                  About Us
                 </button>
               </li>
               <li>
@@ -98,7 +98,7 @@ const PatientFooter = ({ setCurrentPage }) => {
                   onClick={() => handleNavClick('appointment')}
                   className="hover:text-teal-300 transition cursor-pointer text-left"
                 >
-                  Book Branch Appointment
+                  Book Appointment
                 </button>
               </li>
               <li>
@@ -107,31 +107,9 @@ const PatientFooter = ({ setCurrentPage }) => {
                   onClick={() => handleNavClick('contact')}
                   className="hover:text-teal-300 transition cursor-pointer text-left"
                 >
-                  Branch Directory & Emergency
+                  Contact & Emergency
                 </button>
               </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => handleNavClick('login')}
-                  className="hover:text-teal-300 transition cursor-pointer text-left"
-                >
-                  Staff Portal Login
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          {/* COLUMN 3: CLINICAL SERVICES */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">OPD & Clinical Care</h4>
-            <ul className="space-y-2 text-xs text-slate-400">
-              <li className="hover:text-teal-300 transition">Multi-Speciality Consultations</li>
-              <li className="hover:text-teal-300 transition">Specialist Doctor Appointments</li>
-              <li className="hover:text-teal-300 transition">In-Person OPD Token Checkups</li>
-              <li className="hover:text-teal-300 transition">24x7 Emergency Trauma Units</li>
-              <li className="hover:text-teal-300 transition">Inpatient Bed Management</li>
-              <li className="hover:text-teal-300 transition">Cashless Insurance & TPA</li>
             </ul>
           </div>
 

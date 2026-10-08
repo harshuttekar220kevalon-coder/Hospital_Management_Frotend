@@ -174,19 +174,51 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
         }
       }
 
-      const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
-      if (patRes && patRes.ok) {
-        const allPatients = await patRes.json();
+      let rawAppointments = [];
+      try {
+        const apptRes = await fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null);
+        if (apptRes && apptRes.ok) {
+          rawAppointments = await apptRes.json().catch(() => []);
+        }
+      } catch (e) {}
+
+      let rawPatients = [];
+      try {
+        const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
+        if (patRes && patRes.ok) {
+          rawPatients = await patRes.json().catch(() => []);
+        }
+      } catch (e) {}
+
+      const allCombined = [...(Array.isArray(rawAppointments) ? rawAppointments : []), ...(Array.isArray(rawPatients) ? rawPatients : [])];
+      const seenIds = new Set();
+      const uniquePatients = [];
+
+      for (const item of allCombined) {
+        if (!item) continue;
+        const idKey = String(item.Appoment_id || item.appoment_id || item.appointment_id || item.id);
+        if (seenIds.has(idKey)) continue;
+        seenIds.add(idKey);
+
+        const patHospId = typeof item.hospital === 'object' && item.hospital !== null ? item.hospital?.id : item.hospital;
+        const patHospName = item.hospital_name || (typeof item.hospital === 'object' ? (item.hospital?.Name || item.hospital?.name) : (typeof item.hospital === 'string' && isNaN(Number(item.hospital)) ? item.hospital : ''));
+        const currentHospName = hosp?.Name || hosp?.name || '';
+
+        let isMatch = false;
         if (assignedHospitalId) {
-          const branchPatients = allPatients.filter(p => {
-            const patHospId = Number(typeof p.hospital === 'object' ? p.hospital?.id : p.hospital);
-            return patHospId === Number(assignedHospitalId);
-          });
-          setPatients(branchPatients);
-        } else {
-          setPatients(allPatients);
+          if (patHospId && !isNaN(Number(patHospId)) && Number(patHospId) === Number(assignedHospitalId)) {
+            isMatch = true;
+          } else if (patHospName && currentHospName && patHospName.toLowerCase().trim() === currentHospName.toLowerCase().trim()) {
+            isMatch = true;
+          }
+        }
+
+        if (isMatch) {
+          uniquePatients.push(item);
         }
       }
+
+      setPatients(uniquePatients);
     } catch (err) {
       console.error('Error loading patients data:', err);
     } finally {
@@ -277,7 +309,9 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
         password: (addFormData.password || addFormData.Password || '').trim(),
         Password: (addFormData.password || addFormData.Password || '').trim(),
         age: addFormData.age ? Number(addFormData.age) : null,
-        gender: addFormData.gender,
+        gender: addFormData.gender || addFormData.Gender || '',
+        Gender: addFormData.gender || addFormData.Gender || '',
+        patient_gender: addFormData.gender || addFormData.Gender || '',
         blood_group: addFormData.blood_group,
         Blood_Group: addFormData.blood_group,
         address: (addFormData.address || '').trim(),
@@ -356,21 +390,32 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
     if (!newStatus || !patient?.id) return;
     try {
       setUpdatingPatientId(patient.id);
+      const isDischarged = newStatus === 'Discharged' || newStatus === 'Cancelled';
+      const updatedBedNumber = isDischarged ? null : patient.bed_number;
+
+      const payload = {
+        status: newStatus,
+        bed_number: updatedBedNumber
+      };
+
       let res = await fetch(`${API_BASE_URL}/super-admin/Patients/${patient.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify(payload)
       }).catch(() => null);
 
       if (!res || !res.ok) {
         res = await fetch(`${API_BASE_URL}/super-admin/Patients/${patient.id}/`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...patient, status: newStatus })
+          body: JSON.stringify({ ...patient, ...payload })
         }).catch(() => null);
       }
 
-      setPatients(prev => prev.map(p => p.id === patient.id ? { ...p, status: newStatus } : p));
+      setPatients(prev => prev.map(p => p.id === patient.id ? { ...p, status: newStatus, bed_number: updatedBedNumber } : p));
+      if (isDischarged) {
+        alert(`Patient status changed to ${newStatus}. Bed #${patient.bed_number || ''} has been released.`);
+      }
     } catch (err) {
       console.error('Error updating patient status:', err);
     } finally {
@@ -634,7 +679,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                           <span className="font-mono text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
                             {pat.patient_id || pat.uhid || `PAT-${pat.id}`}
                           </span>
-                          <span className="text-[10px] text-slate-500 font-semibold">{pat.age}Y • {pat.gender || 'M'}</span>
+                          <span className="text-[10px] text-slate-500 font-semibold">{pat.age ? `${pat.age}Y` : '-'} • {pat.Gender || pat.gender || 'Not Specified'}</span>
                         </div>
                       </td>
 
@@ -817,7 +862,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
@@ -840,17 +885,6 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                     value={addFormData.email}
                     onChange={(e) => setAddFormData({ ...addFormData, email: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Account Password</label>
-                  <input
-                    type="password"
-                    maxLength={20}
-                    placeholder="Set patient password"
-                    value={addFormData.password || addFormData.Password || ''}
-                    onChange={(e) => setAddFormData({ ...addFormData, password: e.target.value, Password: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
               </div>

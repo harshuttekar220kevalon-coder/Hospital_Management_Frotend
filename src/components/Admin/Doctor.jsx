@@ -208,7 +208,7 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
               : (d.hospital ? [Number(typeof d.hospital === 'object' ? d.hospital.id : d.hospital)] : []);
             return hospIds.includes(Number(assignedHospitalId));
           });
-          setDoctors(branchDocs.length > 0 ? branchDocs : allDocs);
+          setDoctors(branchDocs);
         } else {
           setDoctors(allDocs);
         }

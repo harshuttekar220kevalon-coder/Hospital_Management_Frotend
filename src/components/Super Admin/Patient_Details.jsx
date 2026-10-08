@@ -1,20 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
-const getAssignedNurseForPatientBed = (bedNumber, nursesList = [], hospitalId = null) => {
-  if (!nursesList || !Array.isArray(nursesList) || nursesList.length === 0) {
-    return { nurseId: null, nurseName: '' };
-  }
-  const hospNurses = hospitalId
-    ? nursesList.filter(n => Number(typeof n.hospital === 'object' ? n.hospital?.id : n.hospital) === Number(hospitalId))
-    : nursesList;
-  const activeNurses = hospNurses.length > 0 ? hospNurses : nursesList;
-  if (activeNurses.length === 0) return { nurseId: null, nurseName: '' };
-  const first = activeNurses[0];
-  return { nurseId: first.id, nurseName: first.name };
-};
-
-const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, setCurrentPage }) => {
+const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, setSelectedAppointment, setCurrentPage }) => {
   const [patientData, setPatientData] = useState(() => {
     if (selectedPatient) return selectedPatient;
     try {
@@ -27,59 +14,60 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
 
   const [hospitalsList, setHospitalsList] = useState([]);
   const [doctorsList, setDoctorsList] = useState([]);
-  const [adminsList, setAdminsList] = useState([]);
   const [nursesList, setNursesList] = useState([]);
+  const [patientAppointments, setPatientAppointments] = useState([]);
   const [isDataFetching, setIsDataFetching] = useState(false);
 
+  // Search & Filter for appointments table
+  const [apptSearchTerm, setApptSearchTerm] = useState('');
+  const [apptStatusFilter, setApptStatusFilter] = useState('ALL');
+
+  // Edit Patient Account Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editSelectedFile, setEditSelectedFile] = useState(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    email: '',
+    contact: '',
+    password: '',
+    gender: 'Male',
+    blood_group: 'A+',
+    address: ''
+  });
+
+  // Delete Patient Modal State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Update Appointment Status Modal State
+  const [selectedApptForStatus, setSelectedApptForStatus] = useState(null);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  const [statusUpdateValue, setStatusUpdateValue] = useState('');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [statusUpdateValue, setStatusUpdateValue] = useState('Pending');
+  const [bedUpdateValue, setBedUpdateValue] = useState('');
   const [statusRemarks, setStatusRemarks] = useState('');
 
-  const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
-  const severityLevels = ['Critical', 'Emergency', 'Urgent', 'Normal'];
-  const conditionChoices = ['Critical', 'Emergency', 'Urgent', 'Normal'];
-  const statusOptions = ['Pending', 'Assigned', 'Admitted', 'Discharged', 'Cancelled'];
-  const paymentStatuses = ['Paid', 'Partial', 'Pending', 'Failed'];
-  const paymentMethods = ['Cash', 'UPI', 'Credit Card', 'Debit Card', 'Net Banking'];
-
-  const [editFormData, setEditFormData] = useState({
-    patient_id: '',
-    name: '',
-    age: '',
-    gender: '',
-    blood_group: '',
-    contact: '',
-    email: '',
-    password: '',
-    Password: '',
-    address: '',
+  // Book Appointment Modal State
+  const [isBookModalOpen, setIsBookModalOpen] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
+  const [bookFormData, setBookFormData] = useState({
+    patient_name: '',
     hospital: '',
     doctor: '',
-    doctor_name: '',
-    doctor_specialization: '',
+    consultation_fee: 0,
+    hospitals_charges: 0,
+    amount_paid: 0,
+    payment_status: 'Pending',
+    payment_method: 'Cash',
+    condition: 'Normal',
+    status: 'Pending',
     bed_number: '',
-    nurse: '',
-    nurse_name: '',
-    consultation_fee: 0.00,
-    Hospitals_Chargies: 0.00,
-    amount_paid: 0.00,
-    payment_status: '',
-    payment_method: '',
     symptoms_diagnosis: '',
-    reason_for_visit: '',
-    Condation: '',
-    condation: '',
-    condition: '',
-    symptoms_severity: '',
-    visit_date_time: '',
-    status: '',
-    is_active: true,
-    attached_document: '',
-    attached_document_name: ''
+    visit_date_time: new Date().toISOString().slice(0, 16)
   });
+
+  const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -97,40 +85,131 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
         }
       }
 
-      // Fetch hospitals
-      const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
+      // Fetch hospitals, doctors, nurses, all appointments
+      const [hospRes, docRes, nurseRes, allApptsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/Nurses/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null)
+      ]);
+
+      let hospData = [];
+      let docData = [];
+      let nurseData = [];
+      let allAppts = [];
+
       if (hospRes && hospRes.ok) {
-        const hospData = await hospRes.json();
+        const hJson = await hospRes.json().catch(() => []);
+        hospData = Array.isArray(hJson) ? hJson : (hJson?.results || []);
         setHospitalsList(hospData);
       }
-
-      // Fetch doctors
-      const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
       if (docRes && docRes.ok) {
-        const docData = await docRes.json();
+        const dJson = await docRes.json().catch(() => []);
+        docData = Array.isArray(dJson) ? dJson : (dJson?.results || []);
         setDoctorsList(docData);
       }
-
-      const adminRes = await fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null);
-      if (adminRes && adminRes.ok) {
-        const adminData = await adminRes.json();
-        setAdminsList(adminData);
-      }
-
-      const nurseRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/`).catch(() => null);
       if (nurseRes && nurseRes.ok) {
-        const nurseData = await nurseRes.json();
+        const nJson = await nurseRes.json().catch(() => []);
+        nurseData = Array.isArray(nJson) ? nJson : (nJson?.results || []);
         setNursesList(nurseData);
       }
+      if (allApptsRes && allApptsRes.ok) {
+        const aData = await allApptsRes.json().catch(() => []);
+        allAppts = Array.isArray(aData) ? aData : (aData?.results || aData?.data || aData?.appointments || []);
+      }
 
-      if (currentPat && currentPat.id) {
-        const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/${currentPat.id}/`).catch(() => null);
-        if (patRes && patRes.ok) {
-          const freshPat = await patRes.json();
-          setPatientData(freshPat);
-          if (setSelectedPatient) setSelectedPatient(freshPat);
-          localStorage.setItem('selectedPatient', JSON.stringify(freshPat));
+      if (currentPat && (currentPat.id || currentPat.email || currentPat.contact)) {
+        let freshPat = null;
+        if (currentPat.id && typeof currentPat.id === 'number') {
+          const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/${currentPat.id}/`).catch(() => null);
+          if (patRes && patRes.ok) {
+            freshPat = await patRes.json().catch(() => null);
+          }
         }
+
+        const patEmail = (freshPat?.email || currentPat.email || '').toLowerCase().trim();
+        const patPhone = String(freshPat?.contact || freshPat?.phone || currentPat.contact || currentPat.phone || '').trim();
+        const patIdVal = freshPat?.id || currentPat.id;
+
+        // Filter all appointments booked under this patient's registered email
+        const matchedHistory = allAppts.filter(a => {
+          const aEmail = (a.email || '').toLowerCase().trim();
+          const aPhone = String(a.contact || a.phone || '').trim();
+          const aPat = a.patient || a.patient_id;
+
+          const emailMatch = patEmail && aEmail && patEmail === aEmail;
+          const idMatch = patIdVal && aPat && (Number(aPat) === Number(patIdVal) || String(aPat) === String(patIdVal));
+          const phoneMatch = !patEmail && patPhone && aPhone && patPhone === aPhone;
+
+          return emailMatch || idMatch || phoneMatch;
+        });
+
+        const normalizedHistory = matchedHistory.map(a => {
+          const hospId = typeof a.hospital === 'object' ? a.hospital?.id : a.hospital;
+          const docId = typeof a.doctor === 'object' ? a.doctor?.id : a.doctor;
+          const nurseId = typeof a.nurse === 'object' ? a.nurse?.id : a.nurse;
+
+          const hospObj = hospId ? hospData.find(h => Number(h.id) === Number(hospId)) : null;
+          const docObj = docId ? docData.find(d => Number(d.id) === Number(docId)) : null;
+          const nurseObj = nurseId ? nurseData.find(n => Number(n.id) === Number(nurseId)) : null;
+
+          const docFee = Number(a.consultation_fee || docObj?.consultation_fee || 0);
+          const hospCharges = Number(a.Hospitals_Chargies || a.hospitals_charges || 0);
+          const total = docFee + hospCharges;
+          const amtPaid = Number(a.amount_paid || (a.payment_status === 'Paid' ? total : 0));
+
+          const apptPatientName = a.patient_name || a.patient_Name || a.name || 'Patient';
+
+          return {
+            ...a,
+            id: a.id,
+            appointment_id: a.appointment_id || a.Appoment_id || `APT-${a.id}`,
+            patient_name: apptPatientName,
+            name: apptPatientName,
+            hospital: hospId ? Number(hospId) : null,
+            hospital_name: a.hospital_name || hospObj?.Name || hospObj?.name || 'Hospital Branch',
+            doctor: docId ? Number(docId) : null,
+            doctor_name: a.doctor_name || (docObj ? (docObj.name?.startsWith('Dr.') ? docObj.name : `Dr. ${docObj.name}`) : (docId ? `Dr. #${docId}` : 'Assigned Doctor')),
+            doctor_specialization: a.doctor_specialization || docObj?.specialization || docObj?.specialty || '',
+            nurse_name: a.nurse_name || (nurseObj ? nurseObj.name : ''),
+            bed_number: a.bed_number ? Number(a.bed_number) : null,
+            consultation_fee: docFee,
+            Hospitals_Chargies: hospCharges,
+            hospitals_charges: hospCharges,
+            total_bill: total,
+            amount_paid: amtPaid,
+            pending_due: Math.max(0, total - amtPaid),
+            condition: a.condition || a.Condation || a.condation || a.symptoms_severity || 'Normal',
+            status: a.status || 'Pending',
+            payment_status: a.payment_status || (amtPaid >= total && total > 0 ? 'Paid' : 'Pending'),
+            payment_method: a.payment_method || 'Cash',
+            visit_date_time: a.visit_date_time || a.appointment_time || a.created_at || new Date().toISOString(),
+            attached_document: a.attached_document || a.document || ''
+          };
+        });
+
+        // Sort appointments by newest first
+        normalizedHistory.sort((x, y) => new Date(y.visit_date_time || 0) - new Date(x.visit_date_time || 0));
+        setPatientAppointments(normalizedHistory);
+
+        const mergedAccount = {
+          ...currentPat,
+          ...(freshPat || {}),
+          id: freshPat?.id || currentPat.id,
+          name: freshPat?.name || freshPat?.patient_Name || freshPat?.patient_name || currentPat.name || 'Registered Patient',
+          email: patEmail,
+          contact: patPhone,
+          phone: patPhone,
+          age: freshPat?.age ?? freshPat?.Age ?? currentPat.age ?? '',
+          gender: freshPat?.gender || freshPat?.Gender || currentPat.gender || '',
+          blood_group: freshPat?.blood_group || freshPat?.Blood_Group || currentPat.blood_group || '',
+          address: freshPat?.address || freshPat?.Address || currentPat.address || '',
+          uhid: freshPat?.uhid || freshPat?.patient_id || currentPat.uhid || (freshPat?.id ? `UHID-${freshPat.id}` : `UHID-${currentPat.id}`)
+        };
+
+        setPatientData(mergedAccount);
+        if (setSelectedPatient) setSelectedPatient(mergedAccount);
+        localStorage.setItem('selectedPatient', JSON.stringify(mergedAccount));
       }
     } catch (err) {
       console.error('Error fetching patient details:', err);
@@ -144,23 +223,10 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
   }, [selectedPatient?.id]);
 
   const activePatient = patientData || {};
-  const assignedHospital = hospitalsList.find(h => h.id === Number(activePatient.hospital));
-  const assignedDoctor = doctorsList.find(d => d.id === Number(activePatient.doctor)) || 
-                         doctorsList.find(d => (d.name || '').toLowerCase() === (activePatient.doctor_name || '').toLowerCase());
-  const assignedAdmin = adminsList.find(a => a.hospital === Number(activePatient.hospital));
-
   const displayName = activePatient.name || 'Patient';
-  const displayId = activePatient.patient_id || activePatient.uhid || `PAT-${activePatient.id}`;
+  const displayId = activePatient.uhid || activePatient.patient_id || `UHID-${activePatient.id || '1'}`;
+  const displayEmail = (activePatient.email || '').toLowerCase().trim();
   const displayPhone = activePatient.contact || activePatient.phone || '-';
-  const displayDoctor = assignedDoctor ? assignedDoctor.name : (activePatient.doctor_name || 'Dr. Assigned');
-  const displayHospital = assignedHospital ? assignedHospital.Name : (activePatient.hospital_name || 'Branch Hospital');
-  const attachedDocVal = activePatient.attached_document || activePatient.document || '';
-
-  const docFee = Number(activePatient.consultation_fee ?? 0);
-  const hospCharge = Number(activePatient.Hospitals_Chargies ?? activePatient.hospital_charges ?? 0);
-  const totalBill = docFee + hospCharge;
-  const amountPaid = Number(activePatient.amount_paid ?? (activePatient.payment_status === 'Paid' ? totalBill : 0));
-  const pendingDue = Math.max(0, totalBill - amountPaid);
 
   const handleBackClick = () => {
     if (setCurrentPage) {
@@ -168,256 +234,287 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
     }
   };
 
-  const handleConsultationFeeChange = (e) => {
-    const val = e.target.value;
-    const docF = parseFloat(val) || 0;
-    const hospC = parseFloat(editFormData.Hospitals_Chargies) || 0;
-    const total = docF + hospC;
-    setEditFormData(prev => ({
-      ...prev,
-      consultation_fee: val,
-      amount_paid: prev.payment_status === 'Paid' ? total.toFixed(2) : prev.amount_paid
-    }));
-  };
-
-  const handleHospitalChargesChange = (e) => {
-    const val = e.target.value;
-    const hospC = parseFloat(val) || 0;
-    const docF = parseFloat(editFormData.consultation_fee) || 0;
-    const total = docF + hospC;
-    setEditFormData(prev => ({
-      ...prev,
-      Hospitals_Chargies: val,
-      amount_paid: prev.payment_status === 'Paid' ? total.toFixed(2) : prev.amount_paid
-    }));
-  };
-
+  // Open Edit Patient Modal
   const handleOpenEditModal = () => {
-    const docName = typeof attachedDocVal === 'string' && attachedDocVal.startsWith('data:')
-      ? 'Uploaded Document'
-      : (attachedDocVal ? attachedDocVal.split('/').pop() : '');
-
-    setEditSelectedFile(null);
     setEditFormData({
-      patient_id: displayId,
       name: activePatient.name || '',
-      age: activePatient.age || '',
-      gender: activePatient.gender || '',
-      blood_group: activePatient.Blood_Group || activePatient.blood_group || '',
-      contact: activePatient.contact || activePatient.phone || '',
       email: activePatient.email || '',
-      password: activePatient.Password || activePatient.password || '',
-      Password: activePatient.Password || activePatient.password || '',
-      address: activePatient.address || '',
-      hospital: activePatient.hospital || '',
-      doctor: activePatient.doctor || (assignedDoctor ? assignedDoctor.id : ''),
-      doctor_name: activePatient.doctor_name || displayDoctor,
-      doctor_specialization: activePatient.doctor_specialization || (assignedDoctor?.specialization || ''),
-      bed_number: activePatient.bed_number !== undefined && activePatient.bed_number !== null ? activePatient.bed_number : '',
-      nurse: activePatient.nurse || '',
-      nurse_name: activePatient.nurse_name || '',
-      consultation_fee: docFee,
-      Hospitals_Chargies: hospCharge,
-      amount_paid: amountPaid,
-      payment_status: activePatient.payment_status || 'Pending',
-      payment_method: activePatient.payment_method || 'Cash',
-      symptoms_diagnosis: activePatient.symptoms_diagnosis || '',
-      reason_for_visit: activePatient.reason_for_visit || activePatient.symptoms_diagnosis || '',
-      Condation: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || '',
-      condation: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || '',
-      condition: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || '',
-      symptoms_severity: activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || '',
-      visit_date_time: activePatient.visit_date_time || activePatient.appointment_time || '',
-      status: activePatient.status || 'Pending',
-      is_active: activePatient.is_active !== undefined ? activePatient.is_active : true,
-      attached_document: attachedDocVal,
-      attached_document_name: docName
+      contact: activePatient.contact || activePatient.phone || '',
+      password: activePatient.password || activePatient.Password || '',
+      gender: activePatient.gender || activePatient.Gender || 'Male',
+      blood_group: activePatient.blood_group || activePatient.Blood_Group || 'A+',
+      address: activePatient.address || ''
     });
+    setShowEditPassword(false);
     setIsEditModalOpen(true);
   };
 
+  // Save Patient Account Changes
   const handleSavePatientEdit = async (e) => {
     e.preventDefault();
     if (!activePatient || !activePatient.id) return;
-    if (!editFormData.hospital) {
-      alert('Please select a target hospital branch.');
-      return;
-    }
-
     try {
-      const selectedDocObj = doctorsList.find(d => d.id === Number(editFormData.doctor));
-      const selectedNurseObj = nursesList.find(n => n.id === Number(editFormData.nurse));
-      const autoNurse = getAssignedNurseForPatientBed(editFormData.bed_number, nursesList, editFormData.hospital);
-      const finalNurseId = editFormData.nurse ? Number(editFormData.nurse) : (autoNurse?.nurseId || null);
-      const finalNurseName = selectedNurseObj ? selectedNurseObj.name : (editFormData.nurse_name || autoNurse?.nurseName || '');
-
-      let response;
-
-      const chosenCondition = editFormData.Condation || editFormData.condation || editFormData.condition || editFormData.symptoms_severity || 'Normal';
-      const parsedBedNum = editFormData.bed_number ? Number(editFormData.bed_number) : null;
-
-      const payloadData = {
-        patient_id: displayId,
+      setIsSavingEdit(true);
+      const payload = {
         name: editFormData.name.trim(),
-        contact: editFormData.contact.trim(),
+        patient_name: editFormData.name.trim(),
+        patient_Name: editFormData.name.trim(),
         email: editFormData.email.trim(),
-        password: (editFormData.password || editFormData.Password || '').trim(),
-        Password: (editFormData.password || editFormData.Password || '').trim(),
-        age: editFormData.age ? Number(editFormData.age) : null,
+        contact: editFormData.contact.trim(),
+        phone: editFormData.contact.trim(),
         gender: editFormData.gender,
+        Gender: editFormData.gender,
         blood_group: editFormData.blood_group,
         Blood_Group: editFormData.blood_group,
-        address: editFormData.address,
-        hospital: Number(editFormData.hospital),
-        doctor: editFormData.doctor ? Number(editFormData.doctor) : null,
-        doctor_name: selectedDocObj ? selectedDocObj.name : editFormData.doctor_name,
-        doctor_specialization: selectedDocObj ? (selectedDocObj.specialization || selectedDocObj.specialty || '') : editFormData.doctor_specialization,
-        bed_number: parsedBedNum,
-        nurse: finalNurseId,
-        nurse_name: finalNurseName,
-        consultation_fee: Number(editFormData.consultation_fee) || 0.00,
-        Hospitals_Chargies: Number(editFormData.Hospitals_Chargies) || 0.00,
-        hospital_charges: Number(editFormData.Hospitals_Chargies) || 0.00,
-        amount_paid: Number(editFormData.amount_paid) || 0.00,
-        payment_status: editFormData.payment_status,
-        payment_method: editFormData.payment_method,
-        symptoms_diagnosis: editFormData.symptoms_diagnosis || editFormData.reason_for_visit,
-        reason_for_visit: editFormData.reason_for_visit || editFormData.symptoms_diagnosis,
-        Condation: chosenCondition,
-        condation: chosenCondition,
-        condition: chosenCondition,
-        Condition: chosenCondition,
-        symptoms_severity: chosenCondition,
-        visit_date_time: editFormData.visit_date_time || null,
-        status: editFormData.status,
-        is_active: Boolean(editFormData.is_active)
+        address: editFormData.address.trim()
       };
 
-      if (editSelectedFile instanceof File) {
-        const formData = new FormData();
-        Object.keys(payloadData).forEach(key => {
-          if (payloadData[key] !== null && payloadData[key] !== undefined) {
-            formData.append(key, payloadData[key]);
-          }
-        });
-        formData.append('attached_document', editSelectedFile);
-
-        response = await fetch(`${API_BASE_URL}/super-admin/Patients/${activePatient.id}/`, {
-          method: 'PATCH',
-          body: formData
-        }).catch(() => null);
-      } else {
-        response = await fetch(`${API_BASE_URL}/super-admin/Patients/${activePatient.id}/`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payloadData)
-        }).catch(() => null);
+      if (editFormData.password && editFormData.password.trim()) {
+        payload.password = editFormData.password.trim();
+        payload.Password = editFormData.password.trim();
       }
 
-      if (response && response.ok) {
-        const updated = await response.json();
-        alert(updated.message || 'Patient record updated successfully.');
-        setPatientData(updated);
-        if (setSelectedPatient) setSelectedPatient(updated);
-        localStorage.setItem('selectedPatient', JSON.stringify(updated));
-        setEditSelectedFile(null);
+      const res = await fetch(`${API_BASE_URL}/super-admin/Patients/${activePatient.id}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res && res.ok) {
+        alert('Patient account details updated successfully.');
         setIsEditModalOpen(false);
+        loadPatientAndRelatedData();
       } else {
-        const errorData = response ? await response.json().catch(() => ({})) : {};
-        let errMsg = errorData.message || errorData.detail || errorData.error;
-        if (!errMsg && typeof errorData === 'object') {
-          errMsg = Object.entries(errorData)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? JSON.stringify(v) : v)}`)
-            .join('\n');
-        }
-        alert(errMsg || 'Failed to update patient record.');
+        const errData = res ? await res.json().catch(() => ({})) : {};
+        alert(errData.message || errData.detail || 'Failed to update patient details.');
       }
     } catch (err) {
-      console.error('Error updating patient:', err);
-      alert(err.message || 'Network error while updating patient record.');
+      console.error('Error saving patient:', err);
+      alert('Error saving patient account details.');
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
+  // Open Book Appointment Modal
+  const handleOpenBookApptModal = () => {
+    const defaultHosp = hospitalsList[0]?.id ? String(hospitalsList[0].id) : '';
+    setBookFormData({
+      patient_name: activePatient.name || '',
+      hospital: defaultHosp,
+      doctor: '',
+      consultation_fee: 0,
+      hospitals_charges: 0,
+      amount_paid: 0,
+      payment_status: 'Pending',
+      payment_method: 'Cash',
+      condition: 'Normal',
+      status: 'Pending',
+      bed_number: '',
+      symptoms_diagnosis: '',
+      visit_date_time: new Date().toISOString().slice(0, 16)
+    });
+    setIsBookModalOpen(true);
+  };
 
-  const handleOpenStatusModal = () => {
-    setStatusUpdateValue(activePatient.status || 'Confirmed');
-    setStatusRemarks(activePatient.symptoms_diagnosis || '');
+  const handleBookDoctorChange = (e) => {
+    const docId = e.target.value;
+    const docObj = doctorsList.find(d => Number(d.id) === Number(docId));
+    const fee = docObj ? Number(docObj.consultation_fee || 0) : 0;
+    const hosp = Number(bookFormData.hospitals_charges) || 0;
+    setBookFormData(prev => ({
+      ...prev,
+      doctor: docId,
+      consultation_fee: fee,
+      amount_paid: prev.payment_status === 'Paid' ? fee + hosp : prev.amount_paid
+    }));
+  };
+
+  const handleBookAppointmentSubmit = async (e) => {
+    e.preventDefault();
+    if (!bookFormData.hospital) {
+      alert('Please select a hospital branch.');
+      return;
+    }
+    try {
+      setIsBooking(true);
+      const selectedDoc = doctorsList.find(d => Number(d.id) === Number(bookFormData.doctor));
+      const selectedHosp = hospitalsList.find(h => Number(h.id) === Number(bookFormData.hospital));
+      const hospId = Number(bookFormData.hospital);
+      const isAdmitted = bookFormData.status === 'Admitted';
+      const parsedBed = isAdmitted && bookFormData.bed_number ? Number(bookFormData.bed_number) : null;
+
+      const pName = (bookFormData.patient_name || activePatient.name || 'Patient').trim();
+
+      const payload = {
+        patient: activePatient.id,
+        patient_id: activePatient.id,
+        patient_name: pName,
+        name: pName,
+        account_holder_name: (activePatient.name || '').trim(),
+        booked_by: (activePatient.name || '').trim(),
+        email: displayEmail,
+        contact: displayPhone !== '-' ? displayPhone : '',
+        phone: displayPhone !== '-' ? displayPhone : '',
+        age: activePatient.age ? Number(activePatient.age) : null,
+        gender: activePatient.gender || 'Male',
+        Gender: activePatient.gender || 'Male',
+        blood_group: activePatient.blood_group || 'A+',
+        Blood_Group: activePatient.blood_group || 'A+',
+        address: (activePatient.address || '').trim(),
+        hospital: hospId,
+        hospital_name: selectedHosp ? (selectedHosp.Name || selectedHosp.name) : 'Hospital Branch',
+        doctor: bookFormData.doctor ? Number(bookFormData.doctor) : null,
+        doctor_name: selectedDoc ? selectedDoc.name : '',
+        doctor_specialization: selectedDoc ? (selectedDoc.specialization || selectedDoc.specialty || '') : '',
+        consultation_fee: Number(bookFormData.consultation_fee) || 0,
+        hospitals_charges: Number(bookFormData.hospitals_charges) || 0,
+        Hospitals_Chargies: Number(bookFormData.hospitals_charges) || 0,
+        amount_paid: Number(bookFormData.amount_paid) || 0,
+        payment_status: bookFormData.payment_status || 'Pending',
+        payment_method: bookFormData.payment_method || 'Cash',
+        condition: bookFormData.condition || 'Normal',
+        Condation: bookFormData.condition || 'Normal',
+        status: bookFormData.status || 'Pending',
+        bed_number: parsedBed,
+        symptoms_diagnosis: bookFormData.symptoms_diagnosis.trim() || 'General Consultation',
+        reason_for_visit: bookFormData.symptoms_diagnosis.trim() || 'General Consultation',
+        visit_date_time: bookFormData.visit_date_time ? new Date(bookFormData.visit_date_time).toISOString() : new Date().toISOString()
+      };
+
+      const res = await fetch(`${API_BASE_URL}/super-admin/appointments/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res && res.ok) {
+        const resData = await res.json().catch(() => ({}));
+        alert(`Appointment booked successfully! ID: ${resData.appointment_id || resData.id || 'New'}`);
+        setIsBookModalOpen(false);
+        loadPatientAndRelatedData();
+      } else {
+        const errData = res ? await res.json().catch(() => ({})) : {};
+        alert(errData.message || errData.detail || 'Failed to book appointment.');
+      }
+    } catch (err) {
+      console.error('Error booking appointment:', err);
+      alert('Error while booking appointment.');
+    } finally {
+      setIsBooking(false);
+    }
+  };
+
+  // Open Update Appointment Status Modal
+  const handleOpenStatusModal = (appt) => {
+    setSelectedApptForStatus(appt);
+    setStatusUpdateValue(appt.status || 'Pending');
+    setBedUpdateValue(appt.bed_number ? String(appt.bed_number) : '');
+    setStatusRemarks(appt.symptoms_diagnosis || '');
     setIsStatusModalOpen(true);
   };
 
-  const handleSaveStatus = async () => {
-    if (!activePatient || !activePatient.id) return;
-
+  const handleSaveStatusModal = async (e) => {
+    e.preventDefault();
+    if (!selectedApptForStatus || !selectedApptForStatus.id) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/super-admin/Patients/${activePatient.id}/`, {
+      setIsUpdatingStatus(true);
+      const isDischarge = statusUpdateValue === 'Discharged' || statusUpdateValue === 'Cancelled';
+      const bedNum = isDischarge ? null : (bedUpdateValue ? Number(bedUpdateValue) : null);
+
+      const statusPayload = {
+        status: statusUpdateValue,
+        bed_number: bedNum,
+        symptoms_diagnosis: statusRemarks.trim()
+      };
+
+      const res = await fetch(`${API_BASE_URL}/super-admin/appointments/${selectedApptForStatus.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: statusUpdateValue,
-          symptoms_diagnosis: statusRemarks
-        })
+        body: JSON.stringify(statusPayload)
       });
 
-      if (response.ok) {
-        const updated = await response.json();
-        alert(updated.message || `Patient status updated to ${statusUpdateValue} successfully.`);
-        setPatientData(updated);
-        if (setSelectedPatient) setSelectedPatient(updated);
-        localStorage.setItem('selectedPatient', JSON.stringify(updated));
+      if (res && res.ok) {
+        alert('Appointment status updated successfully.');
         setIsStatusModalOpen(false);
+        loadPatientAndRelatedData();
       } else {
-        const errData = await response.json().catch(() => ({}));
-        let errMsg = errData.message || errData.detail || errData.error;
-        if (!errMsg && typeof errData === 'object') {
-          errMsg = Object.entries(errData)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? JSON.stringify(v) : v)}`)
-            .join('\n');
-        }
-        alert(errMsg || 'Failed to update patient clinical status.');
+        const errData = res ? await res.json().catch(() => ({})) : {};
+        alert(errData.message || errData.detail || 'Failed to update status.');
       }
     } catch (err) {
       console.error('Error updating status:', err);
-      alert(err.message || 'Network error while updating clinical status.');
+      alert('Error updating status.');
+    } finally {
+      setIsUpdatingStatus(false);
     }
   };
 
+  // Delete Patient Account
   const handleConfirmDelete = async () => {
     if (!activePatient || !activePatient.id) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/super-admin/Patients/${activePatient.id}/`, {
+      setIsDeleting(true);
+      const res = await fetch(`${API_BASE_URL}/super-admin/Patients/${activePatient.id}/`, {
         method: 'DELETE'
       }).catch(() => null);
 
-      if (response && (response.ok || response.status === 204)) {
-        const resData = response.status !== 204 ? await response.json().catch(() => ({})) : {};
-        alert(resData?.message || `Patient ${activePatient.name} removed successfully.`);
-        localStorage.removeItem('selectedPatient');
-        if (setSelectedPatient) setSelectedPatient(null);
-        if (setCurrentPage) setCurrentPage('super_admin_patients');
+      if (res && (res.ok || res.status === 204)) {
+        alert('Patient account deleted successfully.');
+        setIsDeleteModalOpen(false);
+        handleBackClick();
       } else {
-        alert('Failed to remove patient record.');
+        alert('Failed to delete patient account.');
       }
     } catch (err) {
       console.error('Error deleting patient:', err);
-      alert(err.message || 'Network error while deleting patient file.');
+      alert('Network error while deleting patient.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
+  // Navigate to Appointment Details Page
+  const handleViewAppointmentDetails = (appt) => {
+    if (setSelectedAppointment) {
+      setSelectedAppointment(appt);
+    }
+    localStorage.setItem('selectedAppointment', JSON.stringify(appt));
+    if (setCurrentPage) {
+      setCurrentPage('appointment_details');
+    }
+  };
+
+  // Filter appointments
+  const filteredAppointments = patientAppointments.filter(appt => {
+    const term = apptSearchTerm.toLowerCase();
+    if (apptStatusFilter !== 'ALL' && appt.status !== apptStatusFilter) return false;
+
+    return (
+      (appt.appointment_id || '').toLowerCase().includes(term) ||
+      (appt.patient_name || appt.name || '').toLowerCase().includes(term) ||
+      (appt.doctor_name || '').toLowerCase().includes(term) ||
+      (appt.hospital_name || '').toLowerCase().includes(term) ||
+      (appt.symptoms_diagnosis || '').toLowerCase().includes(term) ||
+      (appt.condition || '').toLowerCase().includes(term)
+    );
+  });
+
   if (!activePatient || !activePatient.id) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-12 text-center">
-        <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-xs max-w-md mx-auto space-y-4">
-          <div className="w-12 h-12 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center mx-auto text-xl font-bold">
+      <div className="max-w-3xl mx-auto px-4 py-16 text-center">
+        <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-xs space-y-4">
+          <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto text-xl font-bold">
             !
           </div>
-          <h2 className="text-lg font-bold text-slate-800">No Patient Selected</h2>
+          <h2 className="text-base font-bold text-slate-800">No Patient Account Selected</h2>
           <p className="text-xs text-slate-500">
             Please return to the Patients list and select a patient record to view full details.
           </p>
           <button
             type="button"
             onClick={handleBackClick}
-            className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition cursor-pointer"
+            className="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition cursor-pointer"
           >
             &larr; Back to Patients List
           </button>
@@ -427,15 +524,15 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
-      {/* TOP NAVIGATION & BACK BUTTON */}
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5">
+      {/* TOP NAVIGATION & BREADCRUMB */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <button
           type="button"
           onClick={handleBackClick}
           className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 shadow-2xs transition cursor-pointer"
         >
-          &larr; Back to Patients
+          &larr; Back to Patients List
         </button>
 
         <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -449,66 +546,66 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
         </div>
       </div>
 
-      {/* HEADER HERO CARD */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 min-w-0">
+      {/* HEADER HERO CARD - PATIENT SIGNUP ACCOUNT DETAILS */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-start sm:items-center gap-4 min-w-0">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-sky-600 to-teal-400 flex items-center justify-center text-white font-black text-xl sm:text-2xl shadow-md shrink-0">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white font-black text-xl sm:text-2xl shadow-md shrink-0">
             {displayName.charAt(0).toUpperCase()}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-xs font-bold text-sky-800 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200 break-all">
+              <span className="font-mono text-xs font-bold text-sky-800 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
                 {displayId}
               </span>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                activePatient.status === 'Confirmed' || activePatient.status === 'Admitted' || activePatient.status === 'Discharged' || activePatient.status === 'Completed'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : activePatient.status === 'Cancelled' || activePatient.status === 'Rejected'
-                  ? 'bg-rose-50 text-rose-700 border-rose-200'
-                  : 'bg-amber-50 text-amber-700 border-amber-200'
-              }`}>
-                {activePatient.status || 'Pending'}
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Active Patient Account
               </span>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                (activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity) === 'Critical'
-                  ? 'bg-rose-100 text-rose-800 border-rose-300'
-                  : (activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity) === 'Emergency'
-                  ? 'bg-red-100 text-red-800 border-red-300'
-                  : (activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity) === 'Urgent'
-                  ? 'bg-amber-100 text-amber-800 border-amber-300'
-                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              }`}>
-                Condition: {activePatient.Condation || activePatient.condation || activePatient.condition || activePatient.symptoms_severity || 'Normal'}
-              </span>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                activePatient.payment_status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
-              }`}>
-                Payment: {activePatient.payment_status || 'Pending'}
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                {patientAppointments.length} Total Booking{patientAppointments.length === 1 ? '' : 's'}
               </span>
             </div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 tracking-tight mt-1 break-words break-all">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight truncate">
               {displayName}
             </h1>
+            <div className="flex items-center gap-4 flex-wrap text-xs text-slate-600 font-medium">
+              {displayEmail && (
+                <p className="flex items-center gap-1">
+                  <span className="text-slate-400 font-semibold uppercase text-[10px]">Email:</span>
+                  <a
+                    href={`mailto:${displayEmail}`}
+                    title={`Send email to ${displayEmail}`}
+                    className="text-sky-700 hover:text-sky-900 hover:underline font-mono font-bold"
+                  >
+                    {displayEmail}
+                  </a>
+                </p>
+              )}
+              {displayPhone && (
+                <p className="flex items-center gap-1">
+                  <span className="text-slate-400 font-semibold uppercase text-[10px]">Contact:</span>
+                  <span className="font-mono font-bold text-slate-800">{displayPhone}</span>
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* HEADER ACTIONS */}
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           <button
             type="button"
-            onClick={handleOpenStatusModal}
-            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 transition cursor-pointer flex items-center gap-1.5"
+            onClick={handleOpenBookApptModal}
+            className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
           >
-            Update Status
+            + Book Appointment
           </button>
-
           <button
             type="button"
             onClick={handleOpenEditModal}
             className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
           >
-            Edit Patient
+            Edit Account Details
           </button>
-
           <button
             type="button"
             onClick={() => setIsDeleteModalOpen(true)}
@@ -519,400 +616,259 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
         </div>
       </div>
 
-      {/* TOP SUMMARY METRICS INCLUDING DOCTOR, BRANCH & FINANCIAL BREAKDOWN */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs min-w-0">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Assigned Doctor</p>
-          <h3 className="text-base sm:text-lg font-bold text-teal-800 mt-1 truncate">{displayDoctor}</h3>
-          <p className="text-xs text-slate-400 mt-0.5 truncate">{assignedDoctor?.specialization || 'Clinical Specialist'}</p>
-        </div>
-
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs min-w-0">
-          <p className="text-xs font-semibold text-teal-600 uppercase tracking-wider">Doctor Consultation Fee</p>
-          <h3 className="text-xl sm:text-2xl font-extrabold text-teal-800 mt-1">₹{docFee.toFixed(2)}</h3>
-          <p className="text-xs text-slate-400 mt-0.5 truncate">Doctor Share</p>
-        </div>
-
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs min-w-0">
-          <p className="text-xs font-semibold text-sky-600 uppercase tracking-wider">Hospital Charges</p>
-          <h3 className="text-xl sm:text-2xl font-extrabold text-sky-800 mt-1">₹{hospCharge.toFixed(2)}</h3>
-          <p className="text-xs text-slate-400 mt-0.5 truncate">{displayHospital}</p>
-        </div>
-
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs min-w-0">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Gross Bill</p>
-          <h3 className="text-xl sm:text-2xl font-extrabold text-slate-800 mt-1">₹{totalBill.toFixed(2)}</h3>
-          <p className="text-xs text-emerald-600 font-semibold mt-0.5">Paid: ₹{amountPaid.toFixed(2)}</p>
-        </div>
-
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs min-w-0">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pending Due</p>
-          <h3 className={`text-xl sm:text-2xl font-extrabold mt-1 ${pendingDue > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-            ₹{pendingDue.toFixed(2)}
-          </h3>
-          <p className="text-xs text-slate-400 mt-0.5">{pendingDue > 0 ? 'Balance to clear' : 'Fully Paid'}</p>
-        </div>
-      </div>
-
-      {/* MAIN 2-COLUMN PROFILE & MEDICAL SUMMARY */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 items-start">
-        {/* LEFT COLUMN: PATIENT CREDENTIALS & CONTACT (1 COL) */}
-        <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs space-y-5 self-start min-w-0">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h2 className="text-base font-bold text-slate-800">Patient Details & Medical Info</h2>
-              <button
-                type="button"
-                onClick={handleOpenEditModal}
-                className="text-xs font-semibold text-sky-600 hover:underline cursor-pointer"
-              >
-                Edit
-              </button>
+      {/* ALL APPOINTMENTS BOOKED UNDER THIS EMAIL TABLE */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-bold text-slate-800">
+                Appointments & Consultations Booked Under This Email
+              </h2>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                {patientAppointments.length} Record{patientAppointments.length === 1 ? '' : 's'}
+              </span>
             </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              All appointments booked using registered email:{' '}
+              <strong className="text-indigo-700 font-mono">{displayEmail || displayName}</strong>
+            </p>
+          </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold">Patient ID / UHID</span>
-                  <span className="text-[9px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200">
-                    Permanent
-                  </span>
-                </div>
-                <p className="font-mono text-sm font-bold text-sky-700 mt-0.5 select-none break-all">{displayId}</p>
-              </div>
+          <button
+            type="button"
+            onClick={handleOpenBookApptModal}
+            className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition cursor-pointer self-start sm:self-auto"
+          >
+            + Book New Appointment
+          </button>
+        </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">Full Name</span>
-                <p className="font-bold text-slate-800 text-sm mt-0.5 break-words break-all">{displayName}</p>
-              </div>
+        {/* SEARCH & STATUS FILTER BAR */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="relative flex-1 max-w-md">
+            <input
+              type="text"
+              placeholder="Search by ID, Patient name, Doctor, Branch, Diagnosis..."
+              value={apptSearchTerm}
+              onChange={(e) => setApptSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 focus:outline-none focus:border-sky-500 text-xs"
+            />
+            <span className="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
+          </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold">Age</span>
-                  <p className="font-bold text-slate-800 text-sm mt-0.5 break-words">{activePatient.age || 'N/A'}</p>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold">Gender</span>
-                  <p className="font-bold text-slate-800 text-sm mt-0.5 break-words">{activePatient.gender || 'Not specified'}</p>
-                </div>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">Blood Group</span>
-                <p className="font-mono font-bold text-rose-700 mt-0.5 break-words">{activePatient.Blood_Group || activePatient.blood_group || '-'}</p>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">Contact Phone Number</span>
-                <p className="font-mono font-bold text-slate-800 mt-0.5 break-all">{displayPhone}</p>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">Email Address</span>
-                {activePatient.email ? (
-                  <p className="mt-0.5 break-all">
-                    <a
-                      href={`mailto:${activePatient.email.toLowerCase()}`}
-                      className="font-semibold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
-                      title="Send email"
-                    >
-                      {activePatient.email.toLowerCase()}
-                    </a>
-                  </p>
-                ) : (
-                  <p className="font-semibold text-slate-400 mt-0.5">-</p>
-                )}
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">Account Password</span>
-                <p className="font-mono font-bold text-slate-800 mt-0.5 break-all">
-                  {activePatient.Password || activePatient.password || '••••••••'}
-                </p>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 min-w-0">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">Address / City</span>
-                <p className="font-semibold text-slate-800 mt-0.5 break-words break-all">{activePatient.address || '-'}</p>
-              </div>
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-slate-400 uppercase">Status:</span>
+            <select
+              value={apptStatusFilter}
+              onChange={(e) => setApptStatusFilter(e.target.value)}
+              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer"
+            >
+              <option value="ALL">All Statuses ({patientAppointments.length})</option>
+              <option value="Pending">Pending</option>
+              <option value="Assigned">Assigned</option>
+              <option value="Admitted">Admitted</option>
+              <option value="Discharged">Discharged</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: MEDICAL REASON, PAYMENT & DOCUMENTS (2 COLS) */}
-        <div className="lg:col-span-2 rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs space-y-5 min-w-0">
-          <div className="pb-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <h2 className="text-base font-bold text-slate-800">Medical Consultation & Payment Summary</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Symptoms, billing, doctor allocation and branch</p>
+        {/* APPOINTMENTS TABLE */}
+        {patientAppointments.length === 0 ? (
+          <div className="p-12 text-center bg-slate-50/50 rounded-2xl border border-slate-200/80 space-y-3">
+            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto text-xl font-bold">
+              ∅
             </div>
-          </div>
-
-          <div className="space-y-4 text-xs">
-            {/* PAYMENT DETAILS BREAKDOWN CARD */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-3 min-w-0">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-emerald-900 uppercase text-[11px]">Billing & Payment Overview</span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  activePatient.payment_status === 'Paid' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'
-                }`}>
-                  {activePatient.payment_status || 'Pending'}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2 border-t border-emerald-200/60">
-                <div>
-                  <span className="text-[10px] text-teal-700 uppercase block font-semibold">Doctor Fee</span>
-                  <span className="font-mono text-sm font-bold text-teal-900">₹{docFee.toFixed(2)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-sky-700 uppercase block font-semibold">Hospital Charges</span>
-                  <span className="font-mono text-sm font-bold text-sky-900">₹{hospCharge.toFixed(2)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 uppercase block font-semibold">Total Bill</span>
-                  <span className="font-mono text-sm font-bold text-slate-800">₹{totalBill.toFixed(2)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-emerald-700 uppercase block font-semibold">Paid Amount</span>
-                  <span className="font-mono text-sm font-bold text-emerald-700">₹{amountPaid.toFixed(2)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 uppercase block font-semibold">Due Balance</span>
-                  <span className={`font-mono text-sm font-bold ${pendingDue > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                    ₹{pendingDue.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-              <p className="text-[11px] text-slate-600 pt-1 break-words break-all">
-                <span className="font-semibold">Mode of Payment:</span> {activePatient.payment_method || 'Cash'}
-              </p>
-            </div>
-
-            {/* MEDICAL REASON & SYMPTOMS */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 min-w-0">
-              <span className="text-[10px] text-slate-400 uppercase font-bold">Reason for Visit / Symptoms Diagnosis</span>
-              <p className="text-sm font-semibold text-slate-800 leading-relaxed break-words break-all">
-                {activePatient.symptoms_diagnosis || activePatient.reason_for_visit || 'General health checkup and consultation.'}
-              </p>
-            </div>
-
-            {/* ATTACHED MEDICAL DOCUMENT CARD */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 min-w-0">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">Attached Document (Photo / PDF)</span>
-                {attachedDocVal ? (
-                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    Document Attached
-                  </span>
-                ) : (
-                  <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
-                    None
-                  </span>
-                )}
-              </div>
-
-              {attachedDocVal ? (
-                <div className="flex items-center justify-between gap-3 p-3 bg-white rounded-xl border border-slate-200 mt-2 min-w-0">
-                  <div className="flex items-center gap-3 min-w-0 overflow-hidden flex-1">
-                    {attachedDocVal.startsWith('data:image') || (typeof attachedDocVal === 'string' && attachedDocVal.match(/\.(jpeg|jpg|png|gif|webp)$/i)) ? (
-                      <img src={attachedDocVal} alt="Document Preview" className="w-12 h-12 object-cover rounded-lg border border-slate-200 shrink-0" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold text-xs border border-red-200 shrink-0">
-                        DOC
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-800 text-xs truncate break-all">
-                        {typeof attachedDocVal === 'string' && attachedDocVal.startsWith('data:') ? 'Patient_Document_Upload' : attachedDocVal.split('/').pop()}
-                      </p>
-                      <span className="text-[10px] text-slate-400 font-medium">Uploaded Document File</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    {attachedDocVal.startsWith('data:') || attachedDocVal.startsWith('http') ? (
-                      <a
-                        href={attachedDocVal}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        download={attachedDocVal.startsWith('data:') ? 'Patient_Document' : undefined}
-                        className="px-3 py-1.5 rounded-lg bg-sky-600 text-white font-bold text-xs hover:bg-sky-700 transition"
-                      >
-                        View / Download
-                      </a>
-                    ) : (
-                      <span className="text-xs text-slate-600 font-mono break-all">{attachedDocVal}</span>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400 italic">No document or photo currently attached.</p>
-              )}
-            </div>
-
-            {/* INPATIENT BED, FLOOR & NURSE ASSIGNMENT CARD */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-teal-500/10 via-sky-500/5 to-transparent border border-teal-200 min-w-0 space-y-3">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-teal-900 uppercase font-bold">Inpatient Bed & Ward Allocation</span>
-                </div>
-                <span className="text-[10px] font-bold text-teal-800 bg-teal-100/80 px-2.5 py-0.5 rounded-full border border-teal-200">
-                  {activePatient.floor || (activePatient.bed_number ? `Floor ${Math.floor((activePatient.bed_number - 1) / 100) + 1}` : 'Not Assigned')}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                <div className="p-3 bg-white rounded-xl border border-teal-100 shadow-2xs">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Assigned Bed</span>
-                  <span className="font-mono text-base font-black text-teal-800">
-                    {activePatient.bed_number ? `Bed #${activePatient.bed_number}` : 'Unassigned'}
-                  </span>
-                </div>
-                <div className="p-3 bg-white rounded-xl border border-teal-100 shadow-2xs">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Hospital Floor</span>
-                  <span className="text-sm font-bold text-sky-800">
-                    {activePatient.floor || (activePatient.bed_number ? `Floor ${Math.floor((activePatient.bed_number - 1) / 100) + 1}` : 'Not Assigned')}
-                  </span>
-                </div>
-                <div className="p-3 bg-white rounded-xl border border-teal-100 shadow-2xs">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Assigned Nurse</span>
-                  <span className="text-sm font-bold text-emerald-800 truncate block">
-                    {activePatient.nurse_name || 'Assigned Nurse'}
-                  </span>
-                  <span className="text-[9px] text-emerald-600 font-medium block">Active Floor Care</span>
-                </div>
-              </div>
-            </div>
-
-            {/* TARGET HOSPITAL BRANCH */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-200 min-w-0">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-indigo-800 uppercase font-bold">Target Hospital Branch</span>
-                {assignedHospital?.Branch_Code && (
-                  <span className="font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-                    {assignedHospital.Branch_Code}
-                  </span>
-                )}
-              </div>
-              <h3 className="text-base sm:text-lg font-bold text-indigo-950 mt-1 break-words break-all">{displayHospital}</h3>
-              <p className="text-xs text-slate-600 mt-0.5 break-words break-all">
-                {[assignedHospital?.area, assignedHospital?.city, assignedHospital?.address].filter(Boolean).join(', ') || 'Main Healthcare Facility'}
-              </p>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 text-xs">
-            <span className="text-slate-500 font-medium">Live database surveillance active.</span>
+            <p className="text-sm font-bold text-slate-700">No appointments found for this email address.</p>
+            <p className="text-xs text-slate-400">
+              No appointments have been registered under email <strong className="font-mono">{displayEmail}</strong> yet.
+            </p>
             <button
               type="button"
-              onClick={handleBackClick}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold cursor-pointer"
+              onClick={handleOpenBookApptModal}
+              className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
             >
-              &larr; Back to Patients
+              + Book First Appointment
             </button>
           </div>
-        </div>
+        ) : filteredAppointments.length === 0 ? (
+          <div className="p-8 text-center bg-slate-50/50 rounded-2xl border border-slate-200 text-xs text-slate-500">
+            No appointments matched your search keyword or filter.
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="p-3 text-center">Appt ID & Date</th>
+                  <th className="p-3 text-left">Patient Name</th>
+                  <th className="p-3 text-left">Hospital Branch</th>
+                  <th className="p-3 text-left">Doctor & Dept</th>
+                  <th className="p-3 text-center">Ward / Bed</th>
+                  <th className="p-3 text-center">Condition</th>
+                  <th className="p-3 text-center">Billing & Paid</th>
+                  <th className="p-3 text-center">Status</th>
+                  <th className="p-3 text-left">Diagnosis / Reason</th>
+                  <th className="p-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                {filteredAppointments.map((appt, idx) => {
+                  const isAdmitted = (appt.status === 'Admitted' || appt.status === 'In Consultation') && appt.status !== 'Discharged';
+                  const isDischarged = appt.status === 'Discharged' || appt.status === 'Completed';
+
+                  return (
+                    <tr key={appt.id || idx} className="hover:bg-slate-50/80 transition">
+                      <td className="p-3 text-center whitespace-nowrap">
+                        <span className="font-mono font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 text-[11px] inline-block">
+                          {appt.appointment_id || `APT-${appt.id}`}
+                        </span>
+                        <span className="text-[10px] text-slate-400 mt-0.5 block font-medium">
+                          {appt.visit_date_time ? new Date(appt.visit_date_time).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </td>
+
+                      <td className="p-3 text-left whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => handleViewAppointmentDetails(appt)}
+                          className="font-bold text-slate-900 hover:text-sky-600 hover:underline text-left text-xs cursor-pointer block"
+                        >
+                          {appt.patient_name || appt.name || displayName}
+                        </button>
+                      </td>
+
+                      <td className="p-3 text-left whitespace-nowrap">
+                        <span className="font-bold text-slate-800 block text-xs">{appt.hospital_name}</span>
+                      </td>
+
+                      <td className="p-3 text-left whitespace-nowrap">
+                        <span className="font-bold text-teal-800 block text-xs">{appt.doctor_name}</span>
+                        {appt.doctor_specialization ? (
+                          <span className="text-[10px] text-slate-400 block">{appt.doctor_specialization}</span>
+                        ) : null}
+                      </td>
+
+                      <td className="p-3 text-center whitespace-nowrap">
+                        {appt.bed_number ? (
+                          <span className="font-mono font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 text-[11px]">
+                            Bed #{appt.bed_number}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-xs italic">OPD / No Bed</span>
+                        )}
+                      </td>
+
+                      <td className="p-3 text-center whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          appt.condition === 'Critical'
+                            ? 'bg-rose-100 text-rose-800 border-rose-300'
+                            : appt.condition === 'Emergency'
+                            ? 'bg-red-100 text-red-800 border-red-300'
+                            : appt.condition === 'Urgent'
+                            ? 'bg-amber-100 text-amber-800 border-amber-300'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}>
+                          {appt.condition || 'Normal'}
+                        </span>
+                      </td>
+
+                      <td className="p-3 text-center whitespace-nowrap font-mono text-[11px]">
+                        <span className="font-bold text-slate-800 block">
+                          ₹{Number(appt.total_bill || 0).toFixed(2)}
+                        </span>
+                        <span className="text-[10px] text-emerald-600 block">
+                          Paid: ₹{Number(appt.amount_paid || 0).toFixed(2)}
+                        </span>
+                      </td>
+
+                      <td className="p-3 text-center whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          appt.status === 'Confirmed' || appt.status === 'Admitted' || appt.status === 'Discharged' || appt.status === 'Completed'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : appt.status === 'Cancelled' || appt.status === 'Rejected'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                          {appt.status || 'Pending'}
+                        </span>
+                      </td>
+
+                      <td className="p-3 text-left max-w-xs">
+                        <p className="truncate text-slate-700 text-xs font-medium" title={appt.symptoms_diagnosis || appt.reason_for_visit}>
+                          {appt.symptoms_diagnosis || appt.reason_for_visit || 'General Consultation'}
+                        </p>
+                      </td>
+
+                      <td className="p-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleViewAppointmentDetails(appt)}
+                            className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold text-[11px] shadow-2xs transition cursor-pointer"
+                          >
+                            View Details &rarr;
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenStatusModal(appt)}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold text-[11px] border border-slate-200 transition cursor-pointer"
+                          >
+                            Status
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* EDIT PATIENT MODAL WITH PAYMENT FIELDS */}
+      {/* EDIT PATIENT ACCOUNT MODAL */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4 my-auto">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full p-6 space-y-4 my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-slate-800">Edit Patient Details & Payment</h2>
-                <p className="text-xs text-slate-500">Update patient profile, consultation fees, and payment status.</p>
+                <h2 className="text-lg font-bold text-slate-800">Edit Patient Account Details</h2>
+                <p className="text-xs text-slate-500">Update registered personal profile for {displayName}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsEditModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 text-2xl font-bold cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 font-bold text-xl px-2 py-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
               >
                 &times;
               </button>
             </div>
 
-            <form onSubmit={handleSavePatientEdit} className="space-y-3 text-xs">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block font-semibold text-slate-700 uppercase">Patient ID / UHID</label>
-                  <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
-                    Permanent
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  readOnly
-                  tabIndex={-1}
-                  value={displayId}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-sky-800 font-mono font-bold cursor-not-allowed select-none focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Patient Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={editFormData.name}
-                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <form onSubmit={handleSavePatientEdit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Age</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Full Name *</label>
                   <input
-                    type="number"
-                    value={editFormData.age}
-                    onChange={(e) => setEditFormData({ ...editFormData, age: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Gender</label>
-                  <select
-                    value={editFormData.gender}
-                    onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
-                  >
-                    <option value="">-- Select Gender --</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Blood Group</label>
-                  <select
-                    value={editFormData.blood_group}
-                    onChange={(e) => setEditFormData({ ...editFormData, blood_group: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
-                  >
-                    <option value="">-- Select Blood Group --</option>
-                    {bloodGroups.map((bg, idx) => (
-                      <option key={idx} value={bg}>{bg}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={15}
+                    type="text"
                     required
-                    placeholder="e.g. 9876543210"
-                    value={editFormData.contact}
-                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
+                    value={editFormData.name}
+                    onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone</label>
+                  <input
+                    type="text"
+                    value={editFormData.contact}
+                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-mono focus:outline-none focus:border-sky-600 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Email Address</label>
                   <input
@@ -923,15 +879,52 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Account Password</label>
-                  <input
-                    type="password"
-                    maxLength={20}
-                    placeholder="Set patient password"
-                    value={editFormData.password || editFormData.Password || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value, Password: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-semibold text-slate-700 uppercase">Account Password</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword(!showEditPassword)}
+                      className="text-[10px] text-sky-600 hover:text-sky-800 font-semibold cursor-pointer"
+                    >
+                      {showEditPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showEditPassword ? 'text' : 'password'}
+                      placeholder="Enter new password to update..."
+                      value={editFormData.password}
+                      onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-mono focus:outline-none focus:border-sky-600 focus:bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Gender</label>
+                  <select
+                    value={editFormData.gender}
+                    onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer focus:outline-none focus:border-sky-600"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Blood Group</label>
+                  <select
+                    value={editFormData.blood_group}
+                    onChange={(e) => setEditFormData({ ...editFormData, blood_group: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer focus:outline-none focus:border-sky-600"
+                  >
+                    {bloodGroups.map(bg => (
+                      <option key={bg} value={bg}>{bg}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -939,327 +932,27 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Address / City</label>
                 <input
                   type="text"
+                  placeholder="Patient residential address..."
                   value={editFormData.address}
                   onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
-              {/* TARGET HOSPITAL BRANCH & AFFILIATED DOCTOR SELECTION */}
-              {(() => {
-                const getHospDocs = (hospId) => {
-                  if (!hospId) return doctorsList;
-                  return doctorsList.filter(d => {
-                    const hospIds = Array.isArray(d.hospitals)
-                      ? d.hospitals.map(h => Number(typeof h === 'object' ? h.id : h))
-                      : (d.hospital ? [Number(typeof d.hospital === 'object' ? d.hospital.id : d.hospital)] : []);
-                    return hospIds.includes(Number(hospId));
-                  });
-                };
-                const availableDocs = getHospDocs(editFormData.hospital);
-
-                return (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-semibold text-slate-700 uppercase mb-1">Target Hospital Branch *</label>
-                      <select
-                        required
-                        value={editFormData.hospital}
-                        onChange={(e) => {
-                          const newHId = e.target.value;
-                          const docsInHosp = getHospDocs(newHId);
-                          const docStillValid = docsInHosp.some(d => d.id === Number(editFormData.doctor));
-                          setEditFormData(prev => ({
-                            ...prev,
-                            hospital: newHId,
-                            doctor: docStillValid ? prev.doctor : ''
-                          }));
-                        }}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
-                      >
-                        <option value="">-- Select Hospital --</option>
-                        {hospitalsList.map((h) => (
-                          <option key={h.id} value={h.id}>
-                            {h.Name || h.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-slate-700 uppercase mb-1">
-                        Assigned Doctor {editFormData.hospital ? `(${availableDocs.length} in this branch)` : ''}
-                      </label>
-                      <select
-                        value={editFormData.doctor}
-                        onChange={(e) => {
-                          const docId = e.target.value;
-                          const selDoc = doctorsList.find(d => d.id === Number(docId));
-                          setEditFormData(prev => ({
-                            ...prev,
-                            doctor: docId,
-                            consultation_fee: selDoc ? (selDoc.consultation_fee ?? prev.consultation_fee) : prev.consultation_fee
-                          }));
-                        }}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
-                      >
-                        <option value="">-- Select Doctor --</option>
-                        {availableDocs.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name} ({d.specialization || d.specialty || 'Doctor'}) [₹{d.consultation_fee ?? 0}]
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* BED & FLOOR ALLOCATION & NURSE CARE SECTION IN EDIT MODAL */}
-              {(() => {
-                const hospActiveNurses = nursesList.filter(n => Number(typeof n.hospital === 'object' ? n.hospital?.id : n.hospital) === Number(editFormData.hospital));
-                const currentBed = editFormData.bed_number ? Number(editFormData.bed_number) : null;
-                const floorDisplay = currentBed ? `Floor ${Math.floor((currentBed - 1) / 100) + 1}` : 'Not Assigned';
-
-                return (
-                  <div className="p-3.5 bg-sky-50/60 rounded-xl border border-sky-200 space-y-3">
-                    <div className="flex items-center justify-between flex-wrap gap-1">
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-bold text-sky-900 uppercase text-[11px]">Bed & Floor Allocation</p>
-                      </div>
-                      <span className="text-[10px] font-bold text-sky-700 bg-sky-100/80 px-2 py-0.5 rounded-full border border-sky-200">
-                        {floorDisplay}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block font-semibold text-slate-700 uppercase mb-1">
-                          Bed Number
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          placeholder="e.g. 45 or 150"
-                          value={editFormData.bed_number}
-                          onChange={(e) => {
-                            const bedVal = e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : '';
-                            setEditFormData(prev => ({
-                              ...prev,
-                              bed_number: bedVal
-                            }));
-                          }}
-                          className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono font-bold focus:outline-none focus:border-sky-600 shadow-2xs"
-                        />
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          {currentBed ? `Assigned to: Bed #${currentBed} • ${floorDisplay}` : 'Enter bed number'}
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="block font-semibold text-slate-700 uppercase mb-1">
-                          Assigned Nurse {editFormData.hospital ? `(${hospActiveNurses.length} active in branch)` : ''}
-                        </label>
-                        <select
-                          disabled={!editFormData.hospital}
-                          value={editFormData.nurse}
-                          onChange={(e) => {
-                            const nId = e.target.value;
-                            const selNurse = nursesList.find(n => n.id === Number(nId));
-                            setEditFormData(prev => ({
-                              ...prev,
-                              nurse: nId,
-                              nurse_name: selNurse ? selNurse.name : ''
-                            }));
-                          }}
-                          className={`w-full px-3 py-2 rounded-xl border border-slate-300 font-medium ${!editFormData.hospital
-                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                              : 'bg-white text-slate-800 focus:outline-none focus:border-sky-600 cursor-pointer shadow-2xs'
-                            }`}
-                        >
-                          {!editFormData.hospital ? (
-                            <option value="">-- Select Target Hospital First --</option>
-                          ) : hospActiveNurses.length === 0 ? (
-                            <option value="">-- No Active Nurses in this Branch --</option>
-                          ) : (
-                            <>
-                              <option value="">-- Select Nurse --</option>
-                              {hospActiveNurses.map(n => (
-                                <option key={n.id} value={n.id}>
-                                  {n.name} ({n.ward || 'Ward Staff'}) - Shift: {n.shift || 'General'}
-                                </option>
-                              ))}
-                            </>
-                          )}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* PAYMENT SECTION IN EDIT MODAL */}
-              <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="font-bold text-emerald-900 uppercase text-[11px]">Fee & Billing Details</p>
-                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
-                    Dual Billing Model
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-700 uppercase mb-1">
-                      Doctor Consultation Fee (₹) <span className="text-[10px] text-amber-700 font-normal">(Doctor Set)</span> *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      readOnly
-                      value={editFormData.consultation_fee}
-                      placeholder="Doctor fee (auto)"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono font-bold focus:outline-none cursor-not-allowed"
-                    />
-                    <p className="text-[10px] text-slate-500 mt-0.5">Fixed consultation fee set on Doctor profile</p>
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital Charges / Services (₹) *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={editFormData.Hospitals_Chargies}
-                      onChange={handleHospitalChargesChange}
-                      placeholder="e.g. 350.00"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono font-bold focus:outline-none focus:border-emerald-600"
-                    />
-                    <p className="text-[10px] text-slate-500 mt-0.5">Credited to Hospital Revenue</p>
-                  </div>
-                </div>
-
-                {/* Total Billing Live Calculation Preview */}
-                <div className="p-3 bg-white rounded-xl border border-emerald-300 flex flex-wrap items-center justify-between gap-2 shadow-2xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold text-slate-500">Bill Breakdown:</span>
-                    <span className="text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded">
-                      Doctor: ₹{Number(editFormData.consultation_fee || 0).toFixed(2)}
-                    </span>
-                    <span className="text-slate-400 font-bold">+</span>
-                    <span className="text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded">
-                      Hospital: ₹{Number(editFormData.Hospitals_Chargies || 0).toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] font-bold text-slate-600 uppercase mr-1.5">Total Amount:</span>
-                    <span className="text-sm font-extrabold text-emerald-700 font-mono">
-                      ₹{(Number(editFormData.consultation_fee || 0) + Number(editFormData.Hospitals_Chargies || 0)).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                  <div>
-                    <label className="block font-semibold text-slate-700 uppercase mb-1">Amount Paid (₹)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="e.g. 500.00"
-                      value={editFormData.amount_paid}
-                      onChange={(e) => setEditFormData({ ...editFormData, amount_paid: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-mono font-bold focus:outline-none focus:border-emerald-600"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 uppercase mb-1">Payment Status</label>
-                    <select
-                      value={editFormData.payment_status}
-                      onChange={(e) => setEditFormData({ ...editFormData, payment_status: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-semibold cursor-pointer"
-                    >
-                      <option value="">-- Select Payment Status --</option>
-                      {paymentStatuses.map((ps, idx) => (
-                        <option key={idx} value={ps}>{ps}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 uppercase mb-1">Payment Method</label>
-                    <select
-                      value={editFormData.payment_method}
-                      onChange={(e) => setEditFormData({ ...editFormData, payment_method: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-medium cursor-pointer"
-                    >
-                      <option value="">-- Select Payment Method --</option>
-                      {paymentMethods.map((pm, idx) => (
-                        <option key={idx} value={pm}>{pm}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Reason for Visit / Symptoms Diagnosis</label>
-                <textarea
-                  rows={2}
-                  value={editFormData.symptoms_diagnosis}
-                  onChange={(e) => setEditFormData({ ...editFormData, symptoms_diagnosis: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Patient Condition (Triage) *</label>
-                  <select
-                    value={editFormData.Condation || editFormData.condation || editFormData.condition || editFormData.symptoms_severity || ''}
-                    onChange={(e) => setEditFormData({
-                      ...editFormData,
-                      Condation: e.target.value,
-                      condation: e.target.value,
-                      condition: e.target.value,
-                      symptoms_severity: e.target.value
-                    })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-600 font-bold cursor-pointer"
-                  >
-                    <option value="">-- Select Condition --</option>
-                    <option value="Critical">Critical</option>
-                    <option value="Emergency">Emergency</option>
-                    <option value="Urgent">Urgent</option>
-                    <option value="Normal">Normal</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Status:</label>
-                  <select
-                    value={editFormData.status}
-                    onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-semibold cursor-pointer"
-                  >
-                    <option value="">-- Select Status --</option>
-                    {statusOptions.map((st, idx) => (
-                      <option key={idx} value={st}>{st}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold shadow-md cursor-pointer"
+                  disabled={isSavingEdit}
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold transition cursor-pointer shadow-xs disabled:opacity-50"
                 >
-                  Save Changes
+                  {isSavingEdit ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>
@@ -1267,92 +960,311 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
         </div>
       )}
 
-      {/* UPDATE STATUS MODAL */}
-      {isStatusModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-4 sm:p-6 space-y-4 my-auto">
+      {/* BOOK APPOINTMENT MODAL */}
+      {isBookModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full p-6 space-y-4 my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-sm sm:text-base font-bold text-slate-800">Update Patient Status</h3>
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">Book New Appointment</h2>
+                <p className="text-xs text-slate-500">
+                  Book appointment under account email:{' '}
+                  <strong className="text-indigo-700 font-mono">{displayEmail}</strong>
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => setIsStatusModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 text-xl font-bold cursor-pointer"
+                onClick={() => setIsBookModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-xl px-2 py-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
               >
                 &times;
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            <form onSubmit={handleBookAppointmentSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Status:</label>
-                <select
-                  value={statusUpdateValue}
-                  onChange={(e) => setStatusUpdateValue(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-semibold cursor-pointer"
-                >
-                  {statusOptions.map((st, idx) => (
-                    <option key={idx} value={st}>{st}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Clinical Remarks / Diagnosis</label>
-                <textarea
-                  rows={3}
-                  value={statusRemarks}
-                  onChange={(e) => setStatusRemarks(e.target.value)}
-                  placeholder="Enter remarks..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium"
+                <label className="block font-semibold text-slate-700 uppercase mb-1">
+                  Patient Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={bookFormData.patient_name}
+                  onChange={(e) => setBookFormData({ ...bookFormData, patient_name: e.target.value })}
+                  placeholder={`e.g. ${displayName}`}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Target Hospital Branch *</label>
+                  <select
+                    required
+                    value={bookFormData.hospital}
+                    onChange={(e) => setBookFormData({ ...bookFormData, hospital: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                  >
+                    <option value="">-- Select Branch --</option>
+                    {hospitalsList.map(h => (
+                      <option key={h.id} value={h.id}>{h.Name || h.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Doctor</label>
+                  <select
+                    value={bookFormData.doctor}
+                    onChange={handleBookDoctorChange}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                  >
+                    <option value="">-- Select Doctor --</option>
+                    {doctorsList.map(d => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} ({d.specialization || d.specialty || 'General'}) - ₹{d.consultation_fee || 0}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Doctor Fee (₹)</label>
+                  <input
+                    type="number"
+                    value={bookFormData.consultation_fee}
+                    onChange={(e) => {
+                      const fee = parseFloat(e.target.value) || 0;
+                      setBookFormData(prev => ({
+                        ...prev,
+                        consultation_fee: fee,
+                        amount_paid: prev.payment_status === 'Paid' ? fee + (Number(prev.hospitals_charges) || 0) : prev.amount_paid
+                      }));
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital Charges (₹)</label>
+                  <input
+                    type="number"
+                    value={bookFormData.hospitals_charges}
+                    onChange={(e) => {
+                      const hosp = parseFloat(e.target.value) || 0;
+                      setBookFormData(prev => ({
+                        ...prev,
+                        hospitals_charges: hosp,
+                        amount_paid: prev.payment_status === 'Paid' ? (Number(prev.consultation_fee) || 0) + hosp : prev.amount_paid
+                      }));
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Payment Status</label>
+                  <select
+                    value={bookFormData.payment_status}
+                    onChange={(e) => {
+                      const pStatus = e.target.value;
+                      const total = (Number(bookFormData.consultation_fee) || 0) + (Number(bookFormData.hospitals_charges) || 0);
+                      setBookFormData(prev => ({
+                        ...prev,
+                        payment_status: pStatus,
+                        amount_paid: pStatus === 'Paid' ? total : 0
+                      }));
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Paid">Paid</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Clinical Condition</label>
+                  <select
+                    value={bookFormData.condition}
+                    onChange={(e) => setBookFormData({ ...bookFormData, condition: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                  >
+                    <option value="Normal">Normal</option>
+                    <option value="Urgent">Urgent</option>
+                    <option value="Emergency">Emergency</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Appointment Status</label>
+                  <select
+                    value={bookFormData.status}
+                    onChange={(e) => setBookFormData({ ...bookFormData, status: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Confirmed">Confirmed</option>
+                    <option value="Admitted">Admitted</option>
+                  </select>
+                </div>
+              </div>
+
+              {bookFormData.status === 'Admitted' && (
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Bed Number</label>
+                  <input
+                    type="number"
+                    value={bookFormData.bed_number}
+                    onChange={(e) => setBookFormData({ ...bookFormData, bed_number: e.target.value })}
+                    placeholder="e.g. 101"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Symptoms / Reason for Visit</label>
+                <textarea
+                  rows="2"
+                  value={bookFormData.symptoms_diagnosis}
+                  onChange={(e) => setBookFormData({ ...bookFormData, symptoms_diagnosis: e.target.value })}
+                  placeholder="Clinical symptoms, reason for visit..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsStatusModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                  onClick={() => setIsBookModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
-                  type="button"
-                  onClick={handleSaveStatus}
-                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold shadow-md cursor-pointer"
+                  type="submit"
+                  disabled={isBooking}
+                  className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold transition cursor-pointer shadow-xs disabled:opacity-50"
                 >
-                  Save Status
+                  {isBooking ? 'Booking...' : 'Book Appointment'}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* DELETE CONFIRMATION MODAL */}
-      {isDeleteModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-4 sm:p-6 space-y-4">
-            <div className="text-center space-y-1">
-              <h3 className="text-base font-bold text-slate-800">Delete Patient Record?</h3>
-              <p className="text-xs text-slate-500">
-                Are you sure you want to permanently delete profile for <strong className="text-slate-800">{displayName}</strong> (<span className="font-mono">{displayId}</span>)? This action cannot be undone.
-              </p>
+      {/* UPDATE APPOINTMENT STATUS MODAL */}
+      {isStatusModalOpen && selectedApptForStatus && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-4 my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">Update Appointment Status</h2>
+                <p className="text-xs text-slate-500 font-mono">
+                  {selectedApptForStatus.appointment_id || `APT-${selectedApptForStatus.id}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsStatusModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-xl px-2 py-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              >
+                &times;
+              </button>
             </div>
 
-            <div className="flex items-center justify-center gap-3 pt-2">
+            <form onSubmit={handleSaveStatusModal} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Status *</label>
+                <select
+                  value={statusUpdateValue}
+                  onChange={(e) => setStatusUpdateValue(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="Confirmed">Confirmed</option>
+                  <option value="Admitted">Admitted</option>
+                  <option value="Discharged">Discharged</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+              </div>
+
+              {statusUpdateValue === 'Admitted' && (
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Bed Number</label>
+                  <input
+                    type="number"
+                    value={bedUpdateValue}
+                    onChange={(e) => setBedUpdateValue(e.target.value)}
+                    placeholder="e.g. 101"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-mono"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Notes / Diagnosis</label>
+                <textarea
+                  rows="2"
+                  value={statusRemarks}
+                  onChange={(e) => setStatusRemarks(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsStatusModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingStatus}
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold transition cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  {isUpdatingStatus ? 'Saving...' : 'Update Status'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE PATIENT MODAL */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 space-y-4 my-auto">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto text-xl font-bold">
+              ⚠
+            </div>
+            <div className="text-center space-y-1">
+              <h3 className="text-base font-bold text-slate-800">Delete Patient Account?</h3>
+              <p className="text-xs text-slate-500">
+                Are you sure you want to permanently delete the account of{' '}
+                <strong className="text-slate-800">{displayName}</strong>? This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setIsDeleteModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDelete}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md cursor-pointer"
+                disabled={isDeleting}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer shadow-xs disabled:opacity-50"
               >
-                Yes, Delete Record
+                {isDeleting ? 'Deleting...' : 'Delete Account'}
               </button>
             </div>
           </div>

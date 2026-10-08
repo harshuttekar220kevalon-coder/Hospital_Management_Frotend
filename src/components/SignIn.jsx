@@ -60,10 +60,13 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
     if (errorMessage) setErrorMessage('');
   };
 
-  // Check if hospital selection is required based on role
+  // Check if hospital selection is strictly required based on role (Optional for Receptionists)
   const isHospitalRequiredRole = 
     formData.Select_User === 'DOCTOR' || 
-    formData.Select_User === 'NURSES' || 
+    formData.Select_User === 'NURSES';
+
+  const showHospitalSelection = 
+    isHospitalRequiredRole || 
     formData.Select_User === 'RECEPTIONISTS';
 
   const handleSubmit = async (e) => {
@@ -279,11 +282,11 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
           } catch (e) {
             console.warn('Nurse staff sync notice:', e);
           }
-        } else if (roleVal === 'RECEPTIONISTS' && selectedHospId) {
+        } else if (roleVal === 'RECEPTIONISTS') {
           try {
             const generatedRecId = `REC-${Math.floor(1000 + Math.random() * 9000)}`;
             const recPayload = {
-              hospital: selectedHospId,
+              hospital: selectedHospId || null,
               name: fullName,
               receptionist_id: generatedRecId,
               role: 'Front Desk Receptionist',
@@ -314,7 +317,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      hospital: selectedHospId,
+                      hospital: selectedHospId || null,
                       contact: contact,
                       phone: contact
                     })
@@ -360,6 +363,9 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
         if (mail && pass) {
           localStorage.setItem(`pwd_${mail.toLowerCase()}`, pass);
         }
+        if (roleVal === 'RECEPTIONISTS' && mail) {
+          localStorage.setItem(`user_role_${mail.toLowerCase()}`, 'Receptionist');
+        }
 
         const userObj = data.user || data;
         const successMsg = data.message || `Welcome, ${userObj.name || fullName}! Account registered successfully. Please sign in with your credentials.`;
@@ -371,6 +377,46 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
         }
         return;
       } else {
+        // Fallback for Receptionist role if /signup/ endpoint is unavailable but Receptionist table is available
+        if (roleVal === 'RECEPTIONISTS') {
+          try {
+            const generatedRecId = `REC-${Math.floor(1000 + Math.random() * 9000)}`;
+            const recDirectPayload = {
+              hospital: selectedHospId || null,
+              name: fullName,
+              receptionist_id: generatedRecId,
+              role: 'Front Desk Receptionist',
+              designation: 'Front Desk Receptionist',
+              contact: contact,
+              phone: contact,
+              contact_number: contact,
+              phone_number: contact,
+              email: mail,
+              password: pass,
+              shift: 'Morning',
+              status: 'On_Duty',
+              is_active: true
+            };
+            const directRecRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(recDirectPayload)
+            }).catch(() => null);
+
+            if (directRecRes && (directRecRes.ok || directRecRes.status === 201 || directRecRes.status === 200)) {
+              if (mail && contact) localStorage.setItem(`user_contact_${mail.toLowerCase()}`, contact);
+              if (mail && pass) localStorage.setItem(`pwd_${mail.toLowerCase()}`, pass);
+              if (mail && selectedHospId) localStorage.setItem(`user_hospital_${mail.toLowerCase()}`, String(selectedHospId));
+              localStorage.setItem(`user_role_${mail.toLowerCase()}`, 'Receptionist');
+              alert(`Welcome, ${fullName}! Receptionist account created successfully in database. Please log in.`);
+              if (setCurrentPage) setCurrentPage('login');
+              return;
+            }
+          } catch (directErr) {
+            console.warn('Direct receptionist registration fallback notice:', directErr);
+          }
+        }
+
         // Fallback for Patient role if /signup/ endpoint is unavailable but Patient table is available
         if (roleVal === 'PATIENTS') {
           try {
@@ -556,11 +602,11 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
             </select>
           </div>
 
-          {/* SELECT HOSPITAL (VISIBLE ONLY IF DOCTOR, NURSE, OR RECEPTIONIST) */}
-          {isHospitalRequiredRole && (
+          {/* SELECT HOSPITAL (VISIBLE FOR DOCTOR, NURSE, AND RECEPTIONIST) */}
+          {showHospitalSelection && (
             <div className="p-3.5 rounded-xl bg-teal-50/70 border border-teal-200 animate-in fade-in duration-200">
               <label className="block text-xs font-semibold text-teal-900 uppercase tracking-wider mb-1.5">
-                Select Hospital <span className="text-rose-500">*</span>
+                Select Hospital / Branch {isHospitalRequiredRole ? <span className="text-rose-500">*</span> : <span className="text-slate-400 font-normal text-[10px] lowercase">(optional)</span>}
               </label>
               <select
                 name="hospital"
@@ -569,7 +615,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
                 required={isHospitalRequiredRole}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-teal-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition duration-150 cursor-pointer font-medium"
               >
-                <option value="">-- Select Hospital --</option>
+                <option value="">{isHospitalRequiredRole ? '-- Select Hospital * --' : '-- Select Hospital / Desk (Optional) --'}</option>
                 {hospitalsList.map((h) => (
                   <option key={h.id} value={h.id}>
                     {h.Name || h.name}
@@ -579,7 +625,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
               <p className="text-[11px] text-teal-700 mt-1 font-medium">
                 {formData.Select_User === 'DOCTOR' ? 'Select the primary hospital for your clinical OPD & patient consultations.' :
                  formData.Select_User === 'NURSES' ? 'Select the hospital where you will be assigned ward & floor duty.' :
-                 'Select the hospital where you will manage the reception desk & registrations.'}
+                 'Select the hospital desk where you work (optional - you can still access reception dashboard if unassigned).'}
               </p>
             </div>
           )}

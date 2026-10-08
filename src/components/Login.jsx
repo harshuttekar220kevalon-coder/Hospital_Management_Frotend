@@ -99,7 +99,10 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
         } else if (backendRole === 'PATIENTS' || backendRole === 'PATIENT' || backendRole.includes('PATIENT')) {
           mappedRole = 'Patient';
         } else {
-          if (inputLower.includes('super') || inputLower.includes('superadmin') || inputClean === 'superadmin') {
+          const savedRole = localStorage.getItem(`user_role_${inputLower}`);
+          if (savedRole) {
+            mappedRole = savedRole;
+          } else if (inputLower.includes('super') || inputLower.includes('superadmin') || inputClean === 'superadmin') {
             mappedRole = 'Super Admin';
           } else if (inputLower.includes('admin') || inputClean === 'admin') {
             mappedRole = 'Hospital Admin';
@@ -107,7 +110,7 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
             mappedRole = 'Doctor';
           } else if (inputLower.includes('nur')) {
             mappedRole = 'Nurse';
-          } else if (inputLower.includes('rec')) {
+          } else if (inputLower.includes('rec') || inputLower.includes('desk') || inputLower.includes('reception')) {
             mappedRole = 'Receptionist';
           } else {
             mappedRole = 'Patient';
@@ -173,21 +176,48 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
               }
             }
           } else if (mappedRole === 'Patient') {
-            const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
-            if (patRes && patRes.ok) {
-              const patList = await patRes.json().catch(() => []);
-              const matchedPat = Array.isArray(patList) ? patList.find(p => 
-                (p.email && p.email.toLowerCase().trim() === inputLower) ||
-                (p.name && p.name.toLowerCase().trim() === (userObj.name || '').toLowerCase().trim())
-              ) : null;
-              if (matchedPat) {
-                if (!userObj.contact && (matchedPat.contact || matchedPat.phone)) {
-                  userObj.contact = matchedPat.contact || matchedPat.phone;
-                }
-                if (!userObj.patient_id && (matchedPat.patient_id || matchedPat.uhid)) {
-                  userObj.patient_id = matchedPat.patient_id || matchedPat.uhid;
-                }
+            const [patRes, apptRes] = await Promise.allSettled([
+              fetch(`${API_BASE_URL}/super-admin/Patients/`),
+              fetch(`${API_BASE_URL}/super-admin/appointments/`)
+            ]);
+            let patList = [];
+            let apptList = [];
+            if (patRes.status === 'fulfilled' && patRes.value?.ok) patList = await patRes.value.json().catch(() => []);
+            if (apptRes.status === 'fulfilled' && apptRes.value?.ok) apptList = await apptRes.value.json().catch(() => []);
+
+            const cleanDigitsInput = inputClean.replace(/\D/g, '');
+
+            const matchedPat = Array.isArray(patList) ? patList.find(p => 
+              (p.email && p.email.toLowerCase().trim() === inputLower) ||
+              (p.patient_id && p.patient_id.toLowerCase().trim() === inputLower) ||
+              (p.uhid && p.uhid.toLowerCase().trim() === inputLower) ||
+              (p.name && p.name.toLowerCase().trim() === (userObj.name || '').toLowerCase().trim()) ||
+              (p.id && Number(p.id) === Number(userObj.id)) ||
+              (cleanDigitsInput.length >= 7 && (p.contact || p.phone) && String(p.contact || p.phone).replace(/\D/g, '') === cleanDigitsInput)
+            ) : null;
+
+            const matchedAppt = Array.isArray(apptList) ? apptList.find(a => 
+              (a.email && a.email.toLowerCase().trim() === inputLower) ||
+              (a.patient_name && a.patient_name.toLowerCase().trim() === (userObj.name || '').toLowerCase().trim()) ||
+              (cleanDigitsInput.length >= 7 && (a.contact || a.phone) && String(a.contact || a.phone).replace(/\D/g, '') === cleanDigitsInput) ||
+              (a.Appoment_id && (String(a.Appoment_id).toLowerCase().trim() === inputLower || `apt-${String(a.Appoment_id).toLowerCase().trim()}` === inputLower))
+            ) : null;
+
+            if (matchedPat) {
+              if (!userObj.contact && (matchedPat.contact || matchedPat.phone)) {
+                userObj.contact = matchedPat.contact || matchedPat.phone;
               }
+              const resolvedPatId = matchedPat.patient_id || matchedPat.uhid || (matchedPat.id ? `PAT-${matchedPat.id}` : undefined);
+              userObj.patient_id = resolvedPatId;
+              userObj.uhid = resolvedPatId;
+              if (matchedPat.name) userObj.name = matchedPat.name;
+            }
+            if (!userObj.patient_id && matchedAppt) {
+              const aptTag = matchedAppt.Appoment_id || matchedAppt.appoment_id || matchedAppt.id;
+              const resolvedAptId = aptTag ? `APT-${aptTag}` : undefined;
+              userObj.patient_id = resolvedAptId;
+              userObj.uhid = resolvedAptId;
+              if (matchedAppt.patient_name) userObj.name = matchedAppt.patient_name;
             }
           }
 
@@ -216,6 +246,8 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
           nurse_id: userObj.nurse_id || (mappedRole === 'Nurse' ? inputClean : undefined),
           doctor_id: userObj.doctor_id || (mappedRole === 'Doctor' ? inputClean : undefined),
           receptionist_id: userObj.receptionist_id || (mappedRole === 'Receptionist' ? inputClean : undefined),
+          patient_id: userObj.patient_id || userObj.uhid || data.patient_id || (mappedRole === 'Patient' ? (userObj.id ? `PAT-${userObj.id}` : inputClean) : undefined),
+          uhid: userObj.patient_id || userObj.uhid || data.patient_id || (mappedRole === 'Patient' ? (userObj.id ? `PAT-${userObj.id}` : inputClean) : undefined),
           role: mappedRole,
           rawRole: backendRole || (mappedRole === 'Super Admin' ? 'SUPER ADMIN' : mappedRole),
           hospital: userHospId ? Number(userHospId) : null,
@@ -234,14 +266,15 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
         return;
       }
 
-      // 3. Fallback verification against Staff database tables (Super Admins, Nurses, Doctors, Receptionists, Admins, Patients)
-      const [nursesRes, doctorsRes, recsRes, adminsRes, patientsRes, hospitalsRes] = await Promise.allSettled([
+      // 3. Fallback verification against Staff database tables (Super Admins, Nurses, Doctors, Receptionists, Admins, Patients, Appointments)
+      const [nursesRes, doctorsRes, recsRes, adminsRes, patientsRes, hospitalsRes, apptsRes] = await Promise.allSettled([
         fetch(`${API_BASE_URL}/super-admin/Nurses/`),
         fetch(`${API_BASE_URL}/super-admin/Doctors/`),
         fetch(`${API_BASE_URL}/super-admin/Receptionists/`),
         fetch(`${API_BASE_URL}/super-admin/Admins/`),
         fetch(`${API_BASE_URL}/super-admin/Patients/`),
-        fetch(`${API_BASE_URL}/super-admin/Hospital/`)
+        fetch(`${API_BASE_URL}/super-admin/Hospital/`),
+        fetch(`${API_BASE_URL}/super-admin/appointments/`)
       ]);
 
       const nurseList = nursesRes.status === 'fulfilled' && nursesRes.value?.ok ? await nursesRes.value.json().catch(() => []) : [];
@@ -250,6 +283,7 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
       const adminList = adminsRes.status === 'fulfilled' && adminsRes.value?.ok ? await adminsRes.value.json().catch(() => []) : [];
       const patList = patientsRes.status === 'fulfilled' && patientsRes.value?.ok ? await patientsRes.value.json().catch(() => []) : [];
       const hospitalList = hospitalsRes.status === 'fulfilled' && hospitalsRes.value?.ok ? await hospitalsRes.value.json().catch(() => []) : [];
+      const apptList = apptsRes.status === 'fulfilled' && apptsRes.value?.ok ? await apptsRes.value.json().catch(() => []) : [];
 
       const cleanDigits = inputClean.replace(/\D/g, '');
 
@@ -610,9 +644,11 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
 
         const patContact = matchPat.contact || matchPat.phone || localStorage.getItem(`user_contact_${inputLower}`) || '';
 
+        const resolvedPatId = matchPat.patient_id || matchPat.uhid || `PAT-${matchPat.id}`;
         const finalUser = {
           id: matchPat.id,
-          patient_id: matchPat.patient_id || matchPat.uhid || `PAT-${matchPat.id}`,
+          patient_id: resolvedPatId,
+          uhid: resolvedPatId,
           name: matchPat.name || 'Patient',
           email: matchPat.email || `${matchPat.patient_id || 'patient'}@hospital.com`,
           contact: patContact,
@@ -620,6 +656,46 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
           role: 'Patient',
           rawRole: 'Patient',
           hospital: typeof matchPat.hospital === 'object' ? matchPat.hospital?.id : matchPat.hospital,
+          is_active: true
+        };
+
+        alert(`Welcome, ${finalUser.name}!`);
+        if (setIsLoggedIn) {
+          setIsLoggedIn(finalUser);
+        }
+        return;
+      }
+
+      // Check Appointment record match for Patient
+      const matchAppt = Array.isArray(apptList) ? apptList.find(a => {
+        const aApptId = String(a.Appoment_id || a.appoment_id || a.id || '').toLowerCase().trim();
+        const aEmail = String(a.email || '').toLowerCase().trim();
+        const aContact = String(a.contact || a.phone || '').replace(/\D/g, '');
+        const aName = String(a.patient_name || a.patient_Name || a.name || '').toLowerCase().trim();
+        return (
+          (aApptId && (aApptId === inputLower || `apt-${aApptId}` === inputLower)) ||
+          (aEmail && aEmail === inputLower) ||
+          (cleanDigits.length >= 7 && aContact === cleanDigits) ||
+          (aName && aName === inputLower)
+        );
+      }) : null;
+
+      if (matchAppt) {
+        const aptTag = matchAppt.Appoment_id || matchAppt.appoment_id || matchAppt.id;
+        const resolvedAptId = aptTag ? `APT-${aptTag}` : 'APT-01';
+        const apptContact = matchAppt.contact || matchAppt.phone || localStorage.getItem(`user_contact_${inputLower}`) || '';
+
+        const finalUser = {
+          id: matchAppt.id || 'pat-appt',
+          patient_id: resolvedAptId,
+          uhid: resolvedAptId,
+          name: matchAppt.patient_name || matchAppt.patient_Name || matchAppt.name || 'Patient',
+          email: matchAppt.email || (inputClean.includes('@') ? inputClean : `${resolvedAptId.toLowerCase()}@hospital.com`),
+          contact: apptContact,
+          phone: apptContact,
+          role: 'Patient',
+          rawRole: 'Patient',
+          hospital: typeof matchAppt.hospital === 'object' ? matchAppt.hospital?.id : matchAppt.hospital,
           is_active: true
         };
 

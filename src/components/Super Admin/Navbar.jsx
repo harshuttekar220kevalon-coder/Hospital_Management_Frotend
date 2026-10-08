@@ -40,6 +40,12 @@ const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser }
       activeClass: 'bg-sky-500/20 text-sky-300 border-sky-400/40 font-bold shadow-xs'
     },
     {
+      id: 'super_admin_appointments',
+      label: 'Appointments',
+      matchPages: ['super_admin_appointments'],
+      activeClass: 'bg-sky-500/20 text-sky-300 border-sky-400/40 font-bold shadow-xs'
+    },
+    {
       id: 'super_admin_patients',
       label: 'Patients',
       matchPages: ['super_admin_patients', 'patient_details'],

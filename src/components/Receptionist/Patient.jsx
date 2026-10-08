@@ -1,6 +1,166 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
+const extractArray = (resData) => {
+  if (!resData) return [];
+  if (Array.isArray(resData)) return resData;
+  if (Array.isArray(resData.results)) return resData.results;
+  if (Array.isArray(resData.data)) return resData.data;
+  if (Array.isArray(resData.appointments)) return resData.appointments;
+  if (Array.isArray(resData.doctors)) return resData.doctors;
+  if (Array.isArray(resData.nurses)) return resData.nurses;
+  if (Array.isArray(resData.rows)) return resData.rows;
+  return [];
+};
+
+const isDoctorInHospital = (doc, targetHospId, targetHospName = '') => {
+  if (!targetHospId && !targetHospName) return true;
+  if (!doc) return false;
+
+  const docHosp = typeof doc.hospital === 'object' && doc.hospital !== null ? doc.hospital.id : doc.hospital;
+
+  if (targetHospId && !isNaN(Number(targetHospId))) {
+    if (docHosp && !isNaN(Number(docHosp))) {
+      return Number(docHosp) === Number(targetHospId);
+    }
+    if (Array.isArray(doc.hospitals) && doc.hospitals.length > 0) {
+      return doc.hospitals.some(h => {
+        const hId = typeof h === 'object' && h !== null ? h.id : h;
+        return Number(hId) === Number(targetHospId);
+      });
+    }
+    if (targetHospName) {
+      const dHospName = (doc.hospital_name || (typeof doc.hospital === 'object' ? (doc.hospital?.Name || doc.hospital?.name) : '') || '').toLowerCase().trim();
+      return dHospName === targetHospName.toLowerCase().trim() && dHospName !== '';
+    }
+    return false;
+  }
+
+  if (targetHospName && targetHospName.trim() !== '') {
+    const dHospName = (doc.hospital_name || (typeof doc.hospital === 'object' ? (doc.hospital?.Name || doc.hospital?.name) : '') || '').toLowerCase().trim();
+    return dHospName === targetHospName.toLowerCase().trim() && dHospName !== '';
+  }
+
+  return false;
+};
+
+const isNurseInHospital = (nurse, targetHospId, targetHospName = '') => {
+  if (!targetHospId && !targetHospName) return true;
+  if (!nurse) return false;
+
+  const nHosp = typeof nurse.hospital === 'object' && nurse.hospital !== null ? nurse.hospital.id : nurse.hospital;
+
+  if (targetHospId && !isNaN(Number(targetHospId))) {
+    if (nHosp && !isNaN(Number(nHosp))) {
+      return Number(nHosp) === Number(targetHospId);
+    }
+    if (targetHospName) {
+      const nHospName = (nurse.hospital_name || (typeof nurse.hospital === 'object' ? (nurse.hospital?.Name || nurse.hospital?.name) : '') || '').toLowerCase().trim();
+      return nHospName === targetHospName.toLowerCase().trim() && nHospName !== '';
+    }
+    return false;
+  }
+
+  if (targetHospName && targetHospName.trim() !== '') {
+    const nHospName = (nurse.hospital_name || (typeof nurse.hospital === 'object' ? (nurse.hospital?.Name || nurse.hospital?.name) : '') || '').toLowerCase().trim();
+    return nHospName === targetHospName.toLowerCase().trim() && nHospName !== '';
+  }
+
+  return false;
+};
+
+const isAppointmentInHospital = (item, targetHospId, targetHospName = '', hospList = []) => {
+  if (!item) return false;
+
+  // 1. Resolve Target Hospital ID & Name
+  let targetId = targetHospId && !isNaN(Number(targetHospId)) ? Number(targetHospId) : null;
+  let targetName = (targetHospName || '').toString().toLowerCase().trim();
+
+  if (targetId && !targetName && Array.isArray(hospList) && hospList.length > 0) {
+    const matched = hospList.find(h => Number(h.id) === targetId);
+    if (matched) targetName = (matched.Name || matched.name || '').toLowerCase().trim();
+  } else if (!targetId && targetName && Array.isArray(hospList) && hospList.length > 0) {
+    const matched = hospList.find(h => (h.Name || h.name || '').toLowerCase().trim() === targetName);
+    if (matched) targetId = Number(matched.id);
+  }
+
+  // If target hospital is not specified, do NOT leak records
+  if (!targetId && !targetName) return false;
+
+  // 2. Resolve Appointment's Hospital ID & Name
+  const rawHosp = typeof item.hospital === 'object' && item.hospital !== null 
+    ? (item.hospital.id || item.hospital.hospital_id || item.hospital.Name || item.hospital.name) 
+    : item.hospital;
+  const rawHospName = item.hospital_name || (typeof item.hospital === 'object' && item.hospital !== null ? (item.hospital.Name || item.hospital.name) : '') || '';
+
+  let itemHospId = null;
+  let itemHospName = '';
+
+  if (rawHosp && !isNaN(Number(rawHosp)) && Number(rawHosp) > 0) {
+    itemHospId = Number(rawHosp);
+    if (Array.isArray(hospList) && hospList.length > 0) {
+      const matched = hospList.find(h => Number(h.id) === itemHospId);
+      if (matched) itemHospName = (matched.Name || matched.name || '').toLowerCase().trim();
+    }
+  } else if (rawHosp && typeof rawHosp === 'string' && rawHosp.trim() !== '') {
+    const cleanRaw = rawHosp.trim().toLowerCase();
+    if (Array.isArray(hospList) && hospList.length > 0) {
+      const matched = hospList.find(h => (h.Name || h.name || '').toLowerCase().trim() === cleanRaw);
+      if (matched) {
+        itemHospId = Number(matched.id);
+        itemHospName = (matched.Name || matched.name || '').toLowerCase().trim();
+      } else {
+        itemHospName = cleanRaw;
+      }
+    } else {
+      itemHospName = cleanRaw;
+    }
+  }
+
+  if (!itemHospName && rawHospName && rawHospName.trim() !== '') {
+    const cleanRawName = rawHospName.trim().toLowerCase();
+    if (Array.isArray(hospList) && hospList.length > 0) {
+      const matched = hospList.find(h => (h.Name || h.name || '').toLowerCase().trim() === cleanRawName);
+      if (matched) {
+        if (!itemHospId) itemHospId = Number(matched.id);
+        itemHospName = (matched.Name || matched.name || '').toLowerCase().trim();
+      } else {
+        itemHospName = cleanRawName;
+      }
+    } else {
+      itemHospName = cleanRawName;
+    }
+  }
+
+  // If appointment has no hospital assigned, it does NOT belong to this hospital
+  if (!itemHospId && !itemHospName) return false;
+
+  // 3. Strict Comparison
+  if (targetId && itemHospId) {
+    return itemHospId === targetId;
+  }
+
+  if (targetId && itemHospName && Array.isArray(hospList) && hospList.length > 0) {
+    const matched = hospList.find(h => (h.Name || h.name || '').toLowerCase().trim() === itemHospName);
+    if (matched) {
+      return Number(matched.id) === targetId;
+    }
+  }
+
+  if (targetName && itemHospId && Array.isArray(hospList) && hospList.length > 0) {
+    const matched = hospList.find(h => Number(h.id) === itemHospId);
+    if (matched) {
+      return (matched.Name || matched.name || '').toLowerCase().trim() === targetName;
+    }
+  }
+
+  if (targetName && itemHospName) {
+    return targetName === itemHospName;
+  }
+
+  return false;
+};
+
 const getFloorNumber = (bed) => {
   if (!bed) return null;
   const num = Number(bed);
@@ -42,6 +202,7 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
   const [patients, setPatients] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [hospitals, setHospitals] = useState([]);
+  const [hospitalInfo, setHospitalInfo] = useState(null);
   const [nurses, setNurses] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -62,7 +223,8 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
     patient_id: '',
     name: '',
     age: '',
-    gender: '',
+    gender: 'Male',
+    Gender: 'Male',
     blood_group: '',
     contact: '',
     email: '',
@@ -95,55 +257,197 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
       setAddFormData(prev => ({
         ...prev,
         doctor: selectedDoctorForPatient.id,
-        consultation_fee: selectedDoctorForPatient.consultation_fee || '500',
+        consultation_fee: selectedDoctorForPatient.consultation_fee ? String(selectedDoctorForPatient.consultation_fee) : '0.00',
         hospital: typeof selectedDoctorForPatient.hospital === 'object' ? selectedDoctorForPatient.hospital?.id : (selectedDoctorForPatient.hospital || prev.hospital)
       }));
       setIsAddModalOpen(true);
     }
   }, [selectedDoctorForPatient]);
 
+  // Helper to normalize appointment records from Django backend
+  const normalizeAppointment = (item, doctorsList = [], hospitalsList = [], nursesList = []) => {
+    if (!item) return null;
+    const id = item.id || item.appointment_id;
+    const patientName = item.patient_name || item.patient_Name || item.name || `Patient #${id}`;
+    const hospId = typeof item.hospital === 'object' ? item.hospital?.id : item.hospital;
+    const docId = typeof item.doctor === 'object' ? item.doctor?.id : item.doctor;
+    const nurseId = typeof item.nurse === 'object' ? item.nurse?.id : item.nurse;
+
+    const docObj = docId ? doctorsList.find(d => Number(d.id) === Number(docId)) : null;
+    const hospObj = hospId ? hospitalsList.find(h => Number(h.id) === Number(hospId)) : null;
+    const nurseObj = nurseId ? nursesList.find(n => Number(n.id) === Number(nurseId)) : null;
+
+    const docName = item.doctor_name || (docObj ? (docObj.name.startsWith('Dr.') ? docObj.name : `Dr. ${docObj.name}`) : (docId ? `Dr. ID ${docId}` : ''));
+    const hospName = item.hospital_name || hospObj?.Name || hospObj?.name || '';
+    const nurseName = item.nurse_name || nurseObj?.name || '';
+
+    const condition = item.condition || item.Condation || item.symptoms_severity || 'Normal';
+    const status = item.status || (docId ? 'Assigned' : 'Pending');
+
+    const apptId = item.Appoment_id || item.appoment_id || item.appointment_id || id;
+    const patGender = item.Gender || item.gender || 'Not Specified';
+
+    return {
+      ...item,
+      id,
+      Appoment_id: apptId,
+      appoment_id: apptId,
+      appointment_id: apptId,
+      patient_id: `APT-${apptId}`,
+      name: patientName,
+      patient_name: patientName,
+      patient_Name: patientName,
+      hospital: hospId,
+      hospital_name: hospName,
+      doctor: docId ? Number(docId) : null,
+      doctor_name: docName,
+      doctor_specialization: docObj?.specialization || docObj?.specialty || item.doctor_specialization || '',
+      bed_number: item.bed_number ? Number(item.bed_number) : null,
+      nurse: nurseId ? Number(nurseId) : null,
+      nurse_name: nurseName,
+      condition,
+      Condation: condition,
+      status,
+      age: item.age || item.Age || '',
+      gender: patGender,
+      Gender: patGender,
+      blood_group: item.blood_group || item.Blood_Group || '',
+      contact: item.contact || item.phone || '',
+      email: item.email || '',
+      symptoms_diagnosis: item.symptoms_diagnosis || item.reason_for_visit || '-',
+      consultation_fee: item.consultation_fee || '0.00',
+      hospitals_charges: item.hospitals_charges || item.Hospitals_Chargies || '0',
+      Hospitals_Chargies: item.hospitals_charges || item.Hospitals_Chargies || '0',
+      amount_paid: item.amount_paid || '0',
+      payment_status: item.payment_status || 'Pending',
+      payment_method: item.payment_method || 'Cash',
+      checkup_status: item.checkup_status || 'Pending',
+      visit_date_time: item.visit_date_time || item.created_at || new Date().toISOString(),
+      created_at: item.created_at || item.visit_date_time || new Date().toISOString()
+    };
+  };
+
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      const [patRes, docRes, hospRes, nurRes] = await Promise.allSettled([
-        fetch(`${API_BASE_URL}/super-admin/Patients/`),
+      const email = (currentUser?.email || '').toLowerCase().trim();
+      const recId = currentUser?.id;
+
+      const [docRes, hospRes, nurRes, recRes] = await Promise.allSettled([
         fetch(`${API_BASE_URL}/super-admin/Doctors/`),
         fetch(`${API_BASE_URL}/super-admin/Hospital/`),
-        fetch(`${API_BASE_URL}/super-admin/Nurses/`)
+        fetch(`${API_BASE_URL}/super-admin/Nurses/`),
+        fetch(`${API_BASE_URL}/super-admin/Receptionists/`)
       ]);
 
-      let patData = [];
       let docData = [];
       let hospData = [];
       let nurData = [];
+      let recData = [];
 
-      if (patRes.status === 'fulfilled' && patRes.value.ok) patData = await patRes.value.json().catch(() => []);
-      if (docRes.status === 'fulfilled' && docRes.value.ok) docData = await docRes.value.json().catch(() => []);
-      if (hospRes.status === 'fulfilled' && hospRes.value.ok) hospData = await hospRes.value.json().catch(() => []);
-      if (nurRes.status === 'fulfilled' && nurRes.value.ok) nurData = await nurRes.value.json().catch(() => []);
+      if (docRes.status === 'fulfilled' && docRes.value.ok) docData = extractArray(await docRes.value.json().catch(() => []));
+      if (hospRes.status === 'fulfilled' && hospRes.value.ok) hospData = extractArray(await hospRes.value.json().catch(() => []));
+      if (nurRes.status === 'fulfilled' && nurRes.value.ok) nurData = extractArray(await nurRes.value.json().catch(() => []));
+      if (recRes.status === 'fulfilled' && recRes.value.ok) recData = extractArray(await recRes.value.json().catch(() => []));
 
-      setHospitals(Array.isArray(hospData) ? hospData : []);
-      setDoctors(Array.isArray(docData) ? docData : []);
-      setNurses(Array.isArray(nurData) ? nurData : []);
+      setHospitals(hospData);
 
-      const targetHospId = currentUser?.hospital || (typeof currentUser?.hospital_data === 'object' ? currentUser?.hospital_data?.id : null);
-      const filteredPats = targetHospId && Array.isArray(patData)
-        ? patData.filter(p => Number(typeof p.hospital === 'object' ? p.hospital?.id : p.hospital) === Number(targetHospId))
-        : (Array.isArray(patData) ? patData : []);
+      // Determine Receptionist's assigned hospital
+      let matchedRec = null;
+      if (Array.isArray(recData)) {
+        matchedRec = recData.find(r => 
+          (r.email && r.email.toLowerCase().trim() === email) ||
+          (recId && Number(r.id) === Number(recId)) ||
+          (r.name && r.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim())
+        );
+      }
+
+      let userHospIdVal = matchedRec?.hospital || currentUser?.hospital || (typeof currentUser?.hospital_data === 'object' ? currentUser?.hospital_data?.id : null);
+      if (typeof userHospIdVal === 'object' && userHospIdVal !== null) {
+        userHospIdVal = userHospIdVal.id || userHospIdVal.hospital_id;
+      }
+
+      let matchedHosp = null;
+      if (userHospIdVal && Array.isArray(hospData)) {
+        matchedHosp = hospData.find(h => Number(h.id) === Number(userHospIdVal));
+      }
+      if (!matchedHosp && (currentUser?.hospital_name || matchedRec?.hospital_name)) {
+        const hName = (currentUser?.hospital_name || matchedRec?.hospital_name).toLowerCase().trim();
+        matchedHosp = hospData.find(h => (h.Name || h.name || '').toLowerCase().trim() === hName);
+        if (matchedHosp) userHospIdVal = matchedHosp.id;
+      }
+      if (!matchedHosp && email) {
+        const savedHospId = localStorage.getItem(`user_hospital_${email}`);
+        if (savedHospId) {
+          matchedHosp = hospData.find(h => Number(h.id) === Number(savedHospId));
+          if (matchedHosp) userHospIdVal = matchedHosp.id;
+        }
+      }
+      if (!matchedHosp) {
+        const checkStr = `${email} ${currentUser?.name || ''} ${matchedRec?.name || ''}`.toLowerCase();
+        matchedHosp = hospData.find(h => {
+          const hn = (h.Name || h.name || '').toLowerCase().trim();
+          return hn && checkStr.includes(hn);
+        });
+        if (matchedHosp) userHospIdVal = matchedHosp.id;
+      }
+
+      setHospitalInfo(matchedHosp);
+      const userHospName = matchedHosp?.Name || matchedHosp?.name || currentUser?.hospital_name || matchedRec?.hospital_name || '';
+
+      // STRICT HOSPITAL FILTERING: Only doctors and nurses of her hospital
+      const hospDocs = userHospIdVal || userHospName
+        ? docData.filter(d => isDoctorInHospital(d, userHospIdVal, userHospName))
+        : [];
+
+      const hospNurses = userHospIdVal || userHospName
+        ? nurData.filter(n => isNurseInHospital(n, userHospIdVal, userHospName))
+        : [];
+
+      setDoctors(hospDocs);
+      setNurses(hospNurses);
+
+      // 1. Fetch Appointments ONLY from Backend (No Patient model data)
+      let rawAppointments = [];
+      try {
+        const aRes = await fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null);
+        if (aRes && aRes.ok) {
+          const aJson = await aRes.json().catch(() => []);
+          rawAppointments = extractArray(aJson);
+        }
+      } catch (e) {}
+
+      // Normalize appointments strictly from backend
+      const combinedList = [];
+      const seenIds = new Set();
+
+      for (const item of rawAppointments) {
+        const norm = normalizeAppointment(item, hospDocs, hospData, hospNurses);
+        if (norm && !seenIds.has(String(norm.id))) {
+          seenIds.add(String(norm.id));
+          combinedList.push(norm);
+        }
+      }
+
+      // STRICT HOSPITAL ISOLATION: Only appointments for this receptionist's hospital
+      const filteredPats = userHospIdVal || userHospName
+        ? combinedList.filter(p => isAppointmentInHospital(p, userHospIdVal, userHospName, hospData))
+        : [];
 
       setPatients(filteredPats);
     } catch (err) {
-      console.error('Error fetching receptionist patient data:', err);
+      console.error('Error fetching receptionist appointments data:', err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleOpenAddModal = () => {
+    const hospId = hospitalInfo?.id || userHospId || (hospitals[0]?.id || 1);
     setAddFormData({
       ...initialFormState,
       patient_id: generateUHID(),
-      hospital: userHospId || (hospitals[0]?.id || 1)
+      hospital: hospId
     });
     setAddSelectedFile(null);
     setAutoNurseText('');
@@ -168,11 +472,9 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
   const handleAddChange = (e) => {
     const { name, value, type, checked } = e.target;
     if (name === 'doctor') {
-      const docObj = doctors.find(d => Number(d.id) === Number(value));
       setAddFormData(prev => ({
         ...prev,
-        doctor: value,
-        consultation_fee: docObj?.consultation_fee || prev.consultation_fee
+        doctor: value
       }));
     } else if (name === 'bed_number') {
       handleBedInput(value);
@@ -200,79 +502,77 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
       const autoRes = parsedBedNum ? getAutoNurseForBed(parsedBedNum, nurses, chosenHospId) : { nurseId: null, nurseName: '' };
       const selectedNurseObj = nurses.find(n => Number(n.id) === Number(addFormData.nurse)) || (autoRes.nurseId ? nurses.find(n => Number(n.id) === autoRes.nurseId) : null);
       const chosenCondition = addFormData.Condation || 'Normal';
+      const visitIso = new Date().toISOString();
 
-      const payloadData = {
-        patient_id: generatedDocPatId,
-        name: addFormData.name.trim(),
-        contact: addFormData.contact.trim(),
-        phone: addFormData.contact.trim(),
-        email: addFormData.email.trim() || `${generatedDocPatId.toLowerCase()}@patient.hospital.com`,
-        password: (addFormData.password || addFormData.Password || 'Patient@123').trim(),
-        Password: (addFormData.password || addFormData.Password || 'Patient@123').trim(),
-        age: addFormData.age ? Number(addFormData.age) : null,
-        gender: addFormData.gender,
-        blood_group: addFormData.blood_group,
-        Blood_Group: addFormData.blood_group,
-        address: addFormData.address,
+      const chosenGender = ['Male', 'Female', 'Other'].includes(addFormData.gender || addFormData.Gender) ? (addFormData.gender || addFormData.Gender) : 'Male';
+
+      const cleanAppointmentPayload = {
+        patient_Name: addFormData.name.trim(),
         hospital: chosenHospId,
         doctor: addFormData.doctor ? Number(addFormData.doctor) : null,
-        doctor_name: selectedDocObj ? selectedDocObj.name : '',
-        doctor_specialization: selectedDocObj ? (selectedDocObj.specialization || selectedDocObj.specialty || '') : '',
-        bed_number: parsedBedNum,
-        nurse: selectedNurseObj ? Number(selectedNurseObj.id) : null,
-        nurse_name: selectedNurseObj ? selectedNurseObj.name : '',
-        consultation_fee: Number(addFormData.consultation_fee) || 0.00,
-        Hospitals_Chargies: Number(addFormData.Hospitals_Chargies) || 0.00,
-        hospital_charges: Number(addFormData.Hospitals_Chargies) || 0.00,
+        visit_date_time: visitIso,
+        age: addFormData.age ? String(addFormData.age).trim() : '25',
+        gender: chosenGender,
+        Gender: chosenGender,
+        patient_gender: chosenGender,
+        symptoms_diagnosis: (addFormData.symptoms_diagnosis || 'General Consultation').trim(),
+        blood_group: ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].includes(addFormData.blood_group) ? addFormData.blood_group : 'A+',
+        contact: addFormData.contact.trim(),
+        email: addFormData.email.trim() || `${generatedDocPatId.toLowerCase()}@patient.hospital.com`,
+        address: (addFormData.address || 'Hospital Inpatient').trim(),
+        hospitals_charges: Number(addFormData.Hospitals_Chargies) || 0.00,
         amount_paid: Number(addFormData.amount_paid) || 0.00,
-        payment_status: addFormData.payment_status,
-        payment_method: addFormData.payment_method,
-        symptoms_diagnosis: addFormData.symptoms_diagnosis || 'General Consultation',
-        reason_for_visit: addFormData.symptoms_diagnosis || 'General Consultation',
-        Condation: chosenCondition,
-        condation: chosenCondition,
-        condition: chosenCondition,
-        Condition: chosenCondition,
-        symptoms_severity: chosenCondition,
-        status: parsedBedNum ? 'Admitted' : (addFormData.status || 'Assigned'),
-        is_active: Boolean(addFormData.is_active)
+        payment_status: ['Paid', 'Partial', 'Pending', 'Failed'].includes(addFormData.payment_status) ? addFormData.payment_status : 'Pending',
+        payment_method: ['UPI', 'Credit Card', 'Net Banking', 'Cash'].includes(addFormData.payment_method) ? addFormData.payment_method : 'Cash',
+        status: parsedBedNum ? 'Admitted' : (addFormData.doctor ? 'Assigned' : 'Pending'),
+        condition: ['Critical', 'Emergency', 'Urgent', 'Normal'].includes(chosenCondition) ? chosenCondition : 'Normal',
+        bed_number: parsedBedNum
       };
 
-      let response;
+      let response = null;
+
+      // 1. Multipart if file attached
       if (addSelectedFile instanceof File) {
         const formData = new FormData();
-        Object.keys(payloadData).forEach(key => {
-          if (payloadData[key] !== null && payloadData[key] !== undefined) {
-            formData.append(key, payloadData[key]);
+        Object.entries(cleanAppointmentPayload).forEach(([key, val]) => {
+          if (val !== null && val !== undefined) {
+            formData.append(key, val);
           }
         });
         formData.append('attached_document', addSelectedFile);
 
-        response = await fetch(`${API_BASE_URL}/super-admin/Patients/`, {
+        response = await fetch(`${API_BASE_URL}/super-admin/appointments/`, {
           method: 'POST',
           body: formData
-        }).catch(() => null);
+        });
       } else {
-        response = await fetch(`${API_BASE_URL}/super-admin/Patients/`, {
+        // 2. Standard JSON POST
+        response = await fetch(`${API_BASE_URL}/super-admin/appointments/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payloadData)
-        }).catch(() => null);
+          body: JSON.stringify(cleanAppointmentPayload)
+        });
       }
 
       if (response && response.ok) {
         const resData = await response.json().catch(() => ({}));
-        const createdId = resData.patient_id || generatedDocPatId;
-        alert(`Patient ${addFormData.name} admitted successfully! (UHID: ${createdId})`);
+        const createdId = resData.id || resData.appointment_id || generatedDocPatId;
+        const newRecord = {
+          ...cleanAppointmentPayload,
+          ...resData,
+          id: createdId,
+          appointment_id: createdId
+        };
+        alert(`Patient ${addFormData.name} registered & saved successfully in backend database! (ID: #${createdId})`);
         setAddSelectedFile(null);
         setIsAddModalOpen(false);
         fetchAllData();
       } else {
-        alert('Failed to register patient in hospital system.');
+        alert('Failed to register patient in hospital backend system. Please verify backend is running.');
       }
     } catch (error) {
-      console.error('Error creating patient:', error);
-      alert('Error creating patient file.');
+      console.error('Error creating patient appointment:', error);
+      alert('Error creating patient record.');
     }
   };
 
@@ -310,11 +610,13 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
     const pName = (p.name || '').toLowerCase();
     const pId = (p.patient_id || p.uhid || '').toLowerCase();
     const pContact = (p.contact || p.phone || '').toLowerCase();
+    const pEmail = (p.email || '').toLowerCase();
     const pDoc = (p.doctor_name || '').toLowerCase();
 
     const matchesSearch = pName.includes(searchTerm.toLowerCase()) ||
                           pId.includes(searchTerm.toLowerCase()) ||
                           pContact.includes(searchTerm.toLowerCase()) ||
+                          pEmail.includes(searchTerm.toLowerCase()) ||
                           pDoc.includes(searchTerm.toLowerCase());
 
     const patCond = p.Condation || p.condition || p.symptoms_severity || 'Normal';
@@ -340,25 +642,7 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
               Manage active inpatients, OPD consultations, billing payments, and access full archived discharge records.
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <button
-              type="button"
-              onClick={() => setCurrentPage && setCurrentPage('receptionist_anassine')}
-              className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-bold border border-amber-400/40 transition cursor-pointer flex items-center gap-1.5"
-            >
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-              Unassigned Queue
-            </button>
-            <button
-              type="button"
-              onClick={fetchAllData}
-              className="px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition cursor-pointer flex items-center gap-1.5"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh
-            </button>
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleOpenAddModal}
@@ -367,21 +651,21 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
               </svg>
-              + Admit New Patient
+              + Add Patient
             </button>
           </div>
         </div>
       </div>
 
       {/* STATS CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <div 
           onClick={() => setActiveTab('ACTIVE')}
           className={`p-4 rounded-2xl bg-white border shadow-xs cursor-pointer transition ${activeTab === 'ACTIVE' ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-slate-200 hover:border-amber-300'}`}
         >
-          <p className="text-[11px] font-semibold text-slate-500 uppercase">Active Patients</p>
-          <h3 className="text-xl sm:text-2xl font-bold text-slate-800 mt-1">{activeCount}</h3>
-          <p className="text-[11px] text-amber-600 font-medium mt-0.5">In hospital / Consultation</p>
+          <p className="text-[11px] font-semibold text-slate-500 uppercase">Total Patients</p>
+          <h3 className="text-xl sm:text-2xl font-bold text-slate-800 mt-1">{patients.length}</h3>
+          <p className="text-[11px] text-amber-600 font-medium mt-0.5">Total registered in hospital</p>
         </div>
 
         <div 
@@ -391,15 +675,6 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
           <p className="text-[11px] font-semibold text-purple-600 uppercase">Currently Admitted</p>
           <h3 className="text-xl sm:text-2xl font-bold text-purple-700 mt-1">{admittedCount}</h3>
           <p className="text-[11px] text-slate-400 mt-0.5">In Ward with Bed & Nurse</p>
-        </div>
-
-        <div 
-          onClick={() => setActiveTab('OPD')}
-          className={`p-4 rounded-2xl bg-white border shadow-xs cursor-pointer transition ${activeTab === 'OPD' ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-slate-200 hover:border-blue-300'}`}
-        >
-          <p className="text-[11px] font-semibold text-blue-600 uppercase">OPD Consultations</p>
-          <h3 className="text-xl sm:text-2xl font-bold text-blue-700 mt-1">{opdCount}</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Outpatient queue</p>
         </div>
 
         <div 
@@ -416,9 +691,8 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
       <div className="space-y-3">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-slate-200">
           {[
-            { id: 'ACTIVE', label: 'Active Admissions & OPD', count: activeCount },
+            { id: 'ACTIVE', label: 'All Patients / Admissions', count: patients.length },
             { id: 'ADMITTED', label: 'Inpatient Wards (Admitted)', count: admittedCount },
-            { id: 'OPD', label: 'OPD Visits', count: opdCount },
             { id: 'HISTORY', label: '📜 Discharged & Medical History', count: dischargedCount }
           ].map(tab => (
             <button
@@ -483,8 +757,9 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
           <table className="w-full text-left text-xs text-slate-600 min-w-[840px]">
             <thead className="bg-slate-100/80 text-slate-700 uppercase font-semibold text-[11px] tracking-wider rounded-lg">
               <tr>
-                <th className="py-3 px-3">UHID & Patient</th>
-                <th className="py-3 px-3">Age / Gender / Blood</th>
+                <th className="py-3 px-3">Patient ID & Name</th>
+                <th className="py-3 px-3">Contact Details</th>
+                <th className="py-3 px-3">Age / Gender</th>
                 <th className="py-3 px-3">Attending Doctor</th>
                 <th className="py-3 px-3">Bed & Nurse</th>
                 <th className="py-3 px-3">Condition</th>
@@ -496,11 +771,11 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-slate-400">Loading admissions...</td>
+                  <td colSpan={9} className="py-10 text-center text-slate-400">Loading admissions...</td>
                 </tr>
               ) : filteredPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center">
+                  <td colSpan={9} className="py-10 text-center">
                     <p className="text-slate-400 font-semibold">No patients matching current filter criteria.</p>
                   </td>
                 </tr>
@@ -520,19 +795,28 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
                       <td className="py-3 px-3 font-semibold text-slate-800">
                         <div className="font-bold text-slate-900 text-sm">{p.name}</div>
                         <span className="font-mono text-[11px] text-sky-700 font-bold bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200">
-                          {p.patient_id || p.uhid || `PAT-${p.id}`}
+                          APT-{p.Appoment_id || p.appoment_id || p.appointment_id || p.id}
                         </span>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{p.contact || p.phone || 'No phone'}</div>
                       </td>
 
                       <td className="py-3 px-3 text-slate-700">
-                        {p.age ? `${p.age} Yrs` : '-'} • {p.gender || 'Male'}
-                        {p.blood_group && <span className="block font-bold text-rose-600">{p.blood_group}</span>}
+                        <div className="font-medium text-slate-800">{p.contact || p.phone || 'No phone'}</div>
+                        {p.email ? (
+                          <a href={`mailto:${p.email}`} className="text-[11px] text-teal-600 hover:text-teal-800 hover:underline block truncate max-w-[150px]" title={`Send email to ${p.email}`}>
+                            ✉️ {p.email}
+                          </a>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 block">No email</span>
+                        )}
+                      </td>
+
+                      <td className="py-3 px-3 text-slate-700">
+                        {p.age ? `${p.age} Yrs` : '-'} • {p.Gender || p.gender || 'Male'}
                       </td>
 
                       <td className="py-3 px-3">
-                        <div className="font-medium text-slate-800">{p.doctor_name || `Dr. #${p.doctor || 'Unassigned'}`}</div>
-                        <span className="text-[10px] text-teal-600 block">{p.doctor_specialization || 'OPD'}</span>
+                        <div className="font-medium text-slate-800">{p.doctor_name || (p.doctor ? `Dr. #${p.doctor}` : '-')}</div>
+                        {p.doctor_specialization && <span className="text-[10px] text-teal-600 block">{p.doctor_specialization}</span>}
                       </td>
 
                       <td className="py-3 px-3">
@@ -544,7 +828,7 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
                             {p.nurse_name && <span className="text-[10px] text-slate-400 block mt-0.5">{p.nurse_name}</span>}
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-xs">{isDischarged ? 'Discharged' : 'OPD Visit'}</span>
+                          <span className="text-slate-400 text-xs">-</span>
                         )}
                       </td>
 
@@ -560,19 +844,30 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient, 
                         }`}>
                           {isPaid ? 'Paid' : 'Pending'}
                         </span>
-                        <span className="text-[10px] text-slate-500 block font-mono mt-0.5">
-                          ₹{Number((Number(p.consultation_fee || 0) + Number(p.Hospitals_Chargies || p.hospital_charges || 0))).toFixed(0)}
-                        </span>
+                        {Number(p.consultation_fee || 0) + Number(p.Hospitals_Chargies || p.hospital_charges || 0) > 0 ? (
+                          <span className="text-[10px] text-slate-500 block font-mono mt-0.5">
+                            ₹{Number((Number(p.consultation_fee || 0) + Number(p.Hospitals_Chargies || p.hospital_charges || 0))).toFixed(0)}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 block font-mono mt-0.5">₹0</span>
+                        )}
                       </td>
 
                       <td className="py-3 px-3">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          isDischarged ? 'bg-purple-100 text-purple-800 border-purple-200' :
-                          (p.status || '').toLowerCase().includes('admit') ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                          'bg-teal-50 text-teal-700 border-teal-200'
-                        }`}>
-                          {p.status || 'Admitted'}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                            isDischarged ? 'bg-purple-100 text-purple-800 border-purple-200' :
+                            (p.status || '').toLowerCase().includes('admit') ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                            'bg-teal-50 text-teal-700 border-teal-200'
+                          }`}>
+                            {p.status || 'Admitted'}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                            p.checkup_status === 'Checkup Done' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-50 text-slate-500 border-slate-200'
+                          }`}>
+                            {p.checkup_status === 'Checkup Done' ? '✓ Checkup Done' : '⏳ Checkup Pending'}
+                          </span>
+                        </div>
                       </td>
 
                       <td className="py-3 px-3 text-right">

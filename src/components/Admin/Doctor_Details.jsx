@@ -572,7 +572,6 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
             <table className="w-full text-center text-xs text-slate-600 min-w-[620px]">
               <thead className="bg-slate-50 text-slate-700 uppercase font-bold text-[11px] border-b border-slate-200">
                 <tr>
-                  <th className="py-3 px-3 text-center">Token</th>
                   <th className="py-3 px-3 text-center">Patient Name & ID</th>
                   <th className="py-3 px-3 text-center">Symptoms / Complaint</th>
                   <th className="py-3 px-3 text-center">Payment</th>
@@ -582,12 +581,11 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
               <tbody className="divide-y divide-slate-100">
                 {patientsList.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-400">No patients scheduled for this doctor.</td>
+                    <td colSpan={4} className="py-8 text-center text-slate-400">No patients scheduled for this doctor.</td>
                   </tr>
                 ) : (
                   patientsList.slice(0, patientVisibleCount).map((pat, i) => (
                     <tr key={pat.id || i} className="hover:bg-slate-50/70 transition">
-                      <td className="py-3 px-3 font-mono font-bold text-teal-700">#{String(i + 1).padStart(2, '0')}</td>
                       <td className="py-3 px-3 text-center">
                         <div className="font-bold text-slate-800">{pat.name}</div>
                         <span className="font-mono text-[10px] text-sky-700 font-bold">{pat.patient_id || pat.uhid || `PAT-${pat.id}`}</span>

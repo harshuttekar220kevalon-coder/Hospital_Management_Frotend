@@ -153,19 +153,22 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
         return;
       }
 
-      const [docRes, nurRes, recRes, patRes] = await Promise.allSettled([
+      const [docRes, nurRes, recRes, patRes, apptRes] = await Promise.allSettled([
         fetch(`${API_BASE_URL}/super-admin/Doctors/`),
         fetch(`${API_BASE_URL}/super-admin/Nurses/`),
         fetch(`${API_BASE_URL}/super-admin/Receptionists/`),
-        fetch(`${API_BASE_URL}/super-admin/Patients/`)
+        fetch(`${API_BASE_URL}/super-admin/Patients/`),
+        fetch(`${API_BASE_URL}/super-admin/appointments/`)
       ]);
 
       let branchDocs = [];
       if (docRes.status === 'fulfilled' && docRes.value.ok) {
         const allDocs = await docRes.value.json().catch(() => []);
         branchDocs = allDocs.filter(d => {
-          if (Array.isArray(d.hospitals)) return d.hospitals.includes(Number(assignedHospitalId));
-          return Number(d.hospital) === Number(assignedHospitalId);
+          if (Array.isArray(d.hospitals) && d.hospitals.length > 0) {
+            return d.hospitals.some(h => Number(typeof h === 'object' ? h.id : h) === Number(assignedHospitalId));
+          }
+          return Number(typeof d.hospital === 'object' ? d.hospital?.id : d.hospital) === Number(assignedHospitalId);
         });
         setDoctorsList(branchDocs);
       }
@@ -182,11 +185,42 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
         setReceptionistsList(branchRecs);
       }
 
+      let rawPats = [];
       if (patRes.status === 'fulfilled' && patRes.value.ok) {
-        const allPats = await patRes.value.json().catch(() => []);
-        const branchPats = allPats.filter(p => Number(typeof p.hospital === 'object' ? p.hospital?.id : p.hospital) === Number(assignedHospitalId));
-        setPatientsList(branchPats);
+        rawPats = await patRes.value.json().catch(() => []);
       }
+      let rawAppts = [];
+      if (apptRes.status === 'fulfilled' && apptRes.value.ok) {
+        rawAppts = await apptRes.value.json().catch(() => []);
+      }
+
+      const allCombinedPats = [...(Array.isArray(rawAppts) ? rawAppts : []), ...(Array.isArray(rawPats) ? rawPats : [])];
+      const seenPIds = new Set();
+      const branchPats = [];
+
+      for (const item of allCombinedPats) {
+        if (!item) continue;
+        const idKey = String(item.Appoment_id || item.appoment_id || item.appointment_id || item.id);
+        if (seenPIds.has(idKey)) continue;
+        seenPIds.add(idKey);
+
+        const patHospId = typeof item.hospital === 'object' && item.hospital !== null ? item.hospital?.id : item.hospital;
+        const patHospName = item.hospital_name || (typeof item.hospital === 'object' ? (item.hospital?.Name || item.hospital?.name) : (typeof item.hospital === 'string' && isNaN(Number(item.hospital)) ? item.hospital : ''));
+        const currentHospName = hosp?.Name || hosp?.name || '';
+
+        let isMatch = false;
+        if (patHospId && !isNaN(Number(patHospId)) && Number(patHospId) === Number(assignedHospitalId)) {
+          isMatch = true;
+        } else if (patHospName && currentHospName && patHospName.toLowerCase().trim() === currentHospName.toLowerCase().trim()) {
+          isMatch = true;
+        }
+
+        if (isMatch) {
+          branchPats.push(item);
+        }
+      }
+
+      setPatientsList(branchPats);
 
     } catch (err) {
       console.error('Error loading admin dashboard data:', err);
@@ -239,12 +273,14 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
   const onLeaveStaffCount = onLeaveDoctorsCount + onLeaveNursesCount + onLeaveReceptionistsCount;
 
   const totalBedsNum = Number(hospitalData.total_beds) || 0;
-  const admittedPatients = patientsList.filter(p => 
-    (p.status || '').toLowerCase().includes('admit') || 
-    (p.admission_status || '').toLowerCase().includes('admit') ||
-    (p.patient_type || '').toLowerCase().includes('ipd')
-  );
-  const occupiedBedsNum = admittedPatients.length > 0 ? admittedPatients.length : Math.min(totalBedsNum, patientsList.length);
+  const admittedPatients = patientsList.filter(p => {
+    const st = (p.status || '').toLowerCase();
+    const admSt = (p.admission_status || '').toLowerCase();
+    const isDischarged = st.includes('discharge') || admSt.includes('discharge') || st.includes('cancel');
+    const isAdmitted = (st.includes('admit') || admSt.includes('admit') || (p.patient_type || '').toLowerCase().includes('ipd')) && !isDischarged;
+    return isAdmitted && p.bed_number != null;
+  });
+  const occupiedBedsNum = admittedPatients.length;
   const occupancyPercentRaw = totalBedsNum > 0 ? (occupiedBedsNum / totalBedsNum) * 100 : 0;
   const occupancyRate = occupancyPercentRaw > 0 && occupancyPercentRaw < 1 
     ? occupancyPercentRaw.toFixed(1) 

@@ -5,108 +5,112 @@ import { API_BASE_URL } from '../Api/Api';
 
 const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => {
   const [hospitals, setHospitals] = useState([]);
-  const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [confirmedBooking, setConfirmedBooking] = useState(null);
 
-  // Model-aligned Choices
   const bloodGroupChoices = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
+
   const conditionChoices = [
     { value: 'Normal', label: 'Normal' },
     { value: 'Urgent', label: 'Urgent' },
     { value: 'Emergency', label: 'Emergency' },
     { value: 'Critical', label: 'Critical' }
   ];
-  const paymentStatusChoices = [
-    { value: 'Pending', label: 'Pending (Pay at Reception Counter)' },
-    { value: 'Paid', label: 'Paid (Pre-paid Online / Advance)' },
-    { value: 'Partial', label: 'Partial (Partial Deposit Paid)' },
-    { value: 'Failed', label: 'Failed (Payment Transaction Failed)' }
-  ];
-  const paymentMethodChoices = [
-    { value: 'UPI', label: 'UPI (GPay, PhonePe, Paytm)' },
-    { value: 'Credit Card', label: 'Credit Card / Debit Card' },
-    { value: 'Net Banking', label: 'Net Banking' },
-    { value: 'Cash', label: 'Cash (Pay at Hospital Counter)' }
-  ];
-  const statusChoices = ['Pending', 'Assigned', 'Admitted', 'Discharged', 'Cancelled'];
 
-  // Default visit date time to tomorrow at 10:00 AM
-  const getDefaultVisitDateTime = () => {
+  const getBackgroundVisitDateTime = () => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
     d.setHours(10, 0, 0, 0);
-    return d.toISOString().slice(0, 16);
+    return d.toISOString();
   };
 
-  // Form State: Patient fields (name, patient_Name, contact, email, address, hospital, blood_group, condition) start empty
-  // so nothing is pre-selected and user explicitly selects them
   const [formData, setFormData] = useState({
-    // Patient Model Fields (Blank by default)
-    name: '',
-    patient_Name: '',
+    patient_name: '',
+    age: '',
+    gender: currentUser?.Gender || currentUser?.gender || '',
     contact: '',
-    email: '',
+    email: currentUser?.email || '',
     address: '',
-    patient_id: '',
-
-    // Clinical & Hospital Fields (Empty by default)
     hospital: '',
     blood_group: '',
     condition: '',
-
-    // Appointment Model Fields
-    doctor: '',
-    visit_date_time: getDefaultVisitDateTime(),
-    symptoms_diagnosis: '',
-    bed_number: '',
-    consultation_fee: '0.00',
-    hospitals_charges: '0.00',
-    amount_paid: '0.00',
-    payment_status: 'Pending',
-    payment_method: 'Cash',
-    status: 'Pending'
+    symptoms_diagnosis: ''
   });
 
   const [attachedFile, setAttachedFile] = useState(null);
 
-  // Helper for Floor Calculation from bed_number (Django @property floor equivalent)
-  const getFloorLabel = (bedNum) => {
-    if (!bedNum || isNaN(Number(bedNum))) return 'Not Assigned (Outpatient OPD)';
-    const floorNumber = Math.floor((Number(bedNum) - 1) / 100) + 1;
-    return `Floor ${floorNumber}`;
-  };
+  // Sync email & gender with currentUser or backend patient record when logged in
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPatientProfile = async () => {
+      const email = (currentUser?.email || '').toLowerCase().trim();
+      if (!email) return;
 
-  // Fetch Hospitals and Doctors list from backend
+      try {
+        const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
+        if (patRes && patRes.ok) {
+          const pats = await patRes.json().catch(() => []);
+          if (Array.isArray(pats) && pats.length > 0) {
+            const matched = pats.find(p => (p.email || '').toLowerCase().trim() === email);
+            if (matched && isMounted) {
+              const backendGender = matched.Gender || matched.gender || currentUser?.Gender || currentUser?.gender || '';
+              const backendBlood = matched.Blood_Group || matched.blood_group || '';
+              const backendName = matched.name || matched.patient_Name || matched.patient_name || '';
+              const backendPhone = matched.contact || matched.phone || '';
+              const backendAge = matched.age || matched.Age || '';
+              const backendAddress = matched.address || '';
+
+              setFormData(prev => ({
+                ...prev,
+                email: currentUser.email,
+                gender: prev.gender || backendGender,
+                patient_name: prev.patient_name || backendName,
+                contact: prev.contact || backendPhone,
+                age: prev.age || (backendAge ? String(backendAge) : ''),
+                address: prev.address || backendAddress,
+                blood_group: prev.blood_group || backendBlood
+              }));
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching patient profile for gender sync:', err);
+      }
+
+      if (isMounted) {
+        setFormData(prev => ({
+          ...prev,
+          email: currentUser.email,
+          gender: prev.gender || currentUser.Gender || currentUser.gender || ''
+        }));
+      }
+    };
+
+    fetchPatientProfile();
+    return () => { isMounted = false; };
+  }, [currentUser]);
+
+  // Fetch Hospitals list from backend
   useEffect(() => {
     let isMounted = true;
     const loadData = async () => {
       setLoading(true);
       try {
-        const [hospRes, docRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null),
-          fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null)
-        ]);
+        const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
 
         let hospList = [];
-        let docList = [];
-
         if (hospRes && hospRes.ok) {
           hospList = await hospRes.json().catch(() => []);
         }
-        if (docRes && docRes.ok) {
-          docList = await docRes.json().catch(() => []);
-        }
 
         if (isMounted) {
-          const validHospitals = Array.isArray(hospList) ? hospList : [];
-          setHospitals(validHospitals);
-          setDoctors(Array.isArray(docList) ? docList : []);
+          setHospitals(Array.isArray(hospList) ? hospList : []);
         }
       } catch (err) {
-        console.error('Error fetching data in Appointment page:', err);
+        console.error('Error fetching hospitals:', err);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -118,44 +122,51 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
     };
   }, []);
 
-  // Quick Action: Autofill logged-in user's own details
+  // Quick Action: Autofill logged-in user's own details if clicked
   const handleAutofillMyself = () => {
     if (!currentUser) return;
-    const currentPatName = currentUser.patient_Name || currentUser.patient_name || currentUser.name || '';
+    const currentPatName = currentUser.patient_name || currentUser.patient_Name || currentUser.name || '';
+    const currentBlood = currentUser.blood_group || currentUser.Blood_Group || '';
+    const currentGender = currentUser.Gender || currentUser.gender || '';
+    const currentContact = currentUser.contact || currentUser.phone || '';
+    const currentEmail = currentUser.email || '';
+    const currentAge = currentUser.age || currentUser.Age || '';
+    const currentAddress = currentUser.address || currentUser.Address || '';
     setFormData(prev => ({
       ...prev,
-      name: currentPatName,
-      patient_Name: currentPatName,
-      contact: currentUser.contact || currentUser.phone || '',
-      email: currentUser.email || '',
-      address: currentUser.address || '',
-      patient_id: currentUser.patient_id || (currentUser.id ? `PAT-${currentUser.id}` : ''),
-      blood_group: currentUser.blood_group || currentUser.Blood_Group || prev.blood_group || 'B+'
+      patient_name: currentPatName,
+      age: currentAge ? String(currentAge) : prev.age,
+      gender: currentGender || prev.gender,
+      contact: currentContact || prev.contact,
+      email: currentEmail || prev.email,
+      address: currentAddress || prev.address,
+      blood_group: currentBlood || prev.blood_group
     }));
   };
 
-  // Quick Action: Clear details to book for family member / another person
+  // Quick Action: Clear optional fields (Preserves logged-in email)
   const handleClearPatientInfo = () => {
-    setFormData(prev => ({
-      ...prev,
-      name: '',
-      patient_Name: '',
+    setFormData({
+      patient_name: '',
+      age: '',
+      gender: currentUser?.Gender || currentUser?.gender || '',
       contact: '',
-      email: '',
+      email: currentUser?.email || '',
       address: '',
-      patient_id: ''
-    }));
+      hospital: '',
+      blood_group: '',
+      condition: '',
+      symptoms_diagnosis: ''
+    });
+    setAttachedFile(null);
   };
 
-  const activeHospital = hospitals.find((h) => String(h.id) === String(formData.hospital)) || hospitals[0] || {};
-  const filteredDoctors = formData.hospital
-    ? doctors.filter(d => String(typeof d.hospital === 'object' ? d.hospital?.id : d.hospital) === String(formData.hospital))
-    : doctors;
+  const activeHospital = hospitals.find((h) => String(h.id) === String(formData.hospital)) || {};
 
   const handleGoToLogin = () => {
     try {
       localStorage.setItem('login_return_page', 'appoint');
-    } catch {}
+    } catch { }
     if (setCurrentPage) {
       setCurrentPage('login');
     }
@@ -164,7 +175,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
   const handleGoToSignUp = () => {
     try {
       localStorage.setItem('login_return_page', 'appoint');
-    } catch {}
+    } catch { }
     if (setCurrentPage) {
       setCurrentPage('signin');
     }
@@ -181,7 +192,9 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
     }
   };
 
-  // Submit Handler: Saves the specific entered Patient details and the Appointment
+  // ============================================================
+  // SUBMIT HANDLER: SENDS APPOINTMENT DATA TO DJANGO BACKEND API
+  // ============================================================
   const handleBookingSubmit = async (e) => {
     e.preventDefault();
 
@@ -191,25 +204,35 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
       return;
     }
 
-    if (!formData.hospital) {
-      alert('Please select a hospital branch.');
-      return;
-    }
-
-    const enteredName = (formData.patient_Name || formData.name || '').trim();
+    const enteredName = (formData.patient_name || '').trim();
     if (!enteredName) {
       alert('Please enter patient full name.');
       return;
     }
 
-    const enteredContact = (formData.contact || currentUser?.contact || currentUser?.phone || '').trim();
-    if (!enteredContact) {
-      alert('Please enter contact phone number.');
+    const loggedInEmail = (currentUser?.email || '').trim().toLowerCase();
+    const enteredEmail = (formData.email || loggedInEmail).trim();
+    if (!enteredEmail) {
+      alert('Appointment book karne ke liye patient ka email dena anivarya hai!');
       return;
     }
 
-    const enteredEmail = (formData.email || currentUser?.email || '').trim();
-    const patientUhid = (formData.patient_id || currentUser?.patient_id || (currentUser?.id ? `PAT-${currentUser.id}` : '')).trim();
+    if (loggedInEmail && enteredEmail.toLowerCase() !== loggedInEmail) {
+      alert(`⚠️ Validation Error: Aap sirf apni logged-in email (${currentUser.email}) se hi appointment book kar sakte hain! Kisi aur patient ki email nahi daal sakte.`);
+      return;
+    }
+
+    const finalEmail = currentUser?.email ? currentUser.email.trim() : enteredEmail;
+
+    if (!formData.gender) {
+      alert('Please select patient gender (Male, Female, or Other).');
+      return;
+    }
+
+    if (!formData.hospital) {
+      alert('Please select a hospital branch.');
+      return;
+    }
 
     if (!formData.blood_group) {
       alert('Please select patient blood group.');
@@ -217,12 +240,12 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
     }
 
     if (!formData.condition) {
-      alert('Please select patient condition severity.');
+      alert('Please select condition severity.');
       return;
     }
 
     if (!formData.symptoms_diagnosis.trim()) {
-      alert('Please enter symptoms or medical diagnosis.');
+      alert('Please enter symptoms or reason for appointment.');
       return;
     }
 
@@ -230,158 +253,173 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
     setSubmitError('');
 
     try {
-      const selectedHospId = Number(formData.hospital);
+      const selectedHospId = formData.hospital ? Number(formData.hospital) : null;
       const chosenHosp = hospitals.find(h => Number(h.id) === selectedHospId);
       const hospName = chosenHosp?.Name || chosenHosp?.name || activeHospital?.Name || activeHospital?.name || 'Apex Care Hospital';
       const hospAddr = chosenHosp?.Address || chosenHosp?.address || activeHospital?.Address || activeHospital?.address || 'Hospital Branch Campus';
       const hospCity = chosenHosp?.City || chosenHosp?.city || activeHospital?.City || activeHospital?.city || '';
 
-      const selectedDocId = formData.doctor ? Number(formData.doctor) : null;
-      const chosenDoc = selectedDocId ? doctors.find(d => Number(d.id) === selectedDocId) : null;
-      const docName = chosenDoc ? (chosenDoc.name.startsWith('Dr.') ? chosenDoc.name : `Dr. ${chosenDoc.name}`) : 'Awaiting Receptionist Assignment';
+      const selectedDocId = null;
+      const docName = 'Awaiting Receptionist Assignment';
+      const docSpecialty = 'Triage / General OPD';
 
-      // ==========================================
-      // SAVE DIRECTLY TO APPOINTMENTS TABLE ONLY
-      // ==========================================
+      const visitIsoString = getBackgroundVisitDateTime();
+
+      const ageVal = formData.age ? String(formData.age).trim() : '25';
+      const phoneVal = (formData.contact || '').trim() || '9876543210';
+      const addrVal = (formData.address || '').trim() || 'Hospital Inpatient';
+      const genderVal = formData.gender || 'Male';
+
+      // ============================================================
+      // COMPLETE BACKEND APPOINTMENT PAYLOAD ALIGNED WITH DJANGO MODEL
+      // ============================================================
       const appointmentPayload = {
-        // Patient Model Field: patient_Name = models.CharField(max_length=100)
-        patient_Name: enteredName,
         patient_name: enteredName,
+        patient_Name: enteredName,
         name: enteredName,
+        age: ageVal,
+        gender: genderVal,
+        Gender: genderVal,
+        patient_gender: genderVal,
+        contact: phoneVal,
+        phone: phoneVal,
+        email: finalEmail,
+        address: addrVal,
         hospital: selectedHospId,
-        doctor: selectedDocId,
-        visit_date_time: formData.visit_date_time ? new Date(formData.visit_date_time).toISOString() : new Date().toISOString(),
+        visit_date_time: visitIsoString,
         symptoms_diagnosis: formData.symptoms_diagnosis.trim(),
-        blood_group: formData.blood_group || 'B+',
-        hospitals_charges: parseFloat(formData.hospitals_charges || '0.00'),
-        consultation_fee: parseFloat(formData.consultation_fee || '0.00'),
-        amount_paid: parseFloat(formData.amount_paid || '0.00'),
-        payment_status: formData.payment_status || 'Pending',
-        payment_method: formData.payment_method || 'Cash',
-        status: formData.status || 'Pending',
-        condition: formData.condition || 'Normal',
-        bed_number: formData.bed_number ? parseInt(formData.bed_number, 10) : null,
-        
-        // Demographics & Aliases directly in Appointment record
-        hospital_name: hospName,
-        doctor_name: docName,
-        contact: enteredContact,
-        phone: enteredContact,
-        email: enteredEmail,
-        address: formData.address ? formData.address.trim() : '',
-        patient_id: `PAT-${Date.now().toString().slice(-4)}`
+        reason_for_visit: formData.symptoms_diagnosis.trim(),
+        blood_group: formData.blood_group,
+        Blood_Group: formData.blood_group,
+        hospitals_charges: '0.00',
+        Hospitals_Chargies: '0.00',
+        hospital_charges: '0.00',
+        amount_paid: '0.00',
+        payment_status: 'Pending',
+        payment_method: 'Cash',
+        status: 'Pending',
+        checkup_status: 'Pending',
+        condition: formData.condition,
+        Condation: formData.condition,
+        is_active: true
       };
 
       let apptResponse = null;
 
+      // 1. If an attached document is uploaded, send as multipart/form-data
       if (attachedFile instanceof File) {
-        const data = new FormData();
-        Object.keys(appointmentPayload).forEach(key => {
-          if (appointmentPayload[key] !== null && appointmentPayload[key] !== undefined) {
-            data.append(key, appointmentPayload[key]);
+        const formDataObj = new FormData();
+        Object.entries(appointmentPayload).forEach(([key, val]) => {
+          if (val !== null && val !== undefined && val !== '') {
+            formDataObj.append(key, val);
           }
         });
-        data.append('attached_document', attachedFile);
+        formDataObj.append('attached_document', attachedFile);
 
-        apptResponse = await fetch(`${API_BASE_URL}/super-admin/Appointments/`, {
+        apptResponse = await fetch(`${API_BASE_URL}/super-admin/appointments/`, {
           method: 'POST',
-          body: data
-        }).catch(() => null);
-
-        if (!apptResponse || !apptResponse.ok) {
-          apptResponse = await fetch(`${API_BASE_URL}/super-admin/Appointment/`, {
-            method: 'POST',
-            body: data
-          }).catch(() => null);
-        }
-
-        if (!apptResponse || !apptResponse.ok) {
-          apptResponse = await fetch(`${API_BASE_URL}/appointments/`, {
-            method: 'POST',
-            body: data
-          }).catch(() => null);
-        }
+          body: formDataObj
+        });
       } else {
-        apptResponse = await fetch(`${API_BASE_URL}/super-admin/Appointments/`, {
+        // 2. Standard JSON POST
+        apptResponse = await fetch(`${API_BASE_URL}/super-admin/appointments/`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify(appointmentPayload)
-        }).catch(() => null);
-
-        if (!apptResponse || !apptResponse.ok) {
-          apptResponse = await fetch(`${API_BASE_URL}/super-admin/Appointment/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(appointmentPayload)
-          }).catch(() => null);
-        }
-
-        if (!apptResponse || !apptResponse.ok) {
-          apptResponse = await fetch(`${API_BASE_URL}/appointments/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(appointmentPayload)
-          }).catch(() => null);
-        }
+        });
       }
 
+      // 3. Detailed Response Error Handling
       if (!apptResponse || !apptResponse.ok) {
         let serverErrDetail = '';
-        if (apptResponse) {
+        const errorRes = apptResponse;
+        if (errorRes) {
           try {
-            const errJson = await apptResponse.json();
-            serverErrDetail = errJson.message || errJson.detail || errJson.error;
-            if (!serverErrDetail && typeof errJson === 'object') {
-              serverErrDetail = Object.entries(errJson)
-                .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? JSON.stringify(v) : v)}`)
-                .join('; ');
+            const rawText = await errorRes.text();
+            try {
+              const errJson = JSON.parse(rawText);
+              serverErrDetail = errJson.message || errJson.detail || errJson.error || errJson.non_field_errors;
+              if (Array.isArray(serverErrDetail)) {
+                serverErrDetail = serverErrDetail.join(', ');
+              }
+              if (!serverErrDetail && typeof errJson === 'object') {
+                serverErrDetail = Object.entries(errJson)
+                  .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? JSON.stringify(v) : v)}`)
+                  .join('; ');
+              }
+            } catch {
+              if (rawText.includes('exception_value')) {
+                const match = rawText.match(/<pre class="exception_value">([^<]+)<\/pre>/i) || rawText.match(/<title>([^<]+)<\/title>/i);
+                if (match) serverErrDetail = `Django Error: ${match[1].replace(/&quot;/g, '"').replace(/&#x27;/g, "'").trim()}`;
+              } else if (rawText && rawText.length < 300 && !rawText.includes('<!DOCTYPE')) {
+                serverErrDetail = rawText;
+              } else if (errorRes.status) {
+                serverErrDetail = `Backend HTTP ${errorRes.status}: ${errorRes.statusText || 'Request failed'}`;
+              }
             }
-          } catch {}
+          } catch { }
         }
-        throw new Error(serverErrDetail || 'Unable to connect to hospital backend server. Please try again.');
+        throw new Error(serverErrDetail || 'Unable to connect to Django backend server. Please verify backend is running on http://127.0.0.1:8000.');
       }
 
-      let apptData = {};
+      let resJson = {};
       try {
-        apptData = await apptResponse.json().catch(() => ({}));
-      } catch {}
+        resJson = await apptResponse.json().catch(() => ({}));
+      } catch { }
 
-      const assignedUhid = apptData.patient_id || patientUhid || `PAT-${Date.now().toString().slice(-4)}`;
-      const assignedToken = `TOKEN-${Math.floor(100 + Math.random() * 900)}`;
+      const createdAppointment = resJson.data || resJson;
+      const apptBackendId = createdAppointment.Appoment_id || createdAppointment.appoment_id || resJson.Appoment_id || resJson.appoment_id || resJson.appointment_id || createdAppointment.id || Date.now();
+      const createdId = createdAppointment.id || resJson.id || apptBackendId;
 
       const bookingRecord = {
         ...appointmentPayload,
-        ...apptData,
-        id: apptData.id || Date.now(),
-        uhid: assignedUhid,
-        patient_id: assignedUhid,
-        token: assignedToken,
+        ...createdAppointment,
+        id: createdId,
+        Appoment_id: apptBackendId,
+        appoment_id: apptBackendId,
+        appointment_id: apptBackendId,
+        patient_Name: enteredName,
+        patient_name: enteredName,
         patientName: enteredName,
-        patientPhone: enteredContact,
-        patientEmail: enteredEmail,
-        patientAddress: formData.address,
+        age: formData.age ? String(formData.age).trim() : null,
+        contact: (formData.contact || '').trim(),
+        phone: (formData.contact || '').trim(),
+        email: finalEmail,
+        address: (formData.address || '').trim(),
         hospitalName: hospName,
         hospitalAddress: hospAddr,
         hospitalCity: hospCity,
         doctorName: docName,
-        visitDateTime: formData.visit_date_time,
+        doctorSpecialty: docSpecialty,
+        visit_date_time: visitIsoString,
+        visitDateTime: visitIsoString,
+        blood_group: formData.blood_group,
         bloodGroup: formData.blood_group,
+        condition: formData.condition,
         conditionStatus: formData.condition,
+        symptoms_diagnosis: formData.symptoms_diagnosis.trim(),
         fileName: attachedFile ? attachedFile.name : null,
-        floor: getFloorLabel(formData.bed_number)
+        status: createdAppointment.status || 'Pending',
+        floor: 'Not Assigned'
       };
 
       try {
-        localStorage.setItem('last_booked_appointment', JSON.stringify(bookingRecord));
-      } catch (e) {
-        console.error('LocalStorage sync error:', e);
-      }
+        const storedKey = `patient_appointments_${finalEmail.toLowerCase()}`;
+        const prevList = JSON.parse(localStorage.getItem(storedKey) || '[]');
+        const updatedList = [bookingRecord, ...prevList.filter(p => String(p.id || p.Appoment_id) !== String(bookingRecord.id || bookingRecord.Appoment_id))];
+        localStorage.setItem(storedKey, JSON.stringify(updatedList));
+      } catch (e) { }
 
+      alert('✓ Appointment booked successfully!');
       setConfirmedBooking(bookingRecord);
 
     } catch (err) {
       console.error('Error submitting appointment:', err);
-      setSubmitError(err.message || 'Unable to connect to hospital backend server. Please try again.');
+      const errMsg = err.message || 'Failed to save appointment in backend database. Please try again.';
+      setSubmitError(errMsg);
+      alert(`⚠️ ${errMsg}`);
     } finally {
       setSubmitting(false);
     }
@@ -391,29 +429,17 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
     setConfirmedBooking(null);
     setAttachedFile(null);
     setFormData({
-      name: '',
-      patient_Name: '',
+      patient_name: '',
+      age: '',
       contact: '',
-      email: '',
+      email: currentUser?.email || '',
       address: '',
-      patient_id: '',
       hospital: '',
-      doctor: '',
-      visit_date_time: getDefaultVisitDateTime(),
-      symptoms_diagnosis: '',
       blood_group: '',
       condition: '',
-      bed_number: '',
-      consultation_fee: '500.00',
-      hospitals_charges: '300.00',
-      amount_paid: '0.00',
-      payment_status: 'Pending',
-      payment_method: 'Cash',
-      status: 'Pending'
+      symptoms_diagnosis: ''
     });
   };
-
-  const totalBill = (parseFloat(formData.consultation_fee || '0') + parseFloat(formData.hospitals_charges || '0')).toFixed(2);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
@@ -432,13 +458,13 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
           <div className="max-w-4xl mx-auto text-center space-y-3">
             <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold border border-teal-400/30 uppercase tracking-wider">
               <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
-              OPD & Inpatient Appointment Scheduling
+              OPD Appointment Scheduling System
             </span>
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight">
               Hospital Appointment Booking
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl mx-auto leading-relaxed">
-              Book a doctor consultation for yourself or any family member. Fill in the patient's personal name, contact number, and medical symptoms below.
+              Book a doctor consultation for yourself or a family member. All appointment data is securely saved in the hospital backend system.
             </p>
           </div>
         </section>
@@ -494,7 +520,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
               <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                 <div>
                   <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block">
-                    Appointment Booking Slip • {confirmedBooking.status}
+                    Appointment Booking Slip
                   </span>
                   <h3 className="text-xl font-extrabold text-slate-900">
                     {confirmedBooking.hospitalName}
@@ -504,7 +530,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
 
                 <div className="text-right">
                   <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-bold uppercase">
-                    ✓ Confirmed
+                    ✓ Saved in Database
                   </span>
                   <p className="font-mono text-[11px] text-slate-400 mt-1">
                     {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -512,14 +538,14 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                 </div>
               </div>
 
-              {/* TOKEN & UHID BANNER */}
+              {/* APPOINTMENT ID BANNER */}
               <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white flex items-center justify-between shadow-sm">
                 <div>
                   <span className="text-[10px] text-teal-400 uppercase font-bold tracking-wider block">
-                    Patient UHID (ID)
+                    Appointment ID
                   </span>
                   <span className="text-2xl sm:text-3xl font-extrabold font-mono text-teal-300">
-                    {confirmedBooking.uhid}
+                    #{confirmedBooking.Appoment_id || confirmedBooking.appoment_id || confirmedBooking.appointment_id || confirmedBooking.id}
                   </span>
                 </div>
                 <div className="text-right">
@@ -527,7 +553,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                     Condition Severity
                   </span>
                   <span className="text-xs sm:text-sm font-bold px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-400/30">
-                    {confirmedBooking.conditionStatus}
+                    {confirmedBooking.condition}
                   </span>
                 </div>
               </div>
@@ -535,34 +561,49 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
               {/* DETAILS SUMMARY */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Patient Details</span>
-                  <p className="font-bold text-slate-900 text-sm">{confirmedBooking.patientName}</p>
-                  <p className="text-slate-500 text-[11px]">{confirmedBooking.patientPhone} • Blood: {confirmedBooking.bloodGroup}</p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Doctor & Consultation Slot</span>
-                  <p className="font-bold text-slate-900 text-sm">{confirmedBooking.doctorName}</p>
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Patient Full Name</span>
+                  <p className="font-bold text-slate-900 text-sm">{confirmedBooking.patient_name || confirmedBooking.patient_Name}</p>
                   <p className="text-slate-500 text-[11px]">
-                    🕒 Assigned upon Receptionist Review
+                    {confirmedBooking.age ? `Age: ${confirmedBooking.age} Yrs • ` : ''}
+                    Gender: {confirmedBooking.Gender || confirmedBooking.gender || 'Not Specified'} •
+                    Blood Group: {confirmedBooking.blood_group || confirmedBooking.Blood_Group}
                   </p>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Reception Desk & Triage</span>
-                  <p className="font-bold text-teal-900 text-sm">{confirmedBooking.bed_number ? `Bed #${confirmedBooking.bed_number}` : 'OPD Consultation'}</p>
-                  <p className="text-slate-500 text-[11px]">Handled by Duty Receptionist</p>
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Contact & Email</span>
+                  <p className="font-bold text-slate-900 text-sm">{confirmedBooking.contact || confirmedBooking.phone || 'Not Provided'}</p>
+                  <p className="text-slate-500 text-[11px] truncate">{confirmedBooking.email || 'No email provided'}</p>
+                  {confirmedBooking.address && <p className="text-slate-500 text-[11px] truncate">🏠 {confirmedBooking.address}</p>}
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Consulting Doctor</span>
+                  <p className="font-bold text-slate-900 text-sm">{confirmedBooking.doctorName}</p>
+                  <p className="text-slate-500 text-[11px]">{confirmedBooking.doctorSpecialty}</p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Status</span>
+                  <p className="font-bold text-teal-900 text-sm">{confirmedBooking.status || 'Pending'}</p>
+                  <p className="text-slate-500 text-[11px]">OPD Consultation</p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Hospital Branch</span>
+                  <p className="font-bold text-slate-900 text-sm">{confirmedBooking.hospitalName}</p>
+                  <p className="text-slate-500 text-[11px]">{confirmedBooking.hospitalCity || 'Hospital Campus'}</p>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 sm:col-span-2 space-y-0.5">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Symptoms / Medical Diagnosis</span>
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Chief Symptoms / Reason</span>
                   <p className="text-slate-800 text-xs font-medium">{confirmedBooking.symptoms_diagnosis}</p>
                 </div>
 
                 {confirmedBooking.fileName && (
                   <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 sm:col-span-2 space-y-0.5 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Attached Medical Document</span>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Attached Document</span>
                       <p className="text-teal-800 font-semibold text-xs truncate max-w-xs">📎 {confirmedBooking.fileName}</p>
                     </div>
                     <span className="px-2 py-0.5 rounded text-[10px] bg-teal-100 text-teal-800 font-bold">Uploaded</span>
@@ -603,17 +644,17 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
             </div>
           </section>
         ) : (
-          /* ================= APPOINTMENT & PATIENT MODEL BOOKING FORM ================= */
+          /* ================= CLEAN APPOINTMENT BOOKING FORM ================= */
           <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-6 py-5 bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-lg sm:text-xl font-bold">Appointment Registration Form</h2>
-                  <p className="text-xs text-slate-300">Enter patient personal information and select visit parameters.</p>
+                  <p className="text-xs text-slate-300">Fill in patient details and select preferred hospital branch.</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="px-2.5 py-1 rounded-full bg-teal-500/20 text-teal-300 text-[11px] font-bold border border-teal-400/30">
-                    Patient & Appointment
+                    OPD Consultation
                   </span>
                 </div>
               </div>
@@ -631,16 +672,16 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                     </div>
                   )}
 
-                  {/* SECTION 1: PATIENT PERSONAL DETAILS (BLANK BY DEFAULT, CAN ENTER ANY PERSON'S INFO) */}
+                  {/* SECTION 1: PATIENT INFORMATION */}
                   <div className="space-y-4">
                     <div className="border-b border-slate-200 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
                         <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                           <span className="w-5 h-5 rounded-full bg-teal-600 text-white text-[11px] font-bold flex items-center justify-center">1</span>
-                          <span>Patient Personal Information (Self or Family Member)</span>
+                          <span>Patient Information</span>
                         </h3>
                         <p className="text-[11px] text-slate-500 mt-0.5">
-                          Enter the full name, phone number, and email of the patient visiting the doctor.
+                          Enter patient full name, contact details, and blood group.
                         </p>
                       </div>
 
@@ -657,12 +698,12 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                             <span>Fill My Info</span>
                           </button>
                         )}
-                        {(formData.name || formData.contact) && (
+                        {(formData.patient_name || formData.contact || formData.email || formData.hospital || formData.blood_group || formData.condition || formData.symptoms_diagnosis) && (
                           <button
                             type="button"
                             onClick={handleClearPatientInfo}
                             className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-semibold cursor-pointer transition"
-                            title="Clear patient inputs"
+                            title="Clear all fields"
                           >
                             Clear Form
                           </button>
@@ -670,7 +711,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       {/* PATIENT NAME */}
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
@@ -678,97 +719,49 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                         </label>
                         <input
                           type="text"
-                          name="patient_Name"
+                          name="patient_name"
                           required
-                          placeholder="e.g. Ramesh Sharma"
-                          value={formData.patient_Name || formData.name || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setFormData(prev => ({ ...prev, patient_Name: val, name: val }));
-                          }}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
-                        />
-                      </div>
-
-                      {/* PATIENT CONTACT */}
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                          Patient Phone Number *
-                        </label>
-                        <input
-                          type="tel"
-                          name="contact"
-                          required
-                          placeholder="e.g. 9876543210"
-                          value={formData.contact}
+                          placeholder="Enter patient full name"
+                          value={formData.patient_name}
                           onChange={handleChange}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
                         />
                       </div>
 
-                      {/* PATIENT EMAIL */}
+                      {/* PATIENT AGE */}
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                          Email Address
+                          Patient Age (Years)
                         </label>
                         <input
-                          type="email"
-                          name="email"
-                          placeholder="e.g. patient@gmail.com"
-                          value={formData.email}
+                          type="number"
+                          name="age"
+                          min="0"
+                          max="150"
+                          maxLength={3}
+                          placeholder="e.g. 28"
+                          value={formData.age}
                           onChange={handleChange}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
                         />
                       </div>
 
-                      {/* RESIDENTIAL ADDRESS */}
+                      {/* GENDER */}
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                          Residential Address
-                        </label>
-                        <input
-                          type="text"
-                          name="address"
-                          placeholder="City, Area, House No."
-                          value={formData.address}
-                          onChange={handleChange}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* SECTION 2: CLINICAL DETAILS & HOSPITAL SELECTION */}
-                  <div className="space-y-4 pt-2">
-                    <div className="border-b border-slate-200 pb-2">
-                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                        <span className="w-5 h-5 rounded-full bg-teal-600 text-white text-[11px] font-bold flex items-center justify-center">2</span>
-                        <span>Clinical Details & Hospital Selection</span>
-                      </h3>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        Select preferred hospital branch, blood group, condition severity, and describe medical symptoms. The duty receptionist will assign the consulting doctor and schedule the appointment.
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {/* HOSPITAL SELECTION */}
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                          Hospital Branch *
+                          Gender *
                         </label>
                         <select
-                          name="hospital"
-                          value={formData.hospital}
-                          onChange={handleChange}
+                          name="gender"
                           required
+                          value={formData.gender}
+                          onChange={handleChange}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 cursor-pointer shadow-2xs font-medium"
                         >
-                          <option value="">Select Hospital</option>
-                          {hospitals.map((hosp) => (
-                            <option key={hosp.id} value={hosp.id}>
-                              {hosp.Name || hosp.name}
-                            </option>
-                          ))}
+                          <option value="">-- Select Gender --</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
                         </select>
                       </div>
 
@@ -784,9 +777,110 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                           required
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 cursor-pointer shadow-2xs font-medium"
                         >
-                          <option value="">Select Blood</option>
+                          <option value="">-- Select Your Blood Group --</option>
                           {bloodGroupChoices.map((bg) => (
                             <option key={bg} value={bg}>{bg}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* CONTACT PHONE */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                          Contact Phone *
+                        </label>
+                        <input
+                          type="tel"
+                          name="contact"
+                          maxLength={14}
+                          required
+                          placeholder="e.g. +91 9876543210"
+                          value={formData.contact}
+                          onChange={handleChange}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
+                        />
+                      </div>
+
+                      {/* EMAIL ADDRESS */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-semibold text-slate-700 uppercase">
+                            Email Address *
+                          </label>
+                          {currentUser?.email && (
+                            <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200 flex items-center gap-1">
+                              <span>🔒</span>
+                              <span>Account Email (Locked)</span>
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="email"
+                          name="email"
+                          required
+                          readOnly={Boolean(currentUser?.email)}
+                          placeholder="e.g. patient@example.com"
+                          value={currentUser?.email || formData.email}
+                          onChange={handleChange}
+                          className={`w-full px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium shadow-2xs ${currentUser?.email
+                            ? 'bg-slate-100 border-slate-300 text-slate-700 cursor-not-allowed font-semibold'
+                            : 'border-slate-300 text-slate-800 bg-white focus:outline-none focus:border-teal-600'
+                            }`}
+                        />
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          {currentUser?.email
+                            ? `Appointment will be strictly linked to your portal account (${currentUser.email}).`
+                            : 'Enter your registered patient email address.'}
+                        </p>
+                      </div>
+
+                      {/* RESIDENTIAL ADDRESS */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                          Residential Address
+                        </label>
+                        <input
+                          type="text"
+                          name="address"
+                          placeholder="e.g. 123 Main Street, Sector 4, New Delhi"
+                          value={formData.address}
+                          onChange={handleChange}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SECTION 2: HOSPITAL & CLINICAL CONDITION */}
+                  <div className="space-y-4 pt-2">
+                    <div className="border-b border-slate-200 pb-2">
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-teal-600 text-white text-[11px] font-bold flex items-center justify-center">2</span>
+                        <span>Hospital Branch & Clinical Condition</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Choose your hospital branch, condition severity, and describe your symptoms.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* HOSPITAL SELECTION */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                          Hospital Branch *
+                        </label>
+                        <select
+                          name="hospital"
+                          value={formData.hospital}
+                          onChange={handleChange}
+                          required
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 cursor-pointer shadow-2xs font-medium"
+                        >
+                          <option value="">-- Select Your Hospital Branch --</option>
+                          {hospitals.map((hosp) => (
+                            <option key={hosp.id} value={hosp.id}>
+                              {hosp.Name || hosp.name}
+                            </option>
                           ))}
                         </select>
                       </div>
@@ -803,7 +897,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                           required
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 cursor-pointer shadow-2xs font-medium"
                         >
-                          <option value="">Select Condition</option>
+                          <option value="">-- Select Your Condition Severity --</option>
                           {conditionChoices.map((c) => (
                             <option key={c.value} value={c.value}>{c.label}</option>
                           ))}
@@ -811,15 +905,15 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                       </div>
 
                       {/* SYMPTOMS / DIAGNOSIS */}
-                      <div className="sm:col-span-2 lg:col-span-3">
+                      <div className="sm:col-span-2">
                         <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                          Chief Symptoms / Diagnosis (symptoms_diagnosis) *
+                          Chief Symptoms / Health Concern *
                         </label>
                         <textarea
                           name="symptoms_diagnosis"
                           rows={3}
                           required
-                          placeholder="Describe symptoms, illness duration, past medical history or consultation reason..."
+                          placeholder="Describe your symptoms, illness duration or reason for consultation..."
                           value={formData.symptoms_diagnosis}
                           onChange={handleChange}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
@@ -827,9 +921,9 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                       </div>
 
                       {/* ATTACHED DOCUMENT */}
-                      <div className="sm:col-span-2 lg:col-span-3">
+                      <div className="sm:col-span-2">
                         <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                          Attached Document (Optional - Prescriptions, Lab Reports)
+                          Attach Medical Document (Optional)
                         </label>
                         <div className="p-3.5 rounded-xl border border-dashed border-slate-300 bg-slate-50/70 hover:bg-slate-50 transition">
                           <input
@@ -840,7 +934,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                           />
                           {attachedFile && (
                             <p className="text-[11px] text-teal-700 font-semibold mt-1.5 flex items-center gap-1">
-                              <span>✓ File:</span>
+                              <span>✓ Attached File:</span>
                               <span className="font-mono">{attachedFile.name} ({(attachedFile.size / 1024).toFixed(1)} KB)</span>
                             </p>
                           )}
@@ -859,7 +953,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                       {submitting ? (
                         <>
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          <span>Saving Appointment Records...</span>
+                          <span>Booking Appointment...</span>
                         </>
                       ) : (
                         <>

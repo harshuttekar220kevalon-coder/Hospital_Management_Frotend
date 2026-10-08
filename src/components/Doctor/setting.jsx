@@ -22,7 +22,7 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
     experience: '',
     opd_timings: '',
     consultation_fee: '',
-    status: '',
+    status: 'On_Duty',
     is_active: true,
     hospitals: [],
     created_at: ''
@@ -59,30 +59,85 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
   ];
 
   const statusChoices = [
-    'Available',
-    'On_Duty',
-    'In Surgery',
-    'Consulting',
-    'Off_Duty',
-    'Emergency On-Call',
-    'On Leave'
+    { value: 'On_Duty', label: 'On Duty' },
+    { value: 'Off_Duty', label: 'Off Duty' }
   ];
 
-  const departmentChoices = [
-    'General Medicine',
-    'Cardiology',
-    'Orthopedics',
-    'Neurology',
-    'Pediatrics',
-    'Dermatology',
-    'Gynecology & Obstetrics',
-    'Oncology',
-    'ENT (Ear, Nose, Throat)',
-    'Ophthalmology',
-    'Radiology',
-    'Pulmonology',
-    'Emergency & Critical Care'
-  ];
+  const parseDoctorDepartments = (deptVal) => {
+    if (!deptVal) return [];
+    if (Array.isArray(deptVal)) return deptVal.map(d => typeof d === 'string' ? d.trim() : (d.name || '')).filter(Boolean);
+    if (typeof deptVal === 'string') {
+      return deptVal.split(',').map(d => d.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim()).filter(Boolean);
+    }
+    return [];
+  };
+
+  const getAvailableHospitalDepartments = () => {
+    let targetHospIds = Array.isArray(editFormData.hospitals) ? editFormData.hospitals.map(Number).filter(Boolean) : [];
+    
+    // If none selected in form, check doctor data or current user hospital
+    if (targetHospIds.length === 0) {
+      if (Array.isArray(doctorData?.hospitals)) {
+        targetHospIds = doctorData.hospitals.map(h => typeof h === 'object' ? Number(h.id) : Number(h)).filter(Boolean);
+      } else if (doctorData?.hospital) {
+        targetHospIds = [typeof doctorData.hospital === 'object' ? Number(doctorData.hospital.id) : Number(doctorData.hospital)].filter(Boolean);
+      } else if (currentUser?.hospital) {
+        targetHospIds = [Number(currentUser.hospital)].filter(Boolean);
+      }
+    }
+
+    const depts = [];
+
+    // Extract departments ONLY from the doctor's selected / affiliated hospitals in backend
+    targetHospIds.forEach(hId => {
+      const hosp = hospitalsList.find(h => Number(h.id) === Number(hId));
+      if (hosp) {
+        const raw = hosp.departments || hosp.department;
+        if (Array.isArray(raw)) {
+          raw.forEach(d => {
+            const name = typeof d === 'string' ? d.trim() : (d.name || '');
+            if (name && !depts.includes(name)) depts.push(name);
+          });
+        } else if (typeof raw === 'string') {
+          raw.split(',').forEach(s => {
+            const name = s.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim();
+            if (name && !depts.includes(name)) depts.push(name);
+          });
+        }
+      }
+    });
+
+    // If no hospital is assigned yet, check if any backend hospitals exist
+    if (targetHospIds.length === 0 && hospitalsList.length > 0) {
+      hospitalsList.forEach(hosp => {
+        const raw = hosp.departments || hosp.department;
+        if (Array.isArray(raw)) {
+          raw.forEach(d => {
+            const name = typeof d === 'string' ? d.trim() : (d.name || '');
+            if (name && !depts.includes(name)) depts.push(name);
+          });
+        } else if (typeof raw === 'string') {
+          raw.split(',').forEach(s => {
+            const name = s.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim();
+            if (name && !depts.includes(name)) depts.push(name);
+          });
+        }
+      });
+    }
+
+    return depts;
+  };
+
+  const handleToggleDepartment = (deptName) => {
+    const current = parseDoctorDepartments(editFormData.department);
+    let updated;
+    if (current.includes(deptName)) {
+      updated = current.filter(d => d !== deptName);
+    } else {
+      updated = [...current, deptName];
+    }
+    setEditFormData(prev => ({ ...prev, department: updated.join(', ') }));
+  };
 
   const fetchDoctorProfile = async () => {
     try {
@@ -144,7 +199,7 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
         experience: activeDoc.experience || '',
         opd_timings: activeDoc.opd_timings || '',
         consultation_fee: activeDoc.consultation_fee !== undefined && activeDoc.consultation_fee !== null ? activeDoc.consultation_fee : '',
-        status: activeDoc.status || '',
+        status: activeDoc.status || 'On_Duty',
         is_active: activeDoc.is_active !== undefined ? Boolean(activeDoc.is_active) : true,
         hospitals: initialHospIds,
         created_at: activeDoc.created_at || ''
@@ -486,12 +541,9 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
               <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                   <div>
-                    <h2 className="text-sm font-bold text-slate-900">Doctor Model Details</h2>
-                    <p className="text-[11px] text-slate-500">Edit all fields in Doctor model (Doctor ID is system-protected)</p>
+                    <h2 className="text-sm font-bold text-slate-900">Doctor Profile & Clinical Settings</h2>
+                    <p className="text-[11px] text-slate-500">Edit clinical credentials and consultation profile (Doctor ID is system-protected)</p>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                    Django Model: Doctor
-                  </span>
                 </div>
 
                 <form onSubmit={handleProfileUpdate} className="p-6 space-y-5">
@@ -574,25 +626,94 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
                       />
                     </div>
 
-                    {/* 6. DEPARTMENT */}
+                    {/* 6. STATUS (AVAILABILITY) */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Department <span className="text-rose-500">*</span>
+                        Status (Availability) <span className="text-rose-500">*</span>
                       </label>
                       <select
-                        name="department"
-                        value={editFormData.department}
+                        name="status"
+                        value={editFormData.status === 'Off_Duty' || editFormData.status === 'Off Duty' ? 'Off_Duty' : 'On_Duty'}
                         onChange={handleInputChange}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition cursor-pointer"
                       >
-                        <option value="">-- Select Department --</option>
-                        {departmentChoices.map(dept => (
-                          <option key={dept} value={dept}>{dept}</option>
-                        ))}
+                        <option value="On_Duty">On Duty</option>
+                        <option value="Off_Duty">Off Duty</option>
                       </select>
                     </div>
 
-                    {/* 7. QUALIFICATION */}
+                    {/* 7. DEPARTMENT (DYNAMIC MULTI-SELECT FROM ALL SELECTED HOSPITALS) */}
+                    <div className="sm:col-span-2">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Department(s) <span className="text-rose-500">*</span>
+                        </label>
+                        <span className="text-[11px] text-blue-600 font-semibold">
+                          {parseDoctorDepartments(editFormData.department).length} Department(s) Selected
+                        </span>
+                      </div>
+                      
+                      {/* SELECTED BADGES DISPLAY */}
+                      {parseDoctorDepartments(editFormData.department).length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 mb-2.5 p-2.5 rounded-xl bg-blue-50/70 border border-blue-200">
+                          {parseDoctorDepartments(editFormData.department).map(dept => (
+                            <span
+                              key={dept}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-600 text-white text-xs font-bold shadow-2xs"
+                            >
+                              <span>{dept}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleDepartment(dept)}
+                                className="text-blue-200 hover:text-white font-bold ml-1 cursor-pointer"
+                                title="Remove Department"
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-amber-700 mb-2 font-medium bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
+                          ⚠️ Please select at least one department from your affiliated hospital(s) below.
+                        </p>
+                      )}
+
+                      {/* AVAILABLE DEPARTMENTS FROM ASSIGNED HOSPITALS */}
+                      <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                          Departments Configured for Your Hospital Branch(es):
+                        </p>
+                        {getAvailableHospitalDepartments().length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1">
+                            {getAvailableHospitalDepartments().map(dept => {
+                              const isSelected = parseDoctorDepartments(editFormData.department).includes(dept);
+                              return (
+                                <button
+                                  key={dept}
+                                  type="button"
+                                  onClick={() => handleToggleDepartment(dept)}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 border ${
+                                    isSelected
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                                  }`}
+                                >
+                                  <span className="font-bold">{isSelected ? '✓' : '+'}</span>
+                                  <span>{dept}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="p-3 text-center rounded-lg bg-slate-100 text-xs text-slate-500 font-medium">
+                            ℹ️ No departments added by Hospital Admin for this hospital branch yet. (Departments can only be added/edited by Admin or Super Admin during hospital setup).
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 8. QUALIFICATION */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                         Qualification
@@ -607,7 +728,7 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
                       />
                     </div>
 
-                    {/* 8. EXPERIENCE */}
+                    {/* 9. EXPERIENCE */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                         Experience
@@ -622,7 +743,7 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
                       />
                     </div>
 
-                    {/* 9. OPD TIMINGS */}
+                    {/* 10. OPD TIMINGS */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                         OPD Timings
@@ -640,7 +761,7 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
                       </select>
                     </div>
 
-                    {/* 10. CONSULTATION FEE */}
+                    {/* 11. CONSULTATION FEE */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                         Consultation Fee (₹)
@@ -657,62 +778,40 @@ const DoctorSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedH
                       />
                     </div>
 
-                    {/* 11. STATUS */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Status (Availability)
-                      </label>
-                      <select
-                        name="status"
-                        value={editFormData.status}
-                        onChange={handleInputChange}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
-                      >
-                        <option value="">-- Select Status --</option>
-                        {statusChoices.map(st => (
-                          <option key={st} value={st}>{st}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* 12. IS ACTIVE */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Account Status
-                      </label>
-                      <select
-                        name="is_active"
-                        value={editFormData.is_active ? 'true' : 'false'}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, is_active: e.target.value === 'true' }))}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
-                      >
-                        <option value="true">Active (Consultation Enabled)</option>
-                        <option value="false">Inactive (Disabled)</option>
-                      </select>
-                    </div>
-
-                    {/* 13. PASSWORD (EDITABLE IN PROFILE) */}
+                    {/* 13. PASSWORD (READ-ONLY IN PROFILE) */}
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Login Password
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Login Password
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('security')}
+                          className="text-[11px] text-blue-600 hover:text-blue-700 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          <span>🔒 Change in Password & Security &rarr;</span>
+                        </button>
+                      </div>
                       <div className="relative">
                         <input
                           type={showPassword ? 'text' : 'password'}
                           name="password"
                           value={editFormData.password}
-                          onChange={handleInputChange}
+                          readOnly
                           placeholder="••••••••"
-                          className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition"
+                          className="w-full px-3.5 py-2.5 pr-20 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm text-slate-700 font-mono cursor-not-allowed select-all focus:outline-none"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(p => !p)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
                         >
                           {showPassword ? 'Hide' : 'Show'}
                         </button>
                       </div>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        🔒 Read-only field. Password can only be edited in the <strong>Password & Security</strong> section.
+                      </p>
                     </div>
 
                     {/* 14. ADDITIONAL SKILLS */}

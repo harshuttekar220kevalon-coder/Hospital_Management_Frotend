@@ -48,25 +48,63 @@ const PatientSetting = ({ currentUser, setCurrentUser, setCurrentPage, isLoggedI
         const pRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
         if (pRes && pRes.ok) {
           const pats = await pRes.json().catch(() => []);
-          if (Array.isArray(pats)) {
-            matchedPat = pats.find(p => 
-              (p.email && p.email.toLowerCase().trim() === email) ||
-              (patId && Number(p.id) === Number(patId)) ||
-              (patPhone && (p.contact === patPhone || p.phone === patPhone)) ||
-              (p.name && p.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim())
-            );
+          if (Array.isArray(pats) && pats.length > 0) {
+            if (email) {
+              matchedPat = pats.find(p => (p.email || '').toLowerCase().trim() === email);
+            }
+            if (!matchedPat && currentUser?.patient_id) {
+              const uId = currentUser.patient_id.toLowerCase().trim();
+              matchedPat = pats.find(p => (p.patient_id || p.uhid || '').toLowerCase().trim() === uId);
+            }
+            if (!matchedPat && patId && !isNaN(Number(patId)) && Number(patId) > 0) {
+              matchedPat = pats.find(p => Number(p.id) === Number(patId));
+            }
+            if (!matchedPat && patPhone && patPhone.replace(/\D/g, '').length >= 10) {
+              const cleanDigits = patPhone.replace(/\D/g, '');
+              matchedPat = pats.find(p => (p.contact || p.phone || '').replace(/\D/g, '') === cleanDigits);
+            }
           }
         }
       } catch (e) {
         console.error('Error fetching patient record:', e);
       }
 
-      const activePat = matchedPat || currentUser || {};
-      setPatientData(activePat);
+      // If not in Patients table, check appointments
+      let matchedAppt = null;
+      if (!matchedPat) {
+        try {
+          const apptRes = await fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null);
+          if (apptRes && apptRes.ok) {
+            const appts = await apptRes.json().catch(() => []);
+            if (Array.isArray(appts) && appts.length > 0) {
+              if (email) {
+                matchedAppt = appts.find(a => (a.email || '').toLowerCase().trim() === email);
+              }
+              if (!matchedAppt && currentUser?.patient_id) {
+                const uId = currentUser.patient_id.toLowerCase().trim();
+                matchedAppt = appts.find(a => {
+                  const aUhid = (a.patient_id || a.uhid || (a.Appoment_id ? `APT-${a.Appoment_id}` : '')).toLowerCase().trim();
+                  return aUhid === uId;
+                });
+              }
+              if (!matchedAppt && patPhone && patPhone.replace(/\D/g, '').length >= 10) {
+                const cleanDigits = patPhone.replace(/\D/g, '');
+                matchedAppt = appts.find(a => (a.contact || a.phone || '').replace(/\D/g, '') === cleanDigits);
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error fetching appointment for patient:', e);
+        }
+      }
+
+      const activePat = matchedPat || matchedAppt || currentUser || {};
+      const resolvedPatId = activePat.patient_id || activePat.uhid || (activePat.Appoment_id ? `APT-${activePat.Appoment_id}` : (activePat.id ? `PAT-${activePat.id}` : (currentUser?.patient_id || '')));
+      setPatientData({ ...activePat, patient_id: resolvedPatId, uhid: resolvedPatId });
 
       setEditFormData({
-        name: activePat.name || currentUser?.name || '',
-        patient_id: activePat.patient_id || activePat.uhid || (activePat.id ? `PAT-${activePat.id}` : ''),
+        name: activePat.name || activePat.patient_name || activePat.patient_Name || currentUser?.name || '',
+        patient_id: resolvedPatId,
         contact: activePat.contact || activePat.phone || currentUser?.contact || '',
         email: activePat.email || currentUser?.email || '',
         password: activePat.password || activePat.Password || '',
@@ -368,12 +406,9 @@ const PatientSetting = ({ currentUser, setCurrentUser, setCurrentPage, isLoggedI
               <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                   <div>
-                    <h2 className="text-sm font-bold text-slate-900">Patient Model Information</h2>
-                    <p className="text-[11px] text-slate-500">Edit fields in Patient table (name, contact, email, address, password)</p>
+                    <h2 className="text-sm font-bold text-slate-900">Patient Profile Information</h2>
+                    <p className="text-[11px] text-slate-500">Edit your patient profile details (UHID is system-protected)</p>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                    Django Model: Patient
-                  </span>
                 </div>
 
                 <form onSubmit={handleProfileUpdate} className="p-6 space-y-5">
@@ -440,28 +475,40 @@ const PatientSetting = ({ currentUser, setCurrentUser, setCurrentPage, isLoggedI
                       />
                     </div>
 
-                    {/* 5. PASSWORD */}
+                    {/* 5. PASSWORD (READ-ONLY IN PROFILE) */}
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Login Password
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Login Password
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('security')}
+                          className="text-[11px] text-teal-600 hover:text-teal-700 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          <span>🔒 Change in Password & Security &rarr;</span>
+                        </button>
+                      </div>
                       <div className="relative">
                         <input
                           type={showPassword ? 'text' : 'password'}
                           name="password"
                           value={editFormData.password}
-                          onChange={handleInputChange}
+                          readOnly
                           placeholder="••••••••"
-                          className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
+                          className="w-full px-3.5 py-2.5 pr-20 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm text-slate-700 font-mono cursor-not-allowed select-all focus:outline-none"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(p => !p)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
                         >
                           {showPassword ? 'Hide' : 'Show'}
                         </button>
                       </div>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        🔒 Read-only field. Password can only be edited in the <strong>Password & Security</strong> section.
+                      </p>
                     </div>
 
                     {/* 6. ADDRESS */}

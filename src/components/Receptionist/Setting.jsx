@@ -12,13 +12,13 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
   const [editFormData, setEditFormData] = useState({
     name: '',
     receptionist_id: '',
-    role: '',
-    shift: '',
-    languages: '',
+    role: 'Front Desk Receptionist',
+    shift: 'Morning Shift (08:00 AM - 04:00 PM)',
+    languages: 'English, Hindi',
     contact: '',
     email: '',
     password: '',
-    status: '',
+    status: 'On_Duty',
     is_active: true,
     hospital: '',
     created_at: ''
@@ -47,14 +47,14 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
     'Appointment Receptionist',
     'Admission Receptionist',
     'Billing Receptionist',
-    'Emergency Receptionist'
+    'Emergency Receptionist',
+    'General Receptionist',
+    'Receptionist'
   ];
 
   const statusChoices = [
-    'On_Duty',
-    'Off_Duty',
-    'Available',
-    'Busy'
+    { value: 'On_Duty', label: 'On Duty' },
+    { value: 'Off_Duty', label: 'Off Duty' }
   ];
 
   const shiftsList = [
@@ -106,16 +106,18 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
         ? (typeof activeRec.hospital === 'object' ? activeRec.hospital.id : activeRec.hospital)
         : (currentUser?.hospital || '');
 
+      const resolvedRole = (activeRec.role && activeRec.role.trim()) || activeRec.designation || currentUser?.role || 'Front Desk Receptionist';
+
       setEditFormData({
         name: activeRec.name || currentUser?.name || '',
-        receptionist_id: activeRec.receptionist_id || (activeRec.id ? `REC-${activeRec.id}` : ''),
-        role: activeRec.role || '',
-        shift: activeRec.shift || '',
-        languages: activeRec.languages || '',
+        receptionist_id: activeRec.receptionist_id || (activeRec.id ? `REC-${activeRec.id}` : (currentUser?.receptionist_id || '')),
+        role: resolvedRole,
+        shift: activeRec.shift || 'Morning Shift (08:00 AM - 04:00 PM)',
+        languages: activeRec.languages || 'English, Hindi',
         contact: activeRec.contact || activeRec.phone || currentUser?.contact || '',
         email: activeRec.email || currentUser?.email || '',
         password: activeRec.password || '',
-        status: activeRec.status || '',
+        status: activeRec.status || 'On_Duty',
         is_active: activeRec.is_active !== undefined ? Boolean(activeRec.is_active) : true,
         hospital: targetHospId ? String(targetHospId) : '',
         created_at: activeRec.created_at || ''
@@ -141,9 +143,13 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
+    let finalValue = type === 'checkbox' ? checked : value;
+    if (name === 'role' && (!finalValue || finalValue.trim() === '')) {
+      finalValue = currentUser?.role || 'Front Desk Receptionist';
+    }
     setEditFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: finalValue
     }));
     if (saveSuccessMsg) setSaveSuccessMsg('');
     if (saveErrorMsg) setSaveErrorMsg('');
@@ -157,16 +163,17 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
       setSaveErrorMsg('');
 
       const recId = receptionistData?.id || currentUser?.id;
+      const safeRole = (editFormData.role && editFormData.role.trim()) || currentUser?.role || 'Front Desk Receptionist';
       
       const payload = {
-        name: editFormData.name.trim(),
-        email: editFormData.email.trim(),
-        contact: editFormData.contact.trim(),
-        phone: editFormData.contact.trim(),
-        role: editFormData.role,
-        shift: editFormData.shift,
-        languages: editFormData.languages.trim(),
-        status: editFormData.status,
+        name: (editFormData.name || currentUser?.name || 'Receptionist').trim(),
+        email: (editFormData.email || currentUser?.email || '').trim(),
+        contact: (editFormData.contact || currentUser?.contact || '').trim(),
+        phone: (editFormData.contact || currentUser?.contact || '').trim(),
+        role: safeRole,
+        shift: editFormData.shift || 'Morning Shift (08:00 AM - 04:00 PM)',
+        languages: (editFormData.languages || 'English, Hindi').trim(),
+        status: editFormData.status || 'On_Duty',
         is_active: Boolean(editFormData.is_active),
         hospital: editFormData.hospital ? Number(editFormData.hospital) : null
       };
@@ -374,28 +381,28 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
             <div className="space-y-6">
               <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-2xs text-center">
                 <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-md mb-3">
-                  {(editFormData.name || 'REC').slice(0, 2).toUpperCase()}
+                  {(editFormData.name || currentUser?.name || 'RE').slice(0, 2).toUpperCase()}
                 </div>
-                <h3 className="text-base font-bold text-slate-900">{editFormData.name || 'Not Provided'}</h3>
-                <p className="text-xs text-sky-700 font-semibold mt-0.5">{editFormData.role || 'Not Provided'}</p>
+                <h3 className="text-base font-bold text-slate-900">{editFormData.name || currentUser?.name || 'Receptionist'}</h3>
+                <p className="text-xs text-sky-700 font-bold mt-0.5">{editFormData.role || currentUser?.role || 'Front Desk Receptionist'}</p>
 
                 <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2 text-xs">
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Receptionist ID:</span>
                     <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
-                      {editFormData.receptionist_id || 'Not Provided'}
+                      {editFormData.receptionist_id || (currentUser?.id ? `REC-${currentUser.id}` : 'REC-101')}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Languages:</span>
-                    <span className="font-semibold text-slate-800 truncate max-w-[140px]">{editFormData.languages || 'Not Provided'}</span>
+                    <span className="font-semibold text-slate-800 truncate max-w-[140px]">{editFormData.languages || 'English, Hindi'}</span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Duty Status:</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                       editFormData.status === 'On_Duty' || editFormData.status === 'Available' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
                     }`}>
-                      {editFormData.status || 'Not Provided'}
+                      {editFormData.status || 'On_Duty'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
@@ -409,7 +416,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                   <div className="flex justify-between items-center py-1 text-slate-600">
                     <span className="text-slate-400">Hospital:</span>
                     <span className="font-bold text-sky-900 truncate max-w-[140px]">
-                      {hospitalData?.Name || hospitalData?.name || 'Not Provided'}
+                      {hospitalData?.Name || hospitalData?.name || currentUser?.hospital_name || 'Hospital Reception'}
                     </span>
                   </div>
                 </div>
@@ -421,12 +428,9 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
               <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                   <div>
-                    <h2 className="text-sm font-bold text-slate-900">Receptionist Model Details</h2>
-                    <p className="text-[11px] text-slate-500">Edit all fields in Receptionist model (ID is system-protected)</p>
+                    <h2 className="text-sm font-bold text-slate-900">Receptionist Profile & Desk Information</h2>
+                    <p className="text-[11px] text-slate-500">Edit front desk information (ID is system-protected)</p>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
-                    Django Model: Receptionist
-                  </span>
                 </div>
 
                 <form onSubmit={handleProfileUpdate} className="p-6 space-y-5">
@@ -500,11 +504,11 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                       </label>
                       <select
                         name="role"
-                        value={editFormData.role}
+                        value={editFormData.role || 'Front Desk Receptionist'}
                         onChange={handleInputChange}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-600/20 transition"
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 font-semibold focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-600/20 transition cursor-pointer"
                       >
-                        <option value="">-- Select Role --</option>
                         {rolesList.map(r => (
                           <option key={r} value={r}>{r}</option>
                         ))}
@@ -545,26 +549,24 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                       />
                     </div>
 
-                    {/* 8. STATUS */}
+                    {/* 8. STATUS (AVAILABILITY) */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Duty Status
+                        Status (Availability) <span className="text-rose-500">*</span>
                       </label>
                       <select
                         name="status"
-                        value={editFormData.status}
+                        value={editFormData.status === 'Off_Duty' || editFormData.status === 'Off Duty' ? 'Off_Duty' : 'On_Duty'}
                         onChange={handleInputChange}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-600/20 transition"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-600/20 transition cursor-pointer"
                       >
-                        <option value="">-- Select Duty Status --</option>
-                        {statusChoices.map(st => (
-                          <option key={st} value={st}>{st}</option>
-                        ))}
+                        <option value="On_Duty">On Duty</option>
+                        <option value="Off_Duty">Off Duty</option>
                       </select>
                     </div>
 
                     {/* 9. HOSPITAL */}
-                    <div>
+                    <div className="sm:col-span-2">
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                         Hospital
                       </label>
@@ -583,44 +585,40 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                       </select>
                     </div>
 
-                    {/* 10. IS ACTIVE */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Account Status
-                      </label>
-                      <select
-                        name="is_active"
-                        value={editFormData.is_active ? 'true' : 'false'}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, is_active: e.target.value === 'true' }))}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-600/20 transition"
-                      >
-                        <option value="true">Active (Desk Access Enabled)</option>
-                        <option value="false">Inactive (Disabled)</option>
-                      </select>
-                    </div>
-
-                    {/* 11. PASSWORD (EDITABLE IN PROFILE) */}
+                    {/* 11. PASSWORD (READ-ONLY IN PROFILE) */}
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Login Password
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Login Password
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('security')}
+                          className="text-[11px] text-sky-600 hover:text-sky-700 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          <span>🔒 Change in Password & Security &rarr;</span>
+                        </button>
+                      </div>
                       <div className="relative">
                         <input
                           type={showPassword ? 'text' : 'password'}
                           name="password"
                           value={editFormData.password}
-                          onChange={handleInputChange}
+                          readOnly
                           placeholder="••••••••"
-                          className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-600/20 transition"
+                          className="w-full px-3.5 py-2.5 pr-20 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm text-slate-700 font-mono cursor-not-allowed select-all focus:outline-none"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(p => !p)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
                         >
                           {showPassword ? 'Hide' : 'Show'}
                         </button>
                       </div>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        🔒 Read-only field. Password can only be edited in the <strong>Password & Security</strong> section.
+                      </p>
                     </div>
                   </div>
 

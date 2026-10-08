@@ -404,12 +404,9 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
               <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                   <div>
-                    <h2 className="text-sm font-bold text-slate-900">HospitalAdmin Model Information</h2>
-                    <p className="text-[11px] text-slate-500">Edit all backend fields (ID & Employee ID are system-protected)</p>
+                    <h2 className="text-sm font-bold text-slate-900">HospitalAdmin Profile Information</h2>
+                    <p className="text-[11px] text-slate-500">Edit administrator credentials (ID & Employee ID are system-protected)</p>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                    Django Model: HospitalAdmin
-                  </span>
                 </div>
 
                 <form onSubmit={handleProfileUpdate} className="p-6 space-y-5">
@@ -498,31 +495,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                       </select>
                     </div>
 
-                    {/* 6. PASSWORD (EDITABLE IN PROFILE) */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Login Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          name="password"
-                          value={editFormData.password}
-                          onChange={handleInputChange}
-                          placeholder="••••••••"
-                          className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(p => !p)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
-                        >
-                          {showPassword ? 'Hide' : 'Show'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 7. EMPLOYEE ID */}
+                    {/* 6. EMPLOYEE ID */}
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                         Employee ID
@@ -536,20 +509,40 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                       />
                     </div>
 
-                    {/* 8. ACCOUNT STATUS */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Account Status
-                      </label>
-                      <select
-                        name="is_active"
-                        value={editFormData.is_active ? 'true' : 'false'}
-                        onChange={(e) => setEditFormData(prev => ({ ...prev, is_active: e.target.value === 'true' }))}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
-                      >
-                        <option value="true">Active (Account Enabled)</option>
-                        <option value="false">Inactive (Account Disabled)</option>
-                      </select>
+                    {/* 7. PASSWORD (READ-ONLY IN PROFILE) */}
+                    <div className="sm:col-span-2">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Login Password
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('security')}
+                          className="text-[11px] text-teal-600 hover:text-teal-700 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          <span>🔒 Change in Security &rarr;</span>
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          name="password"
+                          value={editFormData.password}
+                          readOnly
+                          placeholder="••••••••"
+                          className="w-full px-3.5 py-2.5 pr-20 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm text-slate-700 font-mono cursor-not-allowed select-all focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(p => !p)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
+                        >
+                          {showPassword ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        🔒 Read-only field. Password can only be edited in the <strong>Password & Security</strong> section.
+                      </p>
                     </div>
                   </div>
 

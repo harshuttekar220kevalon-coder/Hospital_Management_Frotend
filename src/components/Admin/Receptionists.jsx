@@ -103,8 +103,8 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
       if (recRes && recRes.ok) {
         const allRecs = await recRes.json();
         if (assignedHospitalId) {
-          const branchRecs = allRecs.filter(r => Number(r.hospital) === Number(assignedHospitalId));
-          setReceptionists(branchRecs.length > 0 ? branchRecs : allRecs);
+          const branchRecs = allRecs.filter(r => Number(typeof r.hospital === 'object' ? r.hospital?.id : r.hospital) === Number(assignedHospitalId));
+          setReceptionists(branchRecs);
         } else {
           setReceptionists(allRecs);
         }

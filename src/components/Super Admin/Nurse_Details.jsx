@@ -118,18 +118,20 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
   };
 
   const handleOpenEditModal = () => {
+    const rawHosp = activeNurse.hospital;
+    const hospId = typeof rawHosp === 'object' ? rawHosp?.id : rawHosp;
     setEditFormData({
       nurse_id: activeNurse.nurse_id || `NUR-${activeNurse.id}`,
       name: activeNurse.name || '',
-      role: activeNurse.role || activeNurse.nurse_role || '',
+      role: activeNurse.role || activeNurse.nurse_role || activeNurse.designation || '',
       ward: activeNurse.ward || '',
       shift: activeNurse.shift || '',
       qualification: activeNurse.qualification || '',
       experience: activeNurse.experience || '',
-      contact: activeNurse.contact || '',
+      contact: (activeNurse.contact || activeNurse.phone || '').replace(/\D/g, '').slice(0, 15),
       email: activeNurse.email || '',
       password: activeNurse.password || '',
-      hospital: activeNurse.hospital || '',
+      hospital: hospId || '',
       status: activeNurse.status || 'On_Duty',
       is_active: activeNurse.is_active !== false
     });
@@ -147,41 +149,68 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
 
     try {
       const nurseIdToSend = editFormData.nurse_id || activeNurse.nurse_id || `NUR-${activeNurse.id}`;
+      const nurseRole = editFormData.role || editFormData.nurse_role || activeNurse.role || 'Staff Nurse';
       const currentStatus = editFormData.status || 'On_Duty';
+      const rawHosp = editFormData.hospital || activeNurse.hospital;
+      const hospId = Number(typeof rawHosp === 'object' ? rawHosp?.id : rawHosp);
+      const contactVal = (editFormData.contact || '').trim();
+
       const payload = {
         ...editFormData,
         nurse_id: nurseIdToSend,
         role: nurseRole,
         nurse_role: nurseRole,
         designation: nurseRole,
-        name: editFormData.name.trim(),
-        contact: editFormData.contact.trim(),
+        name: (editFormData.name || '').trim(),
+        contact: contactVal,
+        phone: contactVal,
         password: activeNurse.password || editFormData.password || 'Nurse@123',
-        hospital: Number(editFormData.hospital),
+        hospital: hospId,
         status: currentStatus,
         is_active: editFormData.is_active !== undefined ? editFormData.is_active : true
       };
 
-      const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${activeNurse.id}/`, {
+      let response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${activeNurse.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      });
+      }).catch(() => null);
 
-      const updated = await response.json();
+      if (!response || !response.ok) {
+        const patchRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/${activeNurse.id}/`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(() => null);
+        if (patchRes && patchRes.ok) response = patchRes;
+      }
 
-      if (response.ok) {
+      if (response && response.ok) {
+        const updated = await response.json().catch(() => payload);
         alert('Nurse profile updated successfully!');
         setNurseData(updated);
         if (setSelectedNurse) setSelectedNurse(updated);
         localStorage.setItem('selectedNurse', JSON.stringify(updated));
         setIsEditModalOpen(false);
       } else {
-        alert('Failed to update nurse: ' + JSON.stringify(updated));
+        const errData = response ? await response.json().catch(() => null) : null;
+        let errMsg = 'Failed to update nurse.';
+        if (errData) {
+          if (typeof errData === 'string') {
+            errMsg = errData;
+          } else if (errData.message || errData.detail || errData.error) {
+            errMsg = errData.message || errData.detail || errData.error;
+          } else {
+            errMsg = Object.entries(errData)
+              .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? JSON.stringify(v) : v)}`)
+              .join('\n');
+          }
+        }
+        alert(errMsg);
       }
     } catch (err) {
       console.error('Error updating nurse:', err);
-      alert('Network error while updating nurse details.');
+      alert('Error while updating nurse details: ' + (err.message || ''));
     }
   };
 

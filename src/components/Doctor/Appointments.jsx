@@ -21,7 +21,8 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
 
   // Status
-  const isCompletedStatus = (status) => {
+  const isCompletedStatus = (status, checkupStatus) => {
+    if (checkupStatus === 'Checkup Done') return true;
     const s = (status || '').toLowerCase().trim();
     return s === 'discharged' || s === 'completed' || s.includes('discharg') || s.includes('complet');
   };
@@ -39,6 +40,23 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
   // Blood Group helper
   const getPatientBloodGroup = (pat) => {
     return pat?.Blood_Group || pat?.blood_group || pat?.BloodGroup || pat?.bloodGroup || pat?.blood || pat?.Blood || '-';
+  };
+
+  // Gender helper
+  const getPatientGender = (patient) => {
+    if (!patient) return '-';
+    return (
+      patient.gender ||
+      patient.Gender ||
+      patient.patient_gender ||
+      patient.Patient_Gender ||
+      patient.sex ||
+      patient.Sex ||
+      patient.patient?.gender ||
+      patient.patient_data?.gender ||
+      patient.user?.gender ||
+      '-'
+    );
   };
 
   // Completed today tracking
@@ -85,52 +103,56 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
         isPast: false,
         isUpcoming: false,
         diffDays: 0,
-        dayLabel: 'Not Scheduled',
+        dayLabel: 'Today',
         timeFormatted: '--',
         dateFormatted: '--',
-        fullScheduleDisplay: 'Not Scheduled',
-        badgeClass: 'bg-slate-100 text-slate-600 border-slate-200'
+        fullScheduleDisplay: 'Today',
+        badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold'
       };
     }
 
-    const rawDateStr = patient.visit_date_time || patient.appointment_time || patient.appointment_date || patient.visit_date;
+    const rawDateStr = patient.visit_date_time || patient.appointment_time || patient.appointment_date || patient.visit_date || patient.created_at;
 
     if (!rawDateStr) {
       return {
-        dateObj: null,
-        isToday: false,
+        dateObj: new Date(),
+        isToday: true,
         isYesterday: false,
         isTomorrow: false,
         isPast: false,
         isUpcoming: false,
-        diffDays: 999,
-        dayLabel: 'Not Scheduled',
-        timeFormatted: patient.appointment_time || '--',
-        dateFormatted: patient.appointment_date || '--',
-        fullScheduleDisplay: patient.appointment_date ? `${patient.appointment_date} ${patient.appointment_time || ''}` : 'Not Scheduled',
-        badgeClass: 'bg-slate-100 text-slate-500 border-slate-200'
+        diffDays: 0,
+        dayLabel: 'Today',
+        timeFormatted: patient.appointment_time || '10:00 AM',
+        dateFormatted: new Date().toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }),
+        fullScheduleDisplay: 'Today',
+        badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold'
       };
     }
 
     const d = new Date(rawDateStr);
     if (isNaN(d.getTime())) {
       return {
-        dateObj: null,
-        isToday: false,
+        dateObj: new Date(),
+        isToday: true,
         isYesterday: false,
         isTomorrow: false,
         isPast: false,
         isUpcoming: false,
-        diffDays: 999,
-        dayLabel: 'Scheduled',
+        diffDays: 0,
+        dayLabel: 'Today',
         timeFormatted: patient.appointment_time || '--',
         dateFormatted: patient.appointment_date || String(rawDateStr),
         fullScheduleDisplay: String(rawDateStr),
-        badgeClass: 'bg-slate-100 text-slate-500 border-slate-200'
+        badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold'
       };
     }
 
     const now = new Date();
+    const isToday = d.getFullYear() === now.getFullYear() &&
+                    d.getMonth() === now.getMonth() &&
+                    d.getDate() === now.getDate();
+
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const targetMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     const diffDays = Math.round((targetMidnight - todayMidnight) / (1000 * 60 * 60 * 24));
@@ -138,7 +160,6 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
     const timeFormatted = patient.appointment_time || d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
     const dateFormatted = d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
 
-    const isToday = diffDays === 0;
     const isYesterday = diffDays === -1;
     const isTomorrow = diffDays === 1;
     const isPast = diffDays < 0;
@@ -245,29 +266,93 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
       const primaryHosp = docAssignedHospitals[0] || allHospitals.find(h => Number(h.id) === Number(rawHospIds[0])) || null;
       setHospitalInfo(primaryHosp);
 
-      // 3. Fetch patients - STRICTLY ASSIGNED TO THIS DOCTOR ONLY!
+      // 3. Fetch patients and appointments - STRICTLY ASSIGNED TO THIS DOCTOR ONLY!
       try {
-        const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
-        if (patRes && patRes.ok) {
-          const allPats = await patRes.json();
-          if (Array.isArray(allPats)) {
-            const myPatients = allPats.filter(p => {
-              if (!p.doctor && !p.doctor_name) return false;
-
-              const matchDocId = (resolvedDoctor?.id && Number(p.doctor) === Number(resolvedDoctor.id)) ||
-                (currentUser?.id && Number(p.doctor) === Number(currentUser.id));
-              
-              const matchDocName = resolvedDoctor?.name && p.doctor_name && 
-                p.doctor_name.toLowerCase().trim() === resolvedDoctor.name.toLowerCase().trim();
-
-              const matchDocTag = resolvedDoctor?.doctor_id && p.doctor_id &&
-                p.doctor_id === resolvedDoctor.doctor_id;
-
-              return matchDocId || matchDocName || matchDocTag;
-            });
-            setPatients(myPatients);
+        let combinedRecords = [];
+        try {
+          const patRes = await fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null);
+          if (patRes && patRes.ok) {
+            const resData = await patRes.json().catch(() => []);
+            combinedRecords = extractArray(resData);
           }
-        }
+        } catch (e) {}
+
+        const targetDocId = resolvedDoctor?.id || currentUser?.id;
+        const targetDocTag = resolvedDoctor?.doctor_id || currentUser?.doctor_id;
+        const targetDocEmail = (resolvedDoctor?.email || currentUser?.email || '').toLowerCase().trim();
+        const targetDocName = (resolvedDoctor?.name || currentUser?.name || '').replace(/^dr\.?\s*/i, '').toLowerCase().trim();
+
+        const myPatients = combinedRecords
+          .filter(p => {
+            if (!p) return false;
+            const pDocId = typeof p.doctor === 'object' && p.doctor !== null ? p.doctor.id : p.doctor;
+            const pDocTag = p.doctor_id || p.doctor_tag;
+            const pDocEmail = (typeof p.doctor === 'object' && p.doctor?.email ? p.doctor.email : (p.doctor_email || '')).toLowerCase().trim();
+            const pDocName = (p.doctor_name || (typeof p.doctor === 'object' ? p.doctor?.name : '') || '').replace(/^dr\.?\s*/i, '').toLowerCase().trim();
+
+            // 1. Direct ID match
+            if (targetDocId && pDocId && !isNaN(Number(pDocId)) && !isNaN(Number(targetDocId))) {
+              if (Number(pDocId) === Number(targetDocId)) return true;
+            }
+
+            // 2. Doctor ID tag match (e.g. DOC-001)
+            if (targetDocTag && pDocTag && String(pDocTag).toLowerCase().trim() === String(targetDocTag).toLowerCase().trim()) {
+              return true;
+            }
+
+            // 3. Email match
+            if (targetDocEmail && pDocEmail && pDocEmail === targetDocEmail) {
+              return true;
+            }
+
+            // 4. Clean Name match
+            if (targetDocName && pDocName && (pDocName === targetDocName || pDocName.includes(targetDocName) || targetDocName.includes(pDocName))) {
+              if (pDocId && targetDocId && !isNaN(Number(pDocId)) && !isNaN(Number(targetDocId)) && Number(pDocId) !== Number(targetDocId)) {
+                return false;
+              }
+              return true;
+            }
+
+            return false;
+          })
+          .map(p => {
+            const id = p.id || p.appointment_id;
+            const apptId = p.Appoment_id || p.appoment_id || p.appointment_id || id;
+            const name = p.patient_Name || p.patient_name || p.name || `Patient #${id}`;
+            const condition = p.condition || p.Condation || p.Condition || p.symptoms_severity || 'Normal';
+            const blood = p.blood_group || p.Blood_Group || 'Not Specified';
+            const hospId = typeof p.hospital === 'object' && p.hospital !== null ? p.hospital.id : p.hospital;
+            const hospObj = hospId && Array.isArray(allHospitals) ? allHospitals.find(h => Number(h.id) === Number(hospId)) : null;
+            const patientHospName = p.hospital_name || hospObj?.Name || hospObj?.name || (typeof p.hospital === 'string' && isNaN(Number(p.hospital)) ? p.hospital : '');
+            const patGender = p.gender || p.Gender || p.patient_gender || p.Patient_Gender || p.sex || p.Sex || '';
+            const ageVal = p.age || p.Age || '';
+
+            return {
+              ...p,
+              id,
+              Appoment_id: apptId,
+              appoment_id: apptId,
+              appointment_id: apptId,
+              patient_id: `APT-${apptId}`,
+              name,
+              patient_Name: name,
+              patient_name: name,
+              gender: patGender,
+              Gender: patGender,
+              age: ageVal,
+              Age: ageVal,
+              condition,
+              Condation: condition,
+              blood_group: blood,
+              Blood_Group: blood,
+              status,
+              checkup_status: p.checkup_status || p.Checkup_status || 'Pending',
+              hospital: hospId,
+              hospital_name: patientHospName
+            };
+          });
+
+        setPatients(myPatients);
       } catch (err) {
         console.error('Error fetching appointments queue:', err);
       }
@@ -294,12 +379,13 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
       setUpdatingPatientId(selectedPatientModal.id);
       const nowIso = new Date().toISOString();
       const isAdmit = (decisionType === 'ADMIT');
-      const newStatus = isAdmit ? 'Admit_Requested' : 'Completed';
+      const newStatus = isAdmit ? 'Admitted' : (selectedPatientModal.status || 'Assigned');
       const updatedNotes = clinicalNotes.trim() + (prescriptionText.trim() ? `\n[Prescription / Advice: ${prescriptionText.trim()}]` : '');
 
       const payload = {
         ...selectedPatientModal,
         status: newStatus,
+        checkup_status: 'Checkup Done',
         Condation: selectedSeverity,
         condation: selectedSeverity,
         condition: selectedSeverity,
@@ -314,18 +400,66 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
         removeCompletedTodayId(selectedPatientModal.id);
       }
 
-      let res = await fetch(`${API_BASE_URL}/super-admin/Patients/${selectedPatientModal.id}/`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).catch(() => null);
+      const candidateIds = [
+        selectedPatientModal.appointment_pk,
+        selectedPatientModal.appointment_id,
+        selectedPatientModal.Appoment_id,
+        selectedPatientModal.appoment_id,
+        selectedPatientModal.id,
+        typeof selectedPatientModal.id === 'string' && selectedPatientModal.id.startsWith('APT-') ? selectedPatientModal.id.replace('APT-', '') : null,
+        typeof selectedPatientModal.id === 'string' ? selectedPatientModal.id.replace(/\D/g, '') : null
+      ].filter(Boolean);
 
-      if (!res || !res.ok) {
-        res = await fetch(`${API_BASE_URL}/super-admin/Patients/${selectedPatientModal.id}/`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }).catch(() => null);
+      let isSuccess = false;
+      for (const targetId of Array.from(new Set(candidateIds))) {
+        try {
+          const res = await fetch(`${API_BASE_URL}/super-admin/appointments/${targetId}/`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (res && res.ok) {
+            isSuccess = true;
+            break;
+          }
+        } catch (e) {}
+      }
+
+      if (!isSuccess) {
+        try {
+          const allApptsRes = await fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null);
+          if (allApptsRes && allApptsRes.ok) {
+            const allAppts = extractArray(await allApptsRes.json().catch(() => []));
+            const patName = (selectedPatientModal.name || selectedPatientModal.patient_name || '').toLowerCase().trim();
+            const patPhone = String(selectedPatientModal.contact || selectedPatientModal.phone || '').replace(/\D/g, '');
+            const patEmail = (selectedPatientModal.email || '').toLowerCase().trim();
+
+            const matched = allAppts.find(a => {
+              const aId = Number(a.id);
+              const aApptId = String(a.Appoment_id || a.appoment_id || a.appointment_id || '');
+              const aName = (a.patient_name || a.patient_Name || a.name || '').toLowerCase().trim();
+              const aEmail = (a.email || '').toLowerCase().trim();
+              const aPhone = String(a.contact || a.phone || '').replace(/\D/g, '');
+
+              if (candidateIds.includes(aId) || candidateIds.includes(String(a.id))) return true;
+              if (aApptId && candidateIds.includes(aApptId)) return true;
+              if (patName && aName && patName === aName && patPhone && aPhone && patPhone === aPhone) return true;
+              if (patName && aName && patName === aName && patEmail && aEmail && patEmail === aEmail) return true;
+              if (patEmail && aEmail && patEmail === aEmail && patEmail.length > 4) return true;
+              if (patPhone && aPhone && patPhone === aPhone && patPhone.length > 5) return true;
+              if (patName && aName && patName === aName && patName.length > 2) return true;
+              return false;
+            });
+
+            if (matched && matched.id) {
+              await fetch(`${API_BASE_URL}/super-admin/appointments/${matched.id}/`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              }).catch(() => null);
+            }
+          }
+        } catch (e) {}
       }
 
       const updatedPat = {
@@ -511,17 +645,6 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
                 </span>
               </div>
             </div>
-
-            <button
-              type="button"
-              onClick={loadAppointmentsData}
-              className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh
-            </button>
           </div>
         </div>
       </div>
@@ -579,7 +702,6 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
           <table className="w-full text-center text-xs text-slate-600 min-w-[780px]">
             <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
               <tr>
-                <th className="py-3 px-3 text-center">Token</th>
                 <th className="py-3 px-3 text-left">Patient & UHID</th>
                 <th className="py-3 px-3 text-center">Priority</th>
                 <th className="py-3 px-3 text-center">Age / Blood</th>
@@ -591,26 +713,22 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-400">Loading emergency queue...</td>
+                  <td colSpan={6} className="py-10 text-center text-slate-400">Loading emergency queue...</td>
                 </tr>
               ) : filteredList.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-400">
+                  <td colSpan={6} className="py-10 text-center text-slate-400">
                     <div className="font-semibold text-slate-600">No emergency patients matching criteria.</div>
                   </td>
                 </tr>
               ) : (
                 filteredList.map((pat, idx) => {
-                  const isDone = isCompletedStatus(pat.status);
+                  const isDone = isCompletedStatus(pat.status, pat.checkup_status);
                   const isAdmit = isAdmitStatus(pat.status);
                   const condition = getPatientCondition(pat);
 
                   return (
                     <tr key={pat.id || idx} className="hover:bg-slate-50/70 transition">
-                      <td className="py-3 px-3 font-mono font-bold text-rose-700">
-                        #{String(idx + 1).padStart(2, '0')}
-                      </td>
-
                       <td className="py-3 px-3 text-left">
                         <div className="font-bold text-slate-900 text-sm">{pat.patient_Name || pat.patient_name || pat.name || 'Patient'}</div>
                         <span className="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
@@ -688,7 +806,7 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
             <div className="grid grid-cols-3 gap-2.5 text-xs">
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-slate-400 uppercase font-bold text-[10px] block">Age & Gender</span>
-                <p className="font-bold text-slate-800 mt-0.5">{selectedPatientModal.age ? `${selectedPatientModal.age} Yrs` : '-'} • {selectedPatientModal.gender || '-'}</p>
+                <p className="font-bold text-slate-800 mt-0.5">{selectedPatientModal.age || selectedPatientModal.Age ? `${selectedPatientModal.age || selectedPatientModal.Age} Yrs` : '-'} • {getPatientGender(selectedPatientModal)}</p>
               </div>
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-slate-400 uppercase font-bold text-[10px] block">Blood Group</span>

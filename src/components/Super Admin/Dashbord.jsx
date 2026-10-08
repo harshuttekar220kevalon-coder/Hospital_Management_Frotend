@@ -6,6 +6,7 @@ import Doctors_Management from './Doctors_Management';
 import Nurses from './Nurses';
 import Receptionist_Management from './Receptionist';
 import Patients_Management from './Patients';
+import SuperAdminAppointments from './Appoiment';
 
 const SuperAdminDashboard = ({
   currentUser,
@@ -15,7 +16,8 @@ const SuperAdminDashboard = ({
   setSelectedNurse,
   setSelectedReceptionist,
   setSelectedPatient,
-  setSelectedAdmin
+  setSelectedAdmin,
+  setSelectedAppointment
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [visibleBranchesCount, setVisibleBranchesCount] = useState(10);
@@ -27,61 +29,222 @@ const SuperAdminDashboard = ({
   const [nurses, setNurses] = useState([]);
   const [receptionists, setReceptionists] = useState([]);
   const [patients, setPatients] = useState([]);
+  const [appointments, setAppointments] = useState([]);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
 
-      const [hospRes, adminRes, docRes, nurRes, recRes, patRes] = await Promise.all([
+      const [hospRes, adminRes, docRes, nurRes, recRes, patRes, apptRes] = await Promise.all([
         fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null),
         fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null),
         fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null),
         fetch(`${API_BASE_URL}/super-admin/Nurses/`).catch(() => null),
         fetch(`${API_BASE_URL}/super-admin/Receptionists/`).catch(() => null),
-        fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null)
+        fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null)
       ]);
 
+      let hospData = [];
+      let docData = [];
+
       if (hospRes && hospRes.ok) {
-        const hospData = await hospRes.json();
-        setHospitals(Array.isArray(hospData) ? hospData : []);
+        hospData = await hospRes.json().catch(() => []);
+        setHospitals(Array.isArray(hospData) ? hospData : (hospData?.results || []));
       } else {
         setHospitals([]);
       }
 
       if (adminRes && adminRes.ok) {
-        const adminData = await adminRes.json();
-        setAdmins(Array.isArray(adminData) ? adminData : []);
+        const adminData = await adminRes.json().catch(() => []);
+        setAdmins(Array.isArray(adminData) ? adminData : (adminData?.results || []));
       } else {
         setAdmins([]);
       }
 
       if (docRes && docRes.ok) {
-        const docData = await docRes.json();
-        setDoctors(Array.isArray(docData) ? docData : []);
+        docData = await docRes.json().catch(() => []);
+        setDoctors(Array.isArray(docData) ? docData : (docData?.results || []));
       } else {
         setDoctors([]);
       }
 
       if (nurRes && nurRes.ok) {
-        const nurData = await nurRes.json();
-        setNurses(Array.isArray(nurData) ? nurData : []);
+        const nurData = await nurRes.json().catch(() => []);
+        setNurses(Array.isArray(nurData) ? nurData : (nurData?.results || []));
       } else {
         setNurses([]);
       }
 
       if (recRes && recRes.ok) {
-        const recData = await recRes.json();
-        setReceptionists(Array.isArray(recData) ? recData : []);
+        const recData = await recRes.json().catch(() => []);
+        setReceptionists(Array.isArray(recData) ? recData : (recData?.results || []));
       } else {
         setReceptionists([]);
       }
 
+      let rawPatients = [];
+      let rawAppointments = [];
+
       if (patRes && patRes.ok) {
-        const patData = await patRes.json();
-        setPatients(Array.isArray(patData) ? patData : []);
-      } else {
-        setPatients([]);
+        const pData = await patRes.json().catch(() => []);
+        rawPatients = Array.isArray(pData) ? pData : (pData?.results || pData?.data || []);
       }
+
+      if (apptRes && apptRes.ok) {
+        const aData = await apptRes.json().catch(() => []);
+        rawAppointments = Array.isArray(aData) ? aData : (aData?.results || aData?.data || aData?.appointments || []);
+      }
+
+      // Normalize Appointments strictly from backend /super-admin/appointments/
+      const normalizeAppointment = (item) => {
+        if (!item) return null;
+        const id = item.id || item.appointment_id || item.Appoment_id;
+        const name = item.patient_name || item.patient_Name || item.name || `Patient #${id}`;
+        const hospId = typeof item.hospital === 'object' ? item.hospital?.id : item.hospital;
+        const docId = typeof item.doctor === 'object' ? item.doctor?.id : item.doctor;
+        const nurseId = typeof item.nurse === 'object' ? item.nurse?.id : item.nurse;
+
+        const hospObj = hospId ? hospData.find(h => Number(h.id) === Number(hospId)) : null;
+        const docObj = docId ? docData.find(d => Number(d.id) === Number(docId)) : null;
+
+        const docFee = Number(item.consultation_fee || docObj?.consultation_fee || 0);
+        const hospCharges = Number(item.hospitals_charges || item.Hospitals_Chargies || 0);
+        const amtPaid = Number(item.amount_paid || 0);
+
+        const rawApptId = item.appointment_id || item.Appoment_id || item.appoment_id || id;
+        const formattedApptId = rawApptId ? (String(rawApptId).startsWith('APT-') ? String(rawApptId) : `APT-${rawApptId}`) : `APT-${id}`;
+
+        const rawPatId = item.patient_id || item.uhid || item.patient;
+        const formattedPatId = rawPatId ? (String(rawPatId).startsWith('PAT-') ? String(rawPatId) : `PAT-${rawPatId}`) : (id ? `PAT-${id}` : 'PAT-0');
+
+        return {
+          ...item,
+          id,
+          appointment_id: formattedApptId,
+          Appoment_id: formattedApptId,
+          patient_id: formattedPatId,
+          uhid: item.uhid || formattedPatId,
+          name,
+          patient_name: name,
+          patient_Name: name,
+          hospital: hospId,
+          hospital_name: item.hospital_name || hospObj?.Name || hospObj?.name || 'Central Hospital',
+          doctor: docId ? Number(docId) : null,
+          doctor_name: item.doctor_name || (docObj ? (docObj.name?.startsWith('Dr.') ? docObj.name : `Dr. ${docObj.name}`) : (docId ? `Dr. #${docId}` : 'Not Assigned')),
+          doctor_specialization: item.doctor_specialization || docObj?.specialization || docObj?.specialty || '',
+          bed_number: item.bed_number ? Number(item.bed_number) : null,
+          nurse: nurseId ? Number(nurseId) : null,
+          consultation_fee: docFee,
+          Hospitals_Chargies: hospCharges,
+          hospitals_charges: hospCharges,
+          amount_paid: amtPaid,
+          total_bill: docFee + hospCharges,
+          condition: item.condition || item.Condation || item.symptoms_severity || 'Normal',
+          Condation: item.condition || item.Condation || item.symptoms_severity || 'Normal',
+          status: item.status || 'Pending',
+          payment_status: item.payment_status || (amtPaid >= (docFee + hospCharges) && (docFee + hospCharges) > 0 ? 'Paid' : 'Pending'),
+          payment_method: item.payment_method || 'Cash',
+          contact: item.contact || item.phone || '',
+          email: item.email || '',
+          address: item.address || '',
+          symptoms_diagnosis: item.symptoms_diagnosis || item.reason_for_visit || 'General Consultation',
+          visit_date_time: item.visit_date_time || item.created_at || new Date().toISOString(),
+          created_at: item.created_at || item.visit_date_time || new Date().toISOString()
+        };
+      };
+
+      const normalizedAppointments = rawAppointments.map(normalizeAppointment).filter(Boolean);
+
+      // Normalize Patients strictly from backend /super-admin/Patients/ and link visits
+      const seenPatientKeys = new Set();
+      const combinedPatients = [];
+
+      for (const p of rawPatients) {
+        if (!p) continue;
+        const id = p.id || p.patient_id || p.uhid;
+        const pName = (p.name || p.patient_name || p.patient_Name || p.user_name || (p.first_name ? `${p.first_name} ${p.last_name || ''}`.trim() : '') || `Patient #${id}`).trim();
+        const pEmail = (p.email || '').toLowerCase().trim();
+        const pContact = (p.contact || p.phone || p.mobile || '').trim();
+        const displayId = p.patient_id || p.uhid || (p.id ? `PAT-${p.id}` : 'PAT-0');
+
+        const matchingAppts = normalizedAppointments.filter((a) => {
+          const aEmail = (a.email || '').toLowerCase().trim();
+          const aContact = (a.contact || a.phone || a.mobile || '').trim();
+          const aPatFk = typeof a.patient === 'object' ? a.patient?.id : a.patient;
+          const aName = (a.patient_name || a.patient_Name || a.name || '').trim().toLowerCase();
+          return (
+            (pEmail && aEmail && pEmail === aEmail) ||
+            (pContact && aContact && pContact === aContact) ||
+            (p.id && aPatFk && Number(p.id) === Number(aPatFk)) ||
+            (pName && aName && pName.toLowerCase() === aName)
+          );
+        });
+
+        const key = pEmail || pContact || (p.id ? `pat_${p.id}` : `pat_${Math.random()}`);
+        if (!seenPatientKeys.has(key)) {
+          seenPatientKeys.add(key);
+          combinedPatients.push({
+            ...p,
+            id: p.id || id,
+            patient_id: displayId,
+            uhid: p.uhid || displayId,
+            name: pName,
+            contact: pContact,
+            phone: pContact,
+            email: pEmail,
+            age: p.age ?? p.Age ?? '',
+            gender: p.gender || p.Gender || '',
+            blood_group: p.blood_group || p.Blood_Group || '',
+            address: p.address || p.Address || '',
+            total_appointments: matchingAppts.length,
+            status: p.status || 'Active',
+            created_at: p.created_at || p.date_joined || new Date().toISOString()
+          });
+        }
+      }
+
+      // Add any additional patient users from appointments that are not in /super-admin/Patients/
+      for (const a of normalizedAppointments) {
+        const aEmail = (a.email || '').toLowerCase().trim();
+        const aContact = (a.contact || a.phone || '').trim();
+        const aName = (a.patient_name || a.patient_Name || a.name || '').trim();
+        const key = aEmail || aContact || (a.id ? `appt_pat_${a.id}` : `pat_${Math.random()}`);
+
+        if (!seenPatientKeys.has(key)) {
+          seenPatientKeys.add(key);
+          const matchingAppts = normalizedAppointments.filter((ba) => {
+            const baEmail = (ba.email || '').toLowerCase().trim();
+            const baContact = (ba.contact || ba.phone || '').trim();
+            const baName = (ba.patient_name || ba.patient_Name || ba.name || '').trim().toLowerCase();
+            return (
+              (aEmail && baEmail && aEmail === baEmail) ||
+              (aContact && baContact && aContact === baContact) ||
+              (aName && baName && aName.toLowerCase() === baName)
+            );
+          });
+
+          combinedPatients.push({
+            id: a.patient || a.patient_id || a.id,
+            patient_id: a.patient_id || (a.id ? `PAT-${a.id}` : 'PAT-0'),
+            uhid: a.uhid || (a.id ? `UHID-${a.id}` : 'UHID-0'),
+            name: aName || 'Patient User',
+            contact: aContact,
+            phone: aContact,
+            email: aEmail,
+            age: a.age ?? a.Age ?? '',
+            gender: a.gender || a.Gender || '',
+            blood_group: a.blood_group || a.Blood_Group || '',
+            address: a.address || a.Address || '',
+            total_appointments: matchingAppts.length,
+            status: 'Active',
+            created_at: a.created_at || a.visit_date_time || new Date().toISOString()
+          });
+        }
+      }
+
+      setPatients(combinedPatients);
+      setAppointments(normalizedAppointments);
     } catch (err) {
       console.error('Error fetching Super Admin dashboard data:', err);
     } finally {
@@ -112,9 +275,17 @@ const SuperAdminDashboard = ({
   const activeReceptionists = receptionists.filter((r) => r.is_active !== false);
   const activeHospitals = hospitals.filter((h) => h.is_active !== false);
 
-  const pendingPatients = patients.filter((p) => p.status === 'Pending' || p.status === 'Pending Review');
-  const admittedPatients = patients.filter((p) => p.status === 'Admitted' || p.status === 'In Consultation');
-  const dischargedPatients = patients.filter((p) => p.status === 'Discharged' || p.status === 'Completed');
+  const allClinicalRecords = [...patients, ...appointments];
+
+  const pendingPatients = allClinicalRecords.filter((p) => p.status === 'Pending' || p.status === 'Pending Review');
+  // Strict rule: ONLY patients with status 'Admitted' (and NOT 'Discharged'/'Cancelled') with an assigned bed occupy a bed
+  const admittedPatients = allClinicalRecords.filter((p) => 
+    (p.status === 'Admitted' || p.status === 'In Consultation') && 
+    p.status !== 'Discharged' && 
+    p.status !== 'Cancelled' && 
+    p.bed_number != null
+  );
+  const dischargedPatients = allClinicalRecords.filter((p) => p.status === 'Discharged' || p.status === 'Completed');
 
   const uniqueSpecialties = Array.from(new Set(doctors.map((d) => d.specialization || d.specialty).filter(Boolean)));
   const uniqueCities = Array.from(
@@ -126,10 +297,10 @@ const SuperAdminDashboard = ({
     )
   );
 
-  // STRICT RULE: Only calculate Doctor Fees, Hospital Revenue, and Collections when patient has PAID
-  const paidPatients = patients.filter((p) => (p.payment_status || '').toLowerCase() === 'paid' || (Number(p.amount_paid) > 0));
+  // STRICT RULE: Only calculate Doctor Fees, Hospital Revenue, and Collections when patient/appointment has PAID
+  const paidRecords = allClinicalRecords.filter((p) => (p.payment_status || '').toLowerCase() === 'paid' || (Number(p.amount_paid) > 0));
 
-  const totalDocFees = paidPatients.reduce((sum, p) => {
+  const totalDocFees = paidRecords.reduce((sum, p) => {
     const isPaid = (p.payment_status || '').toLowerCase() === 'paid';
     const paid = Number(p.amount_paid) || 0;
     const docFee = Number(p.consultation_fee) || 0;
@@ -140,7 +311,7 @@ const SuperAdminDashboard = ({
     return sum;
   }, 0);
 
-  const totalHospRevenue = paidPatients.reduce((sum, p) => {
+  const totalHospRevenue = paidRecords.reduce((sum, p) => {
     const isPaid = (p.payment_status || '').toLowerCase() === 'paid';
     const paid = Number(p.amount_paid) || 0;
     const docFee = Number(p.consultation_fee) || 0;
@@ -151,7 +322,7 @@ const SuperAdminDashboard = ({
     return sum;
   }, 0);
 
-  const totalRevenue = paidPatients.reduce((sum, p) => {
+  const totalRevenue = paidRecords.reduce((sum, p) => {
     const isPaid = (p.payment_status || '').toLowerCase() === 'paid';
     const paid = Number(p.amount_paid) || 0;
     const docFee = Number(p.consultation_fee) || 0;
@@ -165,9 +336,9 @@ const SuperAdminDashboard = ({
   const totalIcuBeds = hospitals.reduce((sum, h) => sum + (Number(h.icu_beds) || 0), 0);
   const totalNicuBeds = hospitals.reduce((sum, h) => sum + (Number(h.nicu_beds) || 0), 0);
   const totalOTs = hospitals.reduce((sum, h) => sum + (Number(h.operation_theatres) || 0), 0);
-  const totalOccupiedBeds = admittedPatients.length > 0 
-    ? admittedPatients.length 
-    : hospitals.reduce((sum, h) => sum + (Number(h.occupied_beds) || 0), 0);
+  // Live dynamic bed occupancy: Occupied only when actively admitted; frees up automatically on discharge
+  const totalOccupiedBeds = admittedPatients.length;
+  const totalAvailableBeds = Math.max(0, totalBeds - totalOccupiedBeds);
 
   // All 9 Core Dashboard Metric Cards in Exact Requested Sequence
   const systemStats = [
@@ -220,8 +391,8 @@ const SuperAdminDashboard = ({
       id: 'beds',
       title: 'Total Bed Capacity',
       value: totalBeds > 0 ? `${totalBeds.toLocaleString()} Beds` : `${hospitals.length * 50}+ Beds`,
-      sub: `OT: ${totalOTs} • ICU: ${totalIcuBeds} • NICU: ${totalNicuBeds} • Occupied: ${totalOccupiedBeds}`,
-      badge: `${totalOccupiedBeds} Occupied`,
+      sub: `Available: ${totalAvailableBeds} • OT: ${totalOTs} • ICU: ${totalIcuBeds} • Occupied: ${totalOccupiedBeds}`,
+      badge: `${totalAvailableBeds} Available`,
       color: 'bg-slate-100 text-slate-800 border-slate-200',
       tab: 'hospitals'
     },
@@ -269,16 +440,22 @@ const SuperAdminDashboard = ({
       return hospIds.includes(targetHospId);
     });
 
-    const branchPatients = patients.filter((p) => {
+    const branchAdmitted = patients.filter((p) => {
       const patHospId = Number(typeof p.hospital === 'object' ? p.hospital?.id : p.hospital);
-      return patHospId === targetHospId;
+      const isAdmitted = (p.status === 'Admitted' || p.status === 'In Consultation') && 
+                         p.status !== 'Discharged' && 
+                         p.status !== 'Cancelled' && 
+                         p.bed_number != null;
+      return patHospId === targetHospId && isAdmitted;
     });
     const branchBeds = Number(hosp.total_beds) || 0;
+    const branchOccupied = branchAdmitted.length;
+    const branchAvailable = Math.max(0, branchBeds - branchOccupied);
 
-    let occupancyStr = `${branchPatients.length} Patients`;
+    let occupancyStr = `${branchOccupied} Occupied / ${branchAvailable} Avail`;
     if (branchBeds > 0) {
-      const occPercent = Math.min(100, Math.round((branchPatients.length / branchBeds) * 100));
-      occupancyStr = `${occPercent}% (${branchPatients.length}/${branchBeds} Beds)`;
+      const occPercent = Math.min(100, Math.round((branchOccupied / branchBeds) * 100));
+      occupancyStr = `${occPercent}% (${branchOccupied}/${branchBeds} Beds)`;
     }
 
     return {
@@ -343,6 +520,16 @@ const SuperAdminDashboard = ({
 
   const dynamicAudits = generateLiveAudits();
 
+  const isDateToday = (dateStr) => {
+    if (!dateStr) return false;
+    try {
+      const d = new Date(dateStr).toISOString().split('T')[0];
+      return d === todayStr;
+    } catch {
+      return false;
+    }
+  };
+
   const handleBranchClick = (hosp) => {
     if (setSelectedHospital) {
       setSelectedHospital(hosp);
@@ -350,6 +537,26 @@ const SuperAdminDashboard = ({
     localStorage.setItem('selectedHospital', JSON.stringify(hosp));
     if (setCurrentPage) {
       setCurrentPage('hospital_details');
+    }
+  };
+
+  const handlePatientClick = (patient) => {
+    if (setSelectedPatient) {
+      setSelectedPatient(patient);
+    }
+    localStorage.setItem('selectedPatient', JSON.stringify(patient));
+    if (setCurrentPage) {
+      setCurrentPage('patient_details');
+    }
+  };
+
+  const handleAppointmentClick = (appointment) => {
+    if (setSelectedAppointment) {
+      setSelectedAppointment(appointment);
+    }
+    localStorage.setItem('selectedAppointment', JSON.stringify(appointment));
+    if (setCurrentPage) {
+      setCurrentPage('appointment_details');
     }
   };
 
@@ -409,6 +616,17 @@ const SuperAdminDashboard = ({
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('appointments')}
+            className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
+              activeTab === 'appointments'
+                ? 'bg-white text-slate-900 shadow-sm font-bold'
+                : 'text-slate-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            Appointments ({appointments.length})
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('patients')}
             className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
               activeTab === 'patients'
@@ -455,7 +673,14 @@ const SuperAdminDashboard = ({
       </div>
 
       {/* SUB-MODULE ROUTING */}
-      {activeTab === 'patients' ? (
+      {activeTab === 'appointments' ? (
+        <SuperAdminAppointments
+          currentUser={currentUser}
+          setCurrentPage={setCurrentPage}
+          setSelectedPatient={setSelectedPatient}
+          setSelectedAppointment={setSelectedAppointment}
+        />
+      ) : activeTab === 'patients' ? (
         <Patients_Management
           currentUser={currentUser}
           setCurrentPage={setCurrentPage}
@@ -690,6 +915,263 @@ const SuperAdminDashboard = ({
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* RECENT PATIENT REGISTRY TABLE */}
+          <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h2 className="text-sm sm:text-base font-bold text-slate-800">
+                  Recent Registered Patients ({patients.length})
+                </h2>
+                <p className="text-xs text-slate-500">
+                  All verified patient accounts and profiles registered across hospital branches
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('patients')}
+                className="text-xs font-bold text-sky-700 hover:text-sky-900 hover:underline cursor-pointer flex items-center gap-1"
+              >
+                View Full Patient Directory &rarr;
+              </button>
+            </div>
+
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left text-xs text-slate-600 min-w-[700px]">
+                <thead className="bg-slate-50 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4 text-left">Patient Name</th>
+                    <th className="py-3 px-4 text-center">Patient ID</th>
+                    <th className="py-3 px-4 text-center">Contact</th>
+                    <th className="py-3 px-4 text-left">Email</th>
+                    <th className="py-3 px-4 text-center">Visits</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {patients.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                        {loading ? 'Loading registered patients...' : 'No registered patients found.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    patients.slice(0, 8).map((pat, i) => {
+                      const displayId = pat.patient_id || pat.uhid || (pat.id ? `PAT-${pat.id}` : 'PAT-0');
+                      const emailLower = (pat.email || '').toLowerCase().trim();
+                      const contactNum = (pat.contact || pat.phone || '').trim();
+
+                      return (
+                        <tr
+                          key={pat.id || i}
+                          onClick={() => handlePatientClick(pat)}
+                          className="hover:bg-sky-50/40 transition cursor-pointer group"
+                        >
+                          <td className="py-3 px-4 text-left font-bold text-slate-900 text-xs">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                                {(pat.name || 'P').charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <span className="block font-bold text-slate-900 group-hover:text-sky-700">{pat.name || 'Patient'}</span>
+                                {pat.age ? (
+                                  <span className="text-[10px] text-slate-400 block">{pat.age} yrs</span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <span className="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200 inline-block">
+                              {displayId}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 text-center font-mono font-semibold text-slate-700 whitespace-nowrap">
+                            {contactNum || '-'}
+                          </td>
+
+                          <td className="py-3 px-4 text-left">
+                            {emailLower ? (
+                              <a
+                                href={`mailto:${emailLower}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-sky-700 hover:text-sky-900 hover:underline font-medium block lowercase truncate max-w-[200px]"
+                              >
+                                {emailLower}
+                              </a>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                              {pat.total_appointments || 0} {pat.total_appointments === 1 ? 'Visit' : 'Visits'}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePatientClick(pat);
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center gap-1 shadow-2xs"
+                            >
+                              Details &rarr;
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* RECENT APPOINTMENTS & CLINICAL VISITS TABLE */}
+          <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h2 className="text-sm sm:text-base font-bold text-slate-800">
+                  Recent Appointments & Clinical Visits ({appointments.length})
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Live consultations, OPD visits, and doctor appointments across all branches
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('appointments')}
+                className="text-xs font-bold text-sky-700 hover:text-sky-900 hover:underline cursor-pointer flex items-center gap-1"
+              >
+                View All Appointments &rarr;
+              </button>
+            </div>
+
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left text-xs text-slate-600 min-w-[850px]">
+                <thead className="bg-slate-50 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4">Appt ID & Date</th>
+                    <th className="py-3 px-4">Patient Name & ID</th>
+                    <th className="py-3 px-4">Branch Facility</th>
+                    <th className="py-3 px-4">Assigned Doctor</th>
+                    <th className="py-3 px-4 text-center">Ward / Bed</th>
+                    <th className="py-3 px-4 text-center">Billing & Paid</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {appointments.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                        {loading ? 'Loading live appointments...' : 'No appointments registered yet.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    appointments.slice(0, 8).map((appt, i) => {
+                      const isToday = isDateToday(appt.visit_date_time);
+                      const isCancelled = (appt.status || '').toLowerCase() === 'cancelled' || (appt.status || '').toLowerCase() === 'rejected';
+                      const isCompleted = (appt.status || '').toLowerCase() === 'completed' || (appt.status || '').toLowerCase() === 'discharged';
+
+                      return (
+                        <tr
+                          key={appt.id || i}
+                          onClick={() => handleAppointmentClick(appt)}
+                          className="hover:bg-sky-50/40 transition cursor-pointer group"
+                        >
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="font-mono font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 text-[11px] block w-max">
+                              {appt.appointment_id || `APT-${appt.id}`}
+                            </span>
+                            <span className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1 font-medium">
+                              {isToday && (
+                                <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-bold">
+                                  Today
+                                </span>
+                              )}
+                              {appt.visit_date_time ? new Date(appt.visit_date_time).toLocaleDateString() : 'N/A'}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="font-bold text-slate-900 group-hover:text-sky-700 block">{appt.patient_name || appt.name || 'Patient'}</span>
+                            <span className="font-mono text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200 inline-block mt-0.5">
+                              {appt.patient_id || (appt.id ? `PAT-${appt.id}` : 'PAT-0')}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 font-medium text-slate-700 whitespace-nowrap">
+                            {appt.hospital_name || 'Central Hospital'}
+                          </td>
+
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="font-bold text-teal-800 block">{appt.doctor_name || 'Unassigned'}</span>
+                            {appt.doctor_specialization && (
+                              <span className="text-[10px] text-slate-400 block">{appt.doctor_specialization}</span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            {appt.bed_number ? (
+                              <span className="font-mono font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 text-[11px]">
+                                Bed #{appt.bed_number}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic">OPD / No Bed</span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 text-center whitespace-nowrap font-mono">
+                            <span className="font-bold text-slate-800 block">
+                              ₹{Number(appt.amount_paid || 0).toFixed(2)}
+                            </span>
+                            <span className={`text-[10px] block font-semibold ${
+                              (appt.payment_status || '').toLowerCase() === 'paid' ? 'text-emerald-600' : 'text-amber-600'
+                            }`}>
+                              {appt.payment_status || 'Pending'}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-block ${
+                                isCancelled
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                  : isCompleted || appt.status === 'Confirmed' || appt.status === 'Admitted'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}
+                            >
+                              {appt.status || 'Pending'}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAppointmentClick(appt);
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs border border-sky-200 transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                            >
+                              View Details &rarr;
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

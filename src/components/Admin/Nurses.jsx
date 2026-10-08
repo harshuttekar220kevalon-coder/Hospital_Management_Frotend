@@ -111,8 +111,8 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
       if (nursesRes && nursesRes.ok) {
         const allNurses = await nursesRes.json();
         if (assignedHospitalId) {
-          const branchNurses = allNurses.filter(n => Number(n.hospital) === Number(assignedHospitalId));
-          setNurses(branchNurses.length > 0 ? branchNurses : allNurses);
+          const branchNurses = allNurses.filter(n => Number(typeof n.hospital === 'object' ? n.hospital?.id : n.hospital) === Number(assignedHospitalId));
+          setNurses(branchNurses);
         } else {
           setNurses(allNurses);
         }
@@ -159,6 +159,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
 
     try {
       const generatedNurseId = generateNurseId();
+      const nurseRole = formData.role || formData.nurse_role || 'Staff Nurse';
       const currentStatus = formData.status || 'On_Duty';
       const payload = {
         ...formData,
@@ -193,7 +194,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
       }
     } catch (err) {
       console.error('Error registering nurse:', err);
-      alert('Network error while saving nurse profile.');
+      alert('Network error while saving nurse profile: ' + (err.message || ''));
     }
   };
 

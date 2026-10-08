@@ -38,6 +38,23 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
   const [visibleCount, setVisibleCount] = useState(10);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isBookModalOpen, setIsBookModalOpen] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
+  const [bookTargetPatient, setBookTargetPatient] = useState(null);
+  const [bookFormData, setBookFormData] = useState({
+    hospital: '',
+    doctor: '',
+    consultation_fee: 0,
+    hospitals_charges: 0,
+    amount_paid: 0,
+    payment_status: 'Pending',
+    payment_method: 'Cash',
+    condition: 'Normal',
+    status: 'Pending',
+    bed_number: '',
+    symptoms_diagnosis: '',
+    visit_date_time: new Date().toISOString().slice(0, 16)
+  });
 
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-', 'Not Known'];
   const severityLevels = ['Critical', 'Emergency', 'Urgent', 'Normal'];
@@ -106,37 +123,138 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     try {
       setLoading(true);
 
-      const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
+      const [hospRes, docRes, adminRes, nurseRes, patRes, apptRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/Nurses/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null)
+      ]);
+
+      let hospData = [];
+      let docData = [];
+      let adminData = [];
+      let nurseData = [];
+
       if (hospRes && hospRes.ok) {
-        const hospData = await hospRes.json();
-        setHospitalsList(hospData);
+        hospData = await hospRes.json().catch(() => []);
+        setHospitalsList(Array.isArray(hospData) ? hospData : (hospData?.results || []));
       }
-
-      const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
       if (docRes && docRes.ok) {
-        const docData = await docRes.json();
-        setDoctorsList(docData);
+        docData = await docRes.json().catch(() => []);
+        setDoctorsList(Array.isArray(docData) ? docData : (docData?.results || []));
       }
-
-      const adminRes = await fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null);
       if (adminRes && adminRes.ok) {
-        const adminData = await adminRes.json();
-        setAdminsList(adminData);
+        adminData = await adminRes.json().catch(() => []);
+        setAdminsList(Array.isArray(adminData) ? adminData : (adminData?.results || []));
       }
-
-      const nurseRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/`).catch(() => null);
       if (nurseRes && nurseRes.ok) {
-        const nurseData = await nurseRes.json();
-        setNursesList(nurseData);
+        nurseData = await nurseRes.json().catch(() => []);
+        setNursesList(Array.isArray(nurseData) ? nurseData : (nurseData?.results || []));
       }
 
-      const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
+      let rawPatients = [];
+      let rawAppointments = [];
+
       if (patRes && patRes.ok) {
-        const patData = await patRes.json();
-        setPatients(patData);
-      } else {
-        setPatients([]);
+        const pData = await patRes.json().catch(() => []);
+        rawPatients = Array.isArray(pData) ? pData : (pData?.results || pData?.data || []);
       }
+      if (apptRes && apptRes.ok) {
+        const aData = await apptRes.json().catch(() => []);
+        rawAppointments = Array.isArray(aData) ? aData : (aData?.results || aData?.data || aData?.appointments || []);
+      }
+
+      const combined = [];
+      const seenKeys = new Set();
+
+      const normalizeItem = (item) => {
+        if (!item) return null;
+        const id = item.id || item.appointment_id || item.Appoment_id;
+        const name = item.patient_name || item.patient_Name || item.name || `Patient #${id}`;
+        const hospId = typeof item.hospital === 'object' ? item.hospital?.id : item.hospital;
+        const docId = typeof item.doctor === 'object' ? item.doctor?.id : item.doctor;
+        const nurseId = typeof item.nurse === 'object' ? item.nurse?.id : item.nurse;
+
+        const hospObj = hospId ? hospData.find(h => Number(h.id) === Number(hospId)) : null;
+        const docObj = docId ? docData.find(d => Number(d.id) === Number(docId)) : null;
+        const nurseObj = nurseId ? nurseData.find(n => Number(n.id) === Number(nurseId)) : null;
+
+        const docFee = Number(item.consultation_fee || docObj?.consultation_fee || 0);
+        const hospCharges = Number(item.hospitals_charges || item.Hospitals_Chargies || 0);
+        const amtPaid = Number(item.amount_paid || 0);
+
+        return {
+          ...item,
+          id,
+          appointment_id: item.appointment_id || item.Appoment_id || id,
+          patient_id: item.patient_id || item.uhid || `PAT-${id}`,
+          uhid: item.uhid || item.patient_id || `UHID-${id}`,
+          name,
+          patient_name: name,
+          patient_Name: name,
+          hospital: hospId,
+          hospital_name: item.hospital_name || hospObj?.Name || hospObj?.name || 'Central Hospital',
+          doctor: docId ? Number(docId) : null,
+          doctor_name: item.doctor_name || (docObj ? (docObj.name?.startsWith('Dr.') ? docObj.name : `Dr. ${docObj.name}`) : (docId ? `Dr. #${docId}` : 'Not Assigned')),
+          doctor_specialization: item.doctor_specialization || docObj?.specialization || docObj?.specialty || '',
+          bed_number: item.bed_number ? Number(item.bed_number) : null,
+          nurse: nurseId ? Number(nurseId) : null,
+          nurse_name: item.nurse_name || (nurseObj ? nurseObj.name : ''),
+          consultation_fee: docFee,
+          Hospitals_Chargies: hospCharges,
+          hospitals_charges: hospCharges,
+          amount_paid: amtPaid,
+          condition: item.condition || item.Condation || item.symptoms_severity || 'Normal',
+          Condation: item.condition || item.Condation || item.symptoms_severity || 'Normal',
+          status: item.status || 'Pending',
+          payment_status: item.payment_status || (amtPaid >= (docFee + hospCharges) && (docFee + hospCharges) > 0 ? 'Paid' : 'Pending'),
+          payment_method: item.payment_method || 'Cash',
+          contact: item.contact || item.phone || '',
+          email: item.email || '',
+          address: item.address || '',
+          symptoms_diagnosis: item.symptoms_diagnosis || item.reason_for_visit || 'General Consultation',
+          visit_date_time: item.visit_date_time || item.created_at || new Date().toISOString(),
+          created_at: item.created_at || item.visit_date_time || new Date().toISOString()
+        };
+      };
+
+      // 1. Strictly process registered patient users from /super-admin/Patients/
+      for (const p of rawPatients) {
+        const norm = normalizeItem(p);
+        if (norm) {
+          const emailKey = (norm.email || '').trim().toLowerCase();
+          const contactKey = (norm.contact || norm.phone || '').trim();
+          const uhidKey = (norm.uhid || norm.patient_id || '').trim();
+          const key = emailKey || contactKey || uhidKey || `pat_${norm.id}`;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+
+            // Find all appointments for this patient user
+            const matchedAppts = rawAppointments.filter((a) => {
+              const aEmail = (a.email || '').trim().toLowerCase();
+              const aContact = (a.contact || a.phone || '').trim();
+              const aUhid = (a.uhid || a.patient_id || '').trim();
+              const aName = (a.patient_name || a.patient_Name || a.name || '').trim().toLowerCase();
+              return (
+                (emailKey && aEmail === emailKey) ||
+                (contactKey && aContact === contactKey) ||
+                (uhidKey && aUhid === uhidKey) ||
+                (norm.name && aName === norm.name.trim().toLowerCase())
+              );
+            });
+
+            combined.push({
+              ...norm,
+              total_appointments: matchedAppts.length,
+              appointment_history: matchedAppts
+            });
+          }
+        }
+      }
+
+      setPatients(combined);
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -195,63 +313,27 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
 
   const todayApplicationsCount = patients.filter(p => isAppliedToday(p)).length;
   const totalPatientsCount = patients.length;
-  const pendingCount = patients.filter(p => p.status === 'Pending' || p.status === 'Pending Review').length;
-  const assignedCount = patients.filter(p => p.status === 'Assigned').length;
-  const admittedCount = patients.filter(p => p.status === 'Admitted' || p.status === 'Confirmed' || p.status === 'In Consultation').length;
-  const dischargedCount = patients.filter(p => p.status === 'Discharged' || p.status === 'Completed').length;
-  const cancelledCount = patients.filter(p => p.status === 'Cancelled').length;
+  const patientsWithApptsCount = patients.filter(p => (p.total_appointments || 0) > 0).length;
+  const patientsWithoutApptsCount = patients.filter(p => !p.total_appointments || p.total_appointments === 0).length;
 
   const filteredPatients = patients.filter((patient) => {
     const term = searchTerm.toLowerCase();
 
     if (activeTab === 'TODAY' && !isAppliedToday(patient)) return false;
-    if (activeTab === 'PENDING' && patient.status !== 'Pending' && patient.status !== 'Pending Review') return false;
-    if (activeTab === 'ASSIGNED' && patient.status !== 'Assigned') return false;
-    if (activeTab === 'ADMITTED' && patient.status !== 'Admitted' && patient.status !== 'Confirmed' && patient.status !== 'In Consultation') return false;
-    if (activeTab === 'DISCHARGED' && patient.status !== 'Discharged' && patient.status !== 'Completed') return false;
-    if (activeTab === 'CANCELLED' && patient.status !== 'Cancelled') return false;
+    if (activeTab === 'WITH_APPTS' && (!patient.total_appointments || patient.total_appointments === 0)) return false;
+    if (activeTab === 'NEW' && patient.total_appointments > 0) return false;
 
-    const assignedHosp = hospitalsList.find(h => h.id === patient.hospital);
-    const hospName = assignedHosp ? assignedHosp.Name : (patient.hospital_name || '');
+    const displayId = (patient.patient_id || patient.uhid || `PAT-${patient.id}`).toLowerCase();
+    const name = (patient.name || '').toLowerCase();
+    const contact = (patient.contact || patient.phone || '').toLowerCase();
+    const email = (patient.email || '').toLowerCase();
 
-    const matchesSearch =
-      (patient.name || '').toLowerCase().includes(term) ||
-      (patient.patient_id || patient.uhid || '').toLowerCase().includes(term) ||
-      (patient.contact || patient.phone || '').toLowerCase().includes(term) ||
-      (patient.email || '').toLowerCase().includes(term) ||
-      (patient.address || '').toLowerCase().includes(term) ||
-      (patient.doctor_name || '').toLowerCase().includes(term) ||
-      (patient.nurse_name || '').toLowerCase().includes(term) ||
-      (patient.bed_number ? `bed ${patient.bed_number}` : '').toLowerCase().includes(term) ||
-      hospName.toLowerCase().includes(term) ||
-      (patient.symptoms_diagnosis || patient.reason_for_visit || '').toLowerCase().includes(term);
-
-    const matchesHospital =
-      hospitalFilter === 'ALL'
-        ? true
-        : (patient.hospital || '').toString() === hospitalFilter || hospName.toLowerCase().includes(hospitalFilter.toLowerCase());
-
-    const matchesSpec =
-      specializationFilter === 'ALL'
-        ? true
-        : (patient.doctor_specialization || '').toLowerCase().includes(specializationFilter.toLowerCase());
-
-    const patCondition = (patient.Condation || patient.condation || patient.condition || patient.symptoms_severity || 'Normal');
-    const matchesSeverity =
-      severityFilter === 'ALL'
-        ? true
-        : patCondition.toLowerCase() === severityFilter.toLowerCase();
-
-    const patBed = patient.bed_number;
-    const patFloor = getFloorNumber(patBed);
-    const matchesFloor =
-      floorFilter === 'ALL'
-        ? true
-        : floorFilter === 'UNASSIGNED'
-          ? (!patBed || patBed === null)
-          : patFloor === Number(floorFilter);
-
-    return matchesSearch && matchesHospital && matchesSpec && matchesSeverity && matchesFloor;
+    return (
+      name.includes(term) ||
+      displayId.includes(term) ||
+      contact.includes(term) ||
+      email.includes(term)
+    );
   });
 
   const handleOpenAddModal = () => {
@@ -292,7 +374,9 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
         password: (addFormData.password || addFormData.Password || '').trim(),
         Password: (addFormData.password || addFormData.Password || '').trim(),
         age: addFormData.age ? Number(addFormData.age) : null,
-        gender: addFormData.gender,
+        gender: addFormData.gender || addFormData.Gender || '',
+        Gender: addFormData.gender || addFormData.Gender || '',
+        patient_gender: addFormData.gender || addFormData.Gender || '',
         blood_group: addFormData.blood_group,
         Blood_Group: addFormData.blood_group,
         address: (addFormData.address || '').trim(),
@@ -393,6 +477,109 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     }
   };
 
+  const handleOpenBookForPatient = (pat) => {
+    setBookTargetPatient(pat);
+    const hospVal = pat.hospital ? String(typeof pat.hospital === 'object' ? pat.hospital.id : pat.hospital) : (hospitalsList[0]?.id ? String(hospitalsList[0].id) : '');
+    const docVal = pat.doctor ? String(typeof pat.doctor === 'object' ? pat.doctor.id : pat.doctor) : '';
+    const fee = Number(pat.consultation_fee || 0);
+    setBookFormData({
+      hospital: hospVal,
+      doctor: docVal,
+      consultation_fee: fee,
+      hospitals_charges: 0,
+      amount_paid: fee,
+      payment_status: 'Pending',
+      payment_method: 'Cash',
+      condition: pat.condition || pat.Condation || 'Normal',
+      status: 'Pending',
+      bed_number: '',
+      symptoms_diagnosis: '',
+      visit_date_time: new Date().toISOString().slice(0, 16)
+    });
+    setIsBookModalOpen(true);
+  };
+
+  const handleBookDoctorChange = (e) => {
+    const docId = e.target.value;
+    const docObj = doctorsList.find(d => Number(d.id) === Number(docId));
+    const fee = docObj ? Number(docObj.consultation_fee || 0) : 0;
+    const hosp = Number(bookFormData.hospitals_charges) || 0;
+    setBookFormData(prev => ({
+      ...prev,
+      doctor: docId,
+      consultation_fee: fee,
+      amount_paid: fee + hosp
+    }));
+  };
+
+  const handleBookAppointmentSubmit = async (e) => {
+    e.preventDefault();
+    if (!bookTargetPatient) return;
+    if (!bookFormData.hospital) {
+      alert('Please select hospital branch.');
+      return;
+    }
+    try {
+      setIsBooking(true);
+      const selectedDoc = doctorsList.find(d => Number(d.id) === Number(bookFormData.doctor));
+      const hospId = Number(bookFormData.hospital);
+      const isAdmitted = bookFormData.status === 'Admitted';
+      const parsedBed = isAdmitted && bookFormData.bed_number ? Number(bookFormData.bed_number) : null;
+
+      const payload = {
+        patient_name: bookTargetPatient.name || bookTargetPatient.patient_Name || 'Patient',
+        name: bookTargetPatient.name || bookTargetPatient.patient_Name || 'Patient',
+        email: (bookTargetPatient.email || '').trim(),
+        contact: (bookTargetPatient.contact || bookTargetPatient.phone || '').trim(),
+        phone: (bookTargetPatient.contact || bookTargetPatient.phone || '').trim(),
+        age: bookTargetPatient.age ? Number(bookTargetPatient.age) : null,
+        gender: bookTargetPatient.gender || bookTargetPatient.Gender || 'Male',
+        Gender: bookTargetPatient.gender || bookTargetPatient.Gender || 'Male',
+        blood_group: bookTargetPatient.blood_group || bookTargetPatient.Blood_Group || 'A+',
+        Blood_Group: bookTargetPatient.blood_group || bookTargetPatient.Blood_Group || 'A+',
+        address: (bookTargetPatient.address || '').trim(),
+        hospital: hospId,
+        doctor: bookFormData.doctor ? Number(bookFormData.doctor) : null,
+        doctor_name: selectedDoc ? selectedDoc.name : '',
+        doctor_specialization: selectedDoc ? (selectedDoc.specialization || selectedDoc.specialty || '') : '',
+        consultation_fee: Number(bookFormData.consultation_fee) || 0,
+        hospitals_charges: Number(bookFormData.hospitals_charges) || 0,
+        Hospitals_Chargies: Number(bookFormData.hospitals_charges) || 0,
+        amount_paid: Number(bookFormData.amount_paid) || 0,
+        payment_status: bookFormData.payment_status || 'Pending',
+        payment_method: bookFormData.payment_method || 'Cash',
+        condition: bookFormData.condition || 'Normal',
+        Condation: bookFormData.condition || 'Normal',
+        status: bookFormData.status || 'Pending',
+        bed_number: parsedBed,
+        symptoms_diagnosis: bookFormData.symptoms_diagnosis.trim() || 'General Consultation',
+        reason_for_visit: bookFormData.symptoms_diagnosis.trim() || 'General Consultation',
+        visit_date_time: bookFormData.visit_date_time ? new Date(bookFormData.visit_date_time).toISOString() : new Date().toISOString()
+      };
+
+      const res = await fetch(`${API_BASE_URL}/super-admin/appointments/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res && res.ok) {
+        const resData = await res.json().catch(() => ({}));
+        alert(`Appointment booked successfully for ${bookTargetPatient.name}! ID: ${resData.appointment_id || resData.id || 'New'}`);
+        setIsBookModalOpen(false);
+        fetchAllData();
+      } else {
+        const errData = res ? await res.json().catch(() => ({})) : {};
+        alert(errData.message || errData.detail || 'Failed to book appointment.');
+      }
+    } catch (err) {
+      console.error('Error booking appointment:', err);
+      alert('Error while booking appointment.');
+    } finally {
+      setIsBooking(false);
+    }
+  };
+
   const handleViewPatientDetails = (pat) => {
     if (setSelectedPatient) {
       setSelectedPatient(pat);
@@ -411,20 +598,20 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[11px] font-bold text-sky-800 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
-                Patient Registrations & Billing
+                Patient Accounts Registry
               </span>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
-                {todayApplicationsCount} Applied Today
+                {todayApplicationsCount} Registered Today
               </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">
-                {pendingCount} Pending
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-indigo-50 text-indigo-700 border-indigo-200">
+                {totalPatientsCount} Total Registered
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-800 mt-1">
-              Patients & Incoming Applications Registry
+              Registered Patient Accounts
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Live surveillance of patient registrations, doctor consultation fees, payment tracking, and documents.
+              Surveillance of registered user patient profiles, contact credentials, and appointment booking history.
             </p>
           </div>
         </div>
@@ -441,348 +628,203 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
       </div>
 
       {/* METRIC CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div
           onClick={() => setActiveTab('TODAY')}
-          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${activeTab === 'TODAY' ? 'bg-sky-50/90 border-sky-400 ring-2 ring-sky-300' : 'bg-white border-slate-200 hover:border-sky-300'
-            }`}
+          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${
+            activeTab === 'TODAY' ? 'bg-sky-50/90 border-sky-400 ring-2 ring-sky-300' : 'bg-white border-slate-200 hover:border-sky-300'
+          }`}
         >
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Today's Inflow</p>
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Registered Today</p>
             <span className="w-2 h-2 rounded-full bg-sky-500 animate-ping"></span>
           </div>
           <h3 className="text-2xl font-bold text-sky-900 mt-1">{todayApplicationsCount}</h3>
-          <p className="text-[11px] text-sky-700 mt-0.5 font-medium">Applied Today</p>
+          <p className="text-[11px] text-sky-700 mt-0.5 font-medium">New Signups Today</p>
         </div>
 
         <div
           onClick={() => setActiveTab('ALL')}
-          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${activeTab === 'ALL' ? 'bg-slate-100/90 border-slate-400 ring-2 ring-slate-300' : 'bg-white border-slate-200 hover:border-slate-400'
-            }`}
+          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${
+            activeTab === 'ALL' ? 'bg-slate-100/90 border-slate-400 ring-2 ring-slate-300' : 'bg-white border-slate-200 hover:border-slate-400'
+          }`}
         >
           <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Patients</p>
           <h3 className="text-2xl font-bold text-slate-800 mt-1">{totalPatientsCount}</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Database Registry</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Database User Accounts</p>
         </div>
 
         <div
-          onClick={() => setActiveTab('PENDING')}
-          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${activeTab === 'PENDING' ? 'bg-amber-50/90 border-amber-400 ring-2 ring-amber-300' : 'bg-white border-slate-200 hover:border-amber-300'
-            }`}
+          onClick={() => setActiveTab('WITH_APPTS')}
+          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${
+            activeTab === 'WITH_APPTS' ? 'bg-emerald-50/90 border-emerald-400 ring-2 ring-emerald-300' : 'bg-white border-slate-200 hover:border-emerald-300'
+          }`}
         >
-          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pending</p>
-          <h3 className="text-2xl font-bold text-amber-700 mt-1">{pendingCount}</h3>
-          <p className="text-[11px] text-amber-600 mt-0.5">Awaiting Action</p>
+          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">With Appointments</p>
+          <h3 className="text-2xl font-bold text-emerald-700 mt-1">{patientsWithApptsCount}</h3>
+          <p className="text-[11px] text-emerald-600 mt-0.5">Active Bookings</p>
         </div>
 
         <div
-          onClick={() => setActiveTab('ADMITTED')}
-          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${activeTab === 'ADMITTED' ? 'bg-purple-50/90 border-purple-400 ring-2 ring-purple-300' : 'bg-white border-slate-200 hover:border-purple-300'
-            }`}
+          onClick={() => setActiveTab('NEW')}
+          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${
+            activeTab === 'NEW' ? 'bg-indigo-50/90 border-indigo-400 ring-2 ring-indigo-300' : 'bg-white border-slate-200 hover:border-indigo-300'
+          }`}
         >
-          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Admitted / In Care</p>
-          <h3 className="text-2xl font-bold text-purple-700 mt-1">{admittedCount}</h3>
-          <p className="text-[11px] text-purple-600 mt-0.5">Active Inpatient</p>
-        </div>
-
-        <div
-          onClick={() => setActiveTab('DISCHARGED')}
-          className={`p-4 rounded-2xl border shadow-xs transition cursor-pointer ${activeTab === 'DISCHARGED' ? 'bg-emerald-50/90 border-emerald-400 ring-2 ring-emerald-300' : 'bg-white border-slate-200 hover:border-emerald-300'
-            }`}
-        >
-          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Discharged</p>
-          <h3 className="text-2xl font-bold text-emerald-700 mt-1">{dischargedCount}</h3>
-          <p className="text-[11px] text-emerald-600 mt-0.5">Completed Consultations</p>
+          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">New Accounts</p>
+          <h3 className="text-2xl font-bold text-indigo-700 mt-1">{patientsWithoutApptsCount}</h3>
+          <p className="text-[11px] text-indigo-600 mt-0.5">No Bookings Yet</p>
         </div>
       </div>
 
-      {/* FILTER TABS */}
-      <div className="flex items-center gap-1.5 bg-slate-200/70 p-1.5 rounded-xl border border-slate-300 overflow-x-auto pb-1 no-scrollbar sm:flex-wrap">
-        <button
-          type="button"
-          onClick={() => setActiveTab('TODAY')}
-          className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${activeTab === 'TODAY' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
+      {/* FILTER TABS & SEARCH BAR */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-xs space-y-3">
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200 overflow-x-auto pb-1 no-scrollbar sm:flex-wrap">
+          <button
+            type="button"
+            onClick={() => setActiveTab('ALL')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${
+              activeTab === 'ALL' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
             }`}
-        >
-          Today ({todayApplicationsCount})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('ALL')}
-          className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${activeTab === 'ALL' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
+          >
+            All Accounts ({totalPatientsCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('TODAY')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${
+              activeTab === 'TODAY' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
             }`}
-        >
-          All ({totalPatientsCount})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('PENDING')}
-          className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${activeTab === 'PENDING' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
+          >
+            Registered Today ({todayApplicationsCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('WITH_APPTS')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${
+              activeTab === 'WITH_APPTS' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
             }`}
-        >
-          Pending ({pendingCount})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('ASSIGNED')}
-          className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${activeTab === 'ASSIGNED' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
+          >
+            With Appointments ({patientsWithApptsCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('NEW')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${
+              activeTab === 'NEW' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
             }`}
-        >
-          Assigned ({assignedCount})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('ADMITTED')}
-          className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${activeTab === 'ADMITTED' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
-            }`}
-        >
-          Admitted ({admittedCount})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('DISCHARGED')}
-          className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${activeTab === 'DISCHARGED' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
-            }`}
-        >
-          Discharged ({dischargedCount})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('CANCELLED')}
-          className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${activeTab === 'CANCELLED' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white/60'
-            }`}
-        >
-          Cancelled ({cancelledCount})
-        </button>
-      </div>
+          >
+            New Accounts ({patientsWithoutApptsCount})
+          </button>
+        </div>
 
-      {/* SEARCH AND DROPDOWN FILTERS */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-        <div className="relative flex-1">
+        <div className="relative">
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by patient ID, name, phone, doctor, hospital, or symptoms..."
-            className="w-full pl-3 pr-4 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white transition"
+            placeholder="Search patient by name, ID, contact number, or email..."
+            className="w-full pl-3 pr-4 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white transition"
           />
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
-          <select
-            value={floorFilter}
-            onChange={(e) => setFloorFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-medium focus:outline-none focus:border-sky-600 cursor-pointer"
-          >
-            <option value="ALL">All Floors</option>
-            <option value="1">Floor 1 (Beds 1 - 100)</option>
-            <option value="2">Floor 2 (Beds 101 - 200)</option>
-            <option value="3">Floor 3 (Beds 201 - 300)</option>
-            <option value="4">Floor 4 (Beds 301 - 400)</option>
-            <option value="5">Floor 5 (Beds 401 - 500)</option>
-            <option value="UNASSIGNED">Unassigned Beds</option>
-          </select>
-
-          <select
-            value={hospitalFilter}
-            onChange={(e) => setHospitalFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-medium focus:outline-none focus:border-sky-600 cursor-pointer"
-          >
-            <option value="ALL">-- Select Hospital (All) --</option>
-            {hospitalsList.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.Name || h.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={specializationFilter}
-            onChange={(e) => setSpecializationFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-medium focus:outline-none focus:border-sky-600 cursor-pointer"
-          >
-            <option value="ALL">All Specializations</option>
-            <option value="Cardiology">Cardiology</option>
-            <option value="Neurology">Neurology</option>
-            <option value="Orthopedics">Orthopedics</option>
-            <option value="Obstetrics">Obstetrics & Gynecology</option>
-            <option value="Pediatrics">Pediatrics</option>
-            <option value="General">General Medicine</option>
-          </select>
-
-          <select
-            value={severityFilter}
-            onChange={(e) => setSeverityFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-medium focus:outline-none focus:border-sky-600 cursor-pointer"
-          >
-            <option value="ALL">All Patient Conditions</option>
-            <option value="Critical">Critical</option>
-            <option value="Emergency">Emergency</option>
-            <option value="Urgent">Urgent</option>
-            <option value="Normal">Normal</option>
-          </select>
         </div>
       </div>
 
-      {/* PATIENTS TABLE */}
+      {/* PATIENTS TABLE - 5 COLUMNS ONLY (NAME, ID, CONTACT, EMAIL, ACTIONS) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto w-full">
           {loading ? (
             <p className="text-center py-8 text-xs text-slate-500">Loading patient records from database...</p>
           ) : filteredPatients.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-xs font-semibold text-slate-500">No patient applications found in database.</p>
+              <p className="text-xs font-semibold text-slate-500">No patient accounts found in database.</p>
               <p className="text-[11px] text-slate-400 mt-1">Click "+ Register Patient" to add a new record.</p>
             </div>
           ) : (
-            <table className="w-full text-center text-xs text-slate-600 min-w-[850px]">
+            <table className="w-full text-left text-xs text-slate-600 table-auto">
               <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                 <tr>
-                  <th className="py-3.5 px-3 text-center">Patient Name & ID</th>
-                  <th className="py-3.5 px-3 text-center">Hospital & Doctor</th>
-                  <th className="py-3.5 px-3 text-center">Bed & Floor</th>
-                  <th className="py-3.5 px-3 text-center">Visit Time</th>
-                  <th className="py-3.5 px-3 text-center">CONTACT & EMAIL</th>
-                  <th className="py-3.5 px-3 text-center">Payment</th>
-                  <th className="py-3.5 px-3 text-center">Status</th>
-                  <th className="py-3.5 px-3 text-center">Actions</th>
+                  <th className="py-3.5 px-4 text-left">Patient Name</th>
+                  <th className="py-3.5 px-4 text-center">Patient ID</th>
+                  <th className="py-3.5 px-4 text-center">Contact</th>
+                  <th className="py-3.5 px-4 text-left">Email</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredPatients.slice(0, visibleCount).map((pat) => {
-                  const hospId = Number(typeof pat.hospital === 'object' ? pat.hospital?.id : pat.hospital);
-                  const assignedHosp = hospitalsList.find(h => h.id === hospId) || hospitalsList.find(h => h.id === Number(pat.hospital));
                   const displayId = pat.patient_id || pat.uhid || `PAT-${pat.id}`;
-                  const displayDoctor = pat.doctor_name || (pat.doctor ? (typeof pat.doctor === 'object' ? pat.doctor.name : doctorsList.find(d => d.id === pat.doctor)?.name) : 'Assigned Doctor');
-                  const displayHospital = assignedHosp ? assignedHosp.Name : (pat.hospital_name && !/^\d+$/.test(pat.hospital_name) ? pat.hospital_name : 'Unassigned');
-                  const displayVisitTime = pat.visit_date_time ? new Date(pat.visit_date_time).toLocaleString() : (pat.appointment_time || 'Not Scheduled');
                   const appliedToday = isAppliedToday(pat);
-                  const emailLower = (pat.email || '').toLowerCase();
-                  const patCondition = pat.Condation || pat.condation || pat.condition || pat.symptoms_severity || 'Normal';
+                  const emailLower = (pat.email || '').toLowerCase().trim();
+                  const contactNum = (pat.contact || pat.phone || '').trim();
 
                   return (
-                    <tr key={pat.id} className={`transition ${appliedToday ? 'bg-sky-50/40 hover:bg-sky-50/70' : 'hover:bg-slate-50/70'}`}>
-                      <td className="py-3.5 px-4 text-center">
-                        <div className="font-bold text-slate-800 break-words">
-                          {pat.name || 'Patient'}
-                        </div>
-                        <div className="flex items-center justify-center gap-1.5 mt-0.5 flex-wrap">
-                          <span className="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block">
-                            {displayId}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border inline-block ${
-                            patCondition === 'Critical' ? 'bg-rose-100 text-rose-800 border-rose-300' :
-                            patCondition === 'Emergency' ? 'bg-red-100 text-red-800 border-red-300' :
-                            patCondition === 'Urgent' ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                            'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          }`}>
-                            {patCondition}
-                          </span>
-                          {appliedToday && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-600 text-white uppercase">
-                              Today
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-3 text-center">
-                        <p className="font-semibold text-slate-800">
-                          {displayHospital}
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          {displayDoctor}
-                        </p>
-                      </td>
-
-                      <td className="py-3.5 px-3 text-center">
-                        {pat.bed_number ? (
-                          <div className="flex flex-col items-center justify-center gap-0.5">
-                            <span className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                              Bed #{pat.bed_number}
-                            </span>
-                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-100">
-                              {pat.floor || `Floor ${Math.floor((pat.bed_number - 1) / 100) + 1}`}
-                            </span>
-                            {pat.nurse_name && (
-                              <span className="text-[9px] text-emerald-700 font-semibold truncate max-w-[130px]" title={`Assigned Nurse: ${pat.nurse_name}`}>
-                                {pat.nurse_name}
+                    <tr
+                      key={pat.id}
+                      className={`transition ${appliedToday ? 'bg-sky-50/40 hover:bg-sky-50/70' : 'hover:bg-slate-50/70'}`}
+                    >
+                      {/* NAME */}
+                      <td className="py-3.5 px-4 text-left font-bold text-slate-900 text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                            {(pat.name || 'P').charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="block font-bold text-slate-900">{pat.name || 'Patient'}</span>
+                            {appliedToday && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-sky-600 text-white uppercase inline-block mt-0.5">
+                                Today
                               </span>
                             )}
                           </div>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center">
-                            <span className="text-xs text-slate-400 font-medium">Unassigned</span>
-                            <span className="text-[9px] text-slate-400">No Bed Allocated</span>
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-center">
-                        <p className="font-semibold text-slate-800">
-                          {displayVisitTime}
-                        </p>
-                      </td>
-
-                      <td className="py-3.5 px-4 text-center">
-                        <div className="flex flex-col items-center justify-center gap-0.5">
-                          <span className="font-bold text-slate-800 text-xs">
-                            {pat.contact || pat.phone || '-'}
-                          </span>
-                          {emailLower ? (
-                            <a
-                              href={`mailto:${emailLower}`}
-                              title={`Send email to ${emailLower}`}
-                              className="text-[11px] text-sky-700 hover:text-sky-900 hover:underline block lowercase transition truncate max-w-[180px]"
-                            >
-                              {emailLower}
-                            </a>
-                          ) : (
-                            <span className="text-[11px] text-slate-400">-</span>
-                          )}
                         </div>
                       </td>
 
+                      {/* ID */}
                       <td className="py-3.5 px-4 text-center">
-                        <div className="flex flex-col items-center justify-center gap-0.5">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-block ${pat.payment_status === 'Paid'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : pat.payment_status === 'Failed'
-                                ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                : pat.payment_status === 'Partial'
-                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                  : 'bg-amber-50 text-amber-700 border-amber-200'
-                            }`}>
-                            {pat.payment_status || 'Pending'}
-                          </span>
-                          <span className="font-mono text-[11px] font-bold text-slate-700">
-                            ₹{Number(pat.amount_paid || (pat.payment_status === 'Paid' ? (Number(pat.consultation_fee || 0) + Number(pat.Hospitals_Chargies || pat.hospital_charges || 0)) : 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-medium">
-                            Doc: ₹{Number(pat.consultation_fee || 0)} | Hosp: ₹{Number(pat.Hospitals_Chargies || pat.hospital_charges || 0)}
-                          </span>
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-block ${pat.status === 'Confirmed' || pat.status === 'Admitted' || pat.status === 'Discharged' || pat.status === 'Completed'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : pat.status === 'Cancelled' || pat.status === 'Rejected'
-                              ? 'bg-rose-50 text-rose-700 border-rose-200'
-                              : 'bg-amber-50 text-amber-700 border-amber-200'
-                          }`}>
-                          {pat.status || 'Confirmed'}
+                        <span className="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200 inline-block">
+                          {displayId}
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleViewPatientDetails(pat)}
-                          className="px-3.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1 whitespace-nowrap shadow-2xs"
-                        >
-                          Details &rarr;
-                        </button>
+                      {/* CONTACT */}
+                      <td className="py-3.5 px-4 text-center font-mono font-semibold text-slate-700 text-xs">
+                        {contactNum || '-'}
+                      </td>
+
+                      {/* EMAIL */}
+                      <td className="py-3.5 px-4 text-left">
+                        {emailLower ? (
+                          <a
+                            href={`mailto:${emailLower}`}
+                            title={`Send email to ${emailLower}`}
+                            className="text-xs text-sky-700 hover:text-sky-900 hover:underline font-medium block lowercase transition truncate max-w-[240px]"
+                          >
+                            {emailLower}
+                          </a>
+                        ) : (
+                          <span className="text-xs text-slate-400">-</span>
+                        )}
+                      </td>
+
+                      {/* ACTIONS */}
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenBookForPatient(pat)}
+                            className="px-2.5 py-1.5 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white font-bold text-xs transition cursor-pointer border border-teal-200 inline-flex items-center justify-center gap-1 whitespace-nowrap shadow-2xs"
+                            title="Book appointment for this patient"
+                          >
+                            + Book Appt
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleViewPatientDetails(pat)}
+                            className="px-3 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white font-bold text-xs transition cursor-pointer border border-sky-200 inline-flex items-center justify-center gap-1 whitespace-nowrap shadow-2xs"
+                          >
+                            Details &rarr;
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -837,17 +879,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Age</label>
-                  <input
-                    type="number"
-                    placeholder="e.g. 35"
-                    value={addFormData.age}
-                    onChange={(e) => setAddFormData({ ...addFormData, age: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
-                  />
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Gender</label>
                   <select
@@ -905,9 +937,8 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Account Password</label>
                   <input
                     type="password"
-                    maxLength={20}
-                    placeholder="Set patient password"
-                    value={addFormData.password || addFormData.Password || ''}
+                    placeholder="Set password..."
+                    value={addFormData.password}
                     onChange={(e) => setAddFormData({ ...addFormData, password: e.target.value, Password: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
@@ -1250,6 +1281,224 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                   className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold shadow-md cursor-pointer"
                 >
                   Register Patient
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* QUICK BOOK APPOINTMENT MODAL */}
+      {isBookModalOpen && bookTargetPatient && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4 my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold mb-1 border border-emerald-200">
+                  Book Appointment
+                </span>
+                <h2 className="text-base sm:text-lg font-bold text-slate-800">
+                  New Appointment for {bookTargetPatient.name}
+                </h2>
+                <p className="text-xs text-slate-500">
+                  UHID: {bookTargetPatient.patient_id || bookTargetPatient.uhid || `PAT-${bookTargetPatient.id}`} • {bookTargetPatient.gender || 'Patient'}, {bookTargetPatient.age || '-'} yrs
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBookModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-xl px-2 py-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleBookAppointmentSubmit} className="space-y-4 text-xs">
+              <div className="p-3 bg-sky-50 rounded-xl border border-sky-100 flex items-center justify-between text-sky-900 font-medium">
+                <div>
+                  <span className="text-[10px] text-sky-600 block">Patient Name & Contact</span>
+                  <span className="font-bold text-sm">{bookTargetPatient.name}</span> ({bookTargetPatient.contact || bookTargetPatient.phone || 'No phone'})
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-sky-600 block">Email Address</span>
+                  <span className="font-bold text-xs">{bookTargetPatient.email || 'No email registered'}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Target Hospital Branch *</label>
+                  <select
+                    value={bookFormData.hospital}
+                    onChange={(e) => setBookFormData({ ...bookFormData, hospital: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                  >
+                    <option value="">-- Select Hospital Branch --</option>
+                    {hospitalsList.map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.Name || h.name} ({h.city || 'Main Branch'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Doctor</label>
+                  <select
+                    value={bookFormData.doctor}
+                    onChange={handleBookDoctorChange}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                  >
+                    <option value="">-- Select Doctor --</option>
+                    {doctorsList
+                      .filter(d => !bookFormData.hospital || Number(d.hospital) === Number(bookFormData.hospital))
+                      .map((doc) => (
+                        <option key={doc.id} value={doc.id}>
+                          {doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`} ({doc.specialization || doc.specialty || 'General'}) - ₹{doc.consultation_fee || 0}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Doctor Fee (₹)</label>
+                  <input
+                    type="number"
+                    value={bookFormData.consultation_fee}
+                    onChange={(e) => {
+                      const fee = parseFloat(e.target.value) || 0;
+                      setBookFormData({ ...bookFormData, consultation_fee: fee, amount_paid: fee + (Number(bookFormData.hospitals_charges) || 0) });
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital Charges (₹)</label>
+                  <input
+                    type="number"
+                    value={bookFormData.hospitals_charges}
+                    onChange={(e) => {
+                      const hosp = parseFloat(e.target.value) || 0;
+                      setBookFormData({ ...bookFormData, hospitals_charges: hosp, amount_paid: (Number(bookFormData.consultation_fee) || 0) + hosp });
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Amount Paid (₹)</label>
+                  <input
+                    type="number"
+                    value={bookFormData.amount_paid}
+                    onChange={(e) => setBookFormData({ ...bookFormData, amount_paid: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Payment Status</label>
+                  <select
+                    value={bookFormData.payment_status}
+                    onChange={(e) => setBookFormData({ ...bookFormData, payment_status: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                  >
+                    {paymentStatuses.map((st, idx) => (
+                      <option key={idx} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Payment Mode</label>
+                  <select
+                    value={bookFormData.payment_method}
+                    onChange={(e) => setBookFormData({ ...bookFormData, payment_method: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                  >
+                    {paymentMethods.map((pm, idx) => (
+                      <option key={idx} value={pm}>{pm}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Triage Condition</label>
+                  <select
+                    value={bookFormData.condition}
+                    onChange={(e) => setBookFormData({ ...bookFormData, condition: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                  >
+                    {conditionChoices.map((c, idx) => (
+                      <option key={idx} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Clinical Status</label>
+                  <select
+                    value={bookFormData.status}
+                    onChange={(e) => setBookFormData({ ...bookFormData, status: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+                  >
+                    {statusOptions.map((st, idx) => (
+                      <option key={idx} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">
+                    Bed Number {bookFormData.status === 'Admitted' ? '(Occupied)' : '(Optional)'}
+                  </label>
+                  <input
+                    type="number"
+                    placeholder={bookFormData.status === 'Admitted' ? 'e.g. 101' : 'Optional'}
+                    value={bookFormData.bed_number}
+                    onChange={(e) => setBookFormData({ ...bookFormData, bed_number: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Scheduled Visit Date & Time</label>
+                <input
+                  type="datetime-local"
+                  value={bookFormData.visit_date_time}
+                  onChange={(e) => setBookFormData({ ...bookFormData, visit_date_time: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Reason for Visit / Symptoms</label>
+                <textarea
+                  rows={2}
+                  placeholder="Describe patient symptoms or reason for visit..."
+                  value={bookFormData.symptoms_diagnosis}
+                  onChange={(e) => setBookFormData({ ...bookFormData, symptoms_diagnosis: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsBookModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isBooking}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {isBooking ? 'Booking...' : 'Confirm Appointment'}
                 </button>
               </div>
             </form>

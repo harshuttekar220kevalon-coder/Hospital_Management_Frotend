@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API_BASE_URL } from '../Api/Api';
+import { API_BASE_URL, extractArray } from '../Api/Api';
 
 const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
   const [loading, setLoading] = useState(true);
@@ -108,24 +108,93 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
       setHospitalInfo(primaryHosp);
 
       try {
-        const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
-        if (patRes && patRes.ok) {
-          const allPats = await patRes.json();
-          if (Array.isArray(allPats)) {
-            const myPatients = allPats.filter(p => {
-              const matchDocId = (resolvedDoctor?.id && Number(p.doctor) === Number(resolvedDoctor.id)) ||
-                (currentUser?.id && Number(p.doctor) === Number(currentUser.id));
-              
-              const matchDocName = resolvedDoctor?.name && p.doctor_name && 
-                p.doctor_name.toLowerCase().trim() === resolvedDoctor.name.toLowerCase().trim();
-
-              const matchDocTag = resolvedDoctor?.doctor_id && p.doctor_id &&
-                p.doctor_id === resolvedDoctor.doctor_id;
-
-              return matchDocId || matchDocName || matchDocTag;
-            });
-            setPatients(myPatients);
+        let allPats = [];
+        try {
+          const patRes = await fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null);
+          if (patRes && patRes.ok) {
+            const resData = await patRes.json().catch(() => []);
+            allPats = extractArray(resData);
           }
+        } catch (e) {}
+
+        if (Array.isArray(allPats)) {
+          const targetDocId = resolvedDoctor?.id || currentUser?.id;
+          const targetDocTag = resolvedDoctor?.doctor_id || currentUser?.doctor_id;
+          const targetDocEmail = (resolvedDoctor?.email || currentUser?.email || '').toLowerCase().trim();
+          const targetDocName = (resolvedDoctor?.name || currentUser?.name || '').replace(/^dr\.?\s*/i, '').toLowerCase().trim();
+
+          const myPatients = allPats
+            .filter(p => {
+              if (!p) return false;
+              const pDocId = typeof p.doctor === 'object' && p.doctor !== null ? p.doctor.id : p.doctor;
+              const pDocTag = p.doctor_id || p.doctor_tag;
+              const pDocEmail = (typeof p.doctor === 'object' && p.doctor?.email ? p.doctor.email : (p.doctor_email || '')).toLowerCase().trim();
+              const pDocName = (p.doctor_name || (typeof p.doctor === 'object' ? p.doctor?.name : '') || '').replace(/^dr\.?\s*/i, '').toLowerCase().trim();
+
+              // 1. Direct ID match
+              if (targetDocId && pDocId && !isNaN(Number(pDocId)) && !isNaN(Number(targetDocId))) {
+                if (Number(pDocId) === Number(targetDocId)) return true;
+              }
+
+              // 2. Doctor ID tag match (e.g. DOC-001)
+              if (targetDocTag && pDocTag && String(pDocTag).toLowerCase().trim() === String(targetDocTag).toLowerCase().trim()) {
+                return true;
+              }
+
+              // 3. Email match
+              if (targetDocEmail && pDocEmail && pDocEmail === targetDocEmail) {
+                return true;
+              }
+
+              // 4. Clean Name match
+              if (targetDocName && pDocName && (pDocName === targetDocName || pDocName.includes(targetDocName) || targetDocName.includes(pDocName))) {
+                if (pDocId && targetDocId && !isNaN(Number(pDocId)) && !isNaN(Number(targetDocId)) && Number(pDocId) !== Number(targetDocId)) {
+                  return false;
+                }
+                return true;
+              }
+
+              return false;
+            })
+            .map(p => {
+              const id = p.id || p.appointment_id;
+              const apptId = p.Appoment_id || p.appoment_id || p.appointment_id || id;
+              const name = p.patient_Name || p.patient_name || p.name || `Patient #${id}`;
+              const condition = p.condition || p.Condation || p.Condition || p.symptoms_severity || 'Normal';
+              const blood = p.blood_group || p.Blood_Group || 'Not Specified';
+              const status = p.status || 'Pending';
+              const hospId = typeof p.hospital === 'object' ? p.hospital?.id : p.hospital;
+              const hospName = p.hospital_name || (typeof p.hospital === 'object' ? p.hospital?.Name : '') || '';
+
+              const patGender = p.gender || p.Gender || p.patient_gender || p.Patient_Gender || p.sex || p.Sex || '';
+              const ageVal = p.age || p.Age || '';
+
+              return {
+                ...p,
+                id,
+                Appoment_id: apptId,
+                appoment_id: apptId,
+                appointment_id: apptId,
+                patient_id: `APT-${apptId}`,
+                name,
+                patient_Name: name,
+                patient_name: name,
+                gender: patGender,
+                Gender: patGender,
+                age: ageVal,
+                Age: ageVal,
+                condition,
+                Condation: condition,
+                blood_group: blood,
+                Blood_Group: blood,
+                status,
+                checkup_status: p.checkup_status || 'Pending',
+                hospital: hospId,
+                hospital_name: hospName
+              };
+            });
+
+          setPatients(myPatients);
         }
       } catch (err) {
         console.error('Error fetching schedule queue:', err);
