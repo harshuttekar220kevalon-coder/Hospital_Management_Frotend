@@ -88,8 +88,8 @@ const isAppointmentInHospital = (item, targetHospId, targetHospName = '', hospLi
   if (!targetId && !targetName) return false;
 
   // 2. Resolve Appointment's Hospital ID & Name
-  const rawHosp = typeof item.hospital === 'object' && item.hospital !== null 
-    ? (item.hospital.id || item.hospital.hospital_id || item.hospital.Name || item.hospital.name) 
+  const rawHosp = typeof item.hospital === 'object' && item.hospital !== null
+    ? (item.hospital.id || item.hospital.hospital_id || item.hospital.Name || item.hospital.name)
     : item.hospital;
   const rawHospName = item.hospital_name || (typeof item.hospital === 'object' && item.hospital !== null ? (item.hospital.Name || item.hospital.name) : '') || '';
 
@@ -202,13 +202,21 @@ const getAutoNurseForBed = (bedNumber, nursesList = [], hospitalId = null) => {
 
 const BLOOD_GROUP_CHOICES = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 const STATUS_CHOICES = ['Pending', 'Assigned', 'Cancelled'];
-const PAYMENT_STATUS_CHOICES = ['Paid', 'Partial', 'Pending', 'Failed'];
+const PAYMENT_STATUS_CHOICES = ['Pending', 'Paid', 'Partial', 'Failed'];
 const PAYMENT_METHOD_CHOICES = [
+  { value: 'Cash', label: 'Cash' },
   { value: 'UPI', label: 'UPI' },
   { value: 'Credit Card', label: 'Credit Card' },
-  { value: 'Net Banking', label: 'Net Banking' },
-  { value: 'Cash', label: 'Cash' }
+  { value: 'Debit Card', label: 'Debit Card' },
+  { value: 'Net Banking', label: 'Net Banking' }
 ];
+
+const isDoctorOnLeave = (doc) => {
+  if (!doc) return false;
+  if (doc.is_active === false) return true;
+  const statusStr = String(doc.status || doc.duty_status || doc.availability || '').toLowerCase().trim();
+  return statusStr.includes('off') || statusStr.includes('leave');
+};
 const CONDITION_STATUS_CHOICES = [
   { value: 'Critical', label: 'Critical' },
   { value: 'Emergency', label: 'Emergency' },
@@ -221,6 +229,28 @@ const timeSlots = [
   '12:00 PM', '02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM', '04:00 PM',
   '04:30 PM', '05:00 PM', '05:30 PM', '06:00 PM'
 ];
+
+const normalizeTimeToSlot = (timeStr) => {
+  if (!timeStr) return '';
+  const trimmed = String(timeStr).trim();
+  const ampmMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+  if (ampmMatch) {
+    const h = ampmMatch[1].padStart(2, '0');
+    const m = ampmMatch[2];
+    const ampm = ampmMatch[3].toUpperCase();
+    return `${h}:${m} ${ampm}`;
+  }
+  const h24Match = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (h24Match) {
+    let h = parseInt(h24Match[1], 10);
+    const m = h24Match[2];
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    if (h > 12) h -= 12;
+    if (h === 0) h = 12;
+    return `${String(h).padStart(2, '0')}:${m} ${ampm}`;
+  }
+  return trimmed;
+};
 
 const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
   const [patients, setPatients] = useState([]);
@@ -243,7 +273,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
     hospital: '',
     doctor: '',
     visit_date: '',
-    visit_time: '10:00 AM',
+    visit_time: '',
     age: '',
     gender: 'Male',
     Gender: 'Male',
@@ -254,10 +284,10 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
     address: '',
     hospitals_charges: '0.00',
     amount_paid: '0.00',
-    payment_status: 'Pending',
-    payment_method: 'Cash',
-    status: 'Pending',
-    condition: 'Normal',
+    payment_status: '',
+    payment_method: '',
+    status: '',
+    condition: '',
     bed_number: '',
     nurse: '',
     attached_document: null
@@ -267,7 +297,32 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
   const [updatingEdit, setUpdatingEdit] = useState(false);
 
   useEffect(() => {
-    fetchAllData();
+    let isMounted = true;
+    fetchAllData(false);
+
+    // Auto-polling every 3.5s to sync status from backend
+    const pollInterval = setInterval(() => {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchAllData(true);
+      }
+    }, 3500);
+
+    const handleFocus = () => {
+      if (isMounted) fetchAllData(true);
+    };
+    const handleVisibility = () => {
+      if (isMounted && document.visibilityState === 'visible') fetchAllData(true);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [currentUser]);
 
   // Helper to normalize appointment records from Django backend
@@ -293,13 +348,18 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
     const apptId = item.Appoment_id || item.appoment_id || item.appointment_id || id;
     const patGender = item.Gender || item.gender || 'Not Specified';
 
+    const resolvedPatUhid = item.patient_uhid || (typeof item.patient_id === 'string' && !item.patient_id.startsWith('APT-') ? item.patient_id : null) || item.uhid || (typeof item.patient === 'object' ? (item.patient?.patient_id || item.patient?.uhid || (item.patient?.id ? `PAT-${item.patient.id}` : '')) : (item.patient ? `PAT-${item.patient}` : '')) || (id ? `PAT-${id}` : '-');
+
     return {
       ...item,
       id,
       Appoment_id: apptId,
       appoment_id: apptId,
       appointment_id: apptId,
-      patient_id: `APT-${apptId}`,
+      tracking_id: `APT-${apptId}`,
+      patient_id: resolvedPatUhid,
+      patient_uhid_display: resolvedPatUhid,
+      uhid: resolvedPatUhid,
       name: patientName,
       patient_name: patientName,
       patient_Name: patientName,
@@ -351,7 +411,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
     ].filter(Boolean);
 
     const candidateIds = Array.from(new Set(rawIds.map(v => typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v)));
-    
+
     let lastError = '';
 
     for (const targetId of candidateIds) {
@@ -453,8 +513,8 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
     return { ok: false, error: lastError || 'Failed to update appointment in backend' };
   };
 
-  const fetchAllData = async () => {
-    setLoading(true);
+  const fetchAllData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const email = (currentUser?.email || '').toLowerCase().trim();
       const recId = currentUser?.id;
@@ -550,7 +610,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
           const aJson = await aRes.json().catch(() => []);
           rawAppointments = extractArray(aJson);
         }
-      } catch (e) {}
+      } catch (e) { }
 
       // Normalize appointments strictly from backend
       const combinedList = [];
@@ -573,7 +633,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
     } catch (err) {
       console.error('Error fetching unassigned appointments data:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -596,57 +656,120 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
     return !p.bed_number || p.bed_number === null || p.bed_number === '';
   };
 
-  const isDischargedOrCancelled = (p) => {
-    if (!p) return true;
-    const s = (p.status || '').toLowerCase().trim();
-    return s.includes('discharg') || s.includes('cancel');
+  const isFullyDischarged = (p) => {
+    if (!p) return false;
+    const s = (p.status || p.discharge_status || '').toString().toLowerCase().trim();
+    const c = (p.checkup_status || p.Checkup_status || '').toString().toLowerCase().trim();
+    const b = (p.payment_status || p.Payment_status || p.billing_status || '').toString().toLowerCase().trim();
+
+    // If status is Pending or contains pending / unassign / admit / in progress -> NOT discharged
+    if (s.includes('pending') || s.includes('unassign') || s.includes('admit') || s.includes('progress') || s.includes('cancel') || s === '') {
+      return false;
+    }
+
+    // Must explicitly contain discharged or completed
+    if (!s.includes('discharg') && s !== 'completed') {
+      return false;
+    }
+
+    // Checkup status must NOT be pending
+    if (c && (c.includes('pending') || c.includes('wait') || c === 'under checkup')) {
+      return false;
+    }
+
+    // Billing / Payment status must NOT be pending / unpaid
+    if (b && (b === 'pending' || b.includes('pending') || b === 'unpaid' || b === 'due')) {
+      return false;
+    }
+
+    return true;
   };
 
-  // Patients who are unassigned: doctor unassigned or explicitly unassigned status
-  // Exclude discharged/cancelled records
+  const isDischarged = (p) => {
+    if (!p) return false;
+    const s = (p.status || p.discharge_status || '').toString().toLowerCase().trim();
+    return s.includes('discharg') || s === 'completed';
+  };
+
+  const isCancelled = (p) => {
+    if (!p) return false;
+    const s = (p.status || p.appointment_status || p.booking_status || '').toString().toLowerCase().trim();
+    return s.includes('cancel');
+  };
+
+  // 1. All Unassigned Patients (Anyone where EITHER Doctor is unassigned OR Bed is unassigned)
+  // If doctor is assigned and status is discharged, they go to Billing and NEVER show here!
   const unassignedPatientsList = patients.filter(p => {
-    if (isDischargedOrCancelled(p)) return false;
-    const s = (p.status || '').toLowerCase().trim();
-    if (s.includes('unassign')) return true;
-    return isDoctorUnassigned(p);
+    if (isDischarged(p) || isFullyDischarged(p) || isCancelled(p)) return false;
+    return isDoctorUnassigned(p) || isBedUnassigned(p);
   });
 
-  // Bed Required Patients (Doctor assigned, but awaiting ward / bed allocation)
-  const bedRequiredPatientsList = patients.filter(p => {
-    if (isDischargedOrCancelled(p)) return false;
-    return !isDoctorUnassigned(p) && isBedUnassigned(p);
+  // 2. Doctor Required Patients (Doctor is unassigned, whether bed is assigned or not)
+  const doctorRequiredPatientsList = unassignedPatientsList.filter(p => isDoctorUnassigned(p));
+
+  // 3. Bed / Ward Required Patients (Bed is unassigned, whether doctor is assigned or not)
+  const bedRequiredPatientsList = unassignedPatientsList.filter(p => isBedUnassigned(p));
+
+  // 4. Emergency / Critical Patients (Must strictly be UNASSIGNED AND have Emergency/Critical/Urgent severity)
+  // If a patient is already assigned, they will NEVER show here!
+  const emergencyPatientsList = unassignedPatientsList.filter(p => {
+    const c = (p.Condation || p.condition || p.symptoms_severity || '').toLowerCase();
+    return c.includes('emergency') || c.includes('critical') || c.includes('urgent');
   });
+
+  // 5. Cancelled Appointments List (Only patients with cancelled status)
+  const cancelledPatientsList = patients.filter(p => isCancelled(p));
 
   // Filter based on active tab:
-  // 1. ALL_UNASSIGNED: All unassigned (awaiting doctor assignment)
-  // 2. NO_BED: Bed / Ward Required (Only patients with doctor assigned but needing bed / admit)
-  const tabFilteredPatients = activeTab === 'NO_BED'
-    ? bedRequiredPatientsList
-    : unassignedPatientsList;
+  // 1. ALL_UNASSIGNED: All unassigned (EITHER doctor or bed unassigned)
+  // 2. NO_DOCTOR: Doctor Required (Doctor unassigned)
+  // 3. NO_BED: Bed / Ward Required (Bed unassigned)
+  // 4. EMERGENCY: Unassigned AND Emergency/Critical
+  // 5. CANCELLED: Only Cancelled appointments
+  const tabFilteredPatients = activeTab === 'NO_DOCTOR'
+    ? doctorRequiredPatientsList
+    : activeTab === 'NO_BED'
+      ? bedRequiredPatientsList
+      : activeTab === 'EMERGENCY'
+        ? emergencyPatientsList
+        : activeTab === 'CANCELLED'
+          ? cancelledPatientsList
+          : unassignedPatientsList;
 
   // Apply Search & Severity Filters
   const displayedPatients = tabFilteredPatients.filter(p => {
-    const term = searchTerm.toLowerCase();
-    const pName = (p.name || '').toLowerCase();
-    const pId = (p.patient_id || p.uhid || `pat-${p.id}`).toLowerCase();
-    const pContact = (p.contact || p.phone || '').toLowerCase();
+    const term = searchTerm.toLowerCase().trim();
+    const pName = (p.name || p.patient_Name || p.patient_name || '').toLowerCase();
+    const pId = (p.patient_id || p.uhid || (p.id ? `pat-${p.id}` : '') || (p.Appoment_id ? `apt-${p.Appoment_id}` : '')).toLowerCase();
+    const pContact = String(p.contact || p.phone || '').toLowerCase();
     const pEmail = (p.email || '').toLowerCase();
-    const pDiag = (p.symptoms_diagnosis || '').toLowerCase();
+    const pDiag = (p.symptoms_diagnosis || p.reason_for_visit || '').toLowerCase();
+    const pDoctor = (p.doctor_name || '').toLowerCase();
 
-    const matchesSearch = pName.includes(term) || pId.includes(term) || pContact.includes(term) || pEmail.includes(term) || pDiag.includes(term);
-    const pCond = p.Condation || p.condition || p.symptoms_severity || 'Normal';
-    const matchesSeverity = severityFilter === 'ALL' || pCond.toLowerCase() === severityFilter.toLowerCase();
+    const matchesSearch = !term || pName.includes(term) || pId.includes(term) || pContact.includes(term) || pEmail.includes(term) || pDiag.includes(term) || pDoctor.includes(term);
+
+    const pCond = (p.Condation || p.condition || p.symptoms_severity || 'Normal').toString().trim();
+    const condLower = pCond.toLowerCase();
+    const filterLower = (severityFilter || 'ALL').toLowerCase().trim();
+
+    let matchesSeverity = true;
+    if (severityFilter !== 'ALL') {
+      if (filterLower === 'emergency' || filterLower.includes('emergency') || filterLower.includes('critical')) {
+        matchesSeverity = condLower.includes('emergency') || condLower.includes('critical') || condLower.includes('urgent');
+      } else {
+        matchesSeverity = condLower === filterLower || condLower.includes(filterLower);
+      }
+    }
 
     return matchesSearch && matchesSeverity;
   });
 
   // Stats calculation
   const totalUnassignedCount = unassignedPatientsList.length;
-  const bedRequiredCount = unassignedPatientsList.filter(p => !isDoctorUnassigned(p) && isBedUnassigned(p)).length;
-  const emergencyUnassignedCount = unassignedPatientsList.filter(p => {
-    const c = (p.Condation || p.condition || p.symptoms_severity || '').toLowerCase();
-    return c.includes('emergency') || c.includes('critical') || c.includes('urgent');
-  }).length;
+  const doctorRequiredCount = doctorRequiredPatientsList.length;
+  const bedRequiredCount = bedRequiredPatientsList.length;
+  const emergencyUnassignedCount = emergencyPatientsList.length;
+  const cancelledCount = cancelledPatientsList.length;
 
   // Open Edit Appointment Modal with all model fields prefilled
   const handleOpenEditModal = (patient) => {
@@ -654,20 +777,41 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
     setEditAttachedFile(null);
 
     let vDate = '';
-    let vTime = '10:00 AM';
-    if (patient.visit_date_time) {
+    if (patient.appointment_date) {
+      vDate = String(patient.appointment_date).split('T')[0].trim();
+    } else if (patient.visit_date) {
+      vDate = String(patient.visit_date).split('T')[0].trim();
+    } else if (patient.visit_date_time) {
       try {
         const d = new Date(patient.visit_date_time);
         if (!isNaN(d.getTime())) {
           vDate = d.toISOString().split('T')[0];
         }
       } catch (e) { }
+    } else if (patient.created_at) {
+      try {
+        const d = new Date(patient.created_at);
+        if (!isNaN(d.getTime())) {
+          vDate = d.toISOString().split('T')[0];
+        }
+      } catch (e) { }
     }
-    if (!vDate && patient.appointment_date) {
-      vDate = patient.appointment_date;
-    }
+
+    let vTime = '';
     if (patient.appointment_time) {
-      vTime = patient.appointment_time;
+      vTime = normalizeTimeToSlot(patient.appointment_time);
+    } else if (patient.visit_time) {
+      vTime = normalizeTimeToSlot(patient.visit_time);
+    } else if (patient.visit_date_time) {
+      try {
+        const d = new Date(patient.visit_date_time);
+        if (!isNaN(d.getTime())) {
+          vTime = normalizeTimeToSlot(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }));
+        }
+      } catch (e) { }
+    }
+    if (!vTime) {
+      vTime = '10:00 AM';
     }
 
     const hospId = typeof patient.hospital === 'object' ? patient.hospital?.id : patient.hospital;
@@ -685,7 +829,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
       patient_Name: patient.patient_Name || patient.patient_name || patient.name || '',
       hospital: hospId ? String(hospId) : (hospitalInfo?.id ? String(hospitalInfo.id) : (hospitals[0]?.id ? String(hospitals[0].id) : '')),
       doctor: docId ? String(docId) : '',
-      visit_date: vDate || new Date().toISOString().split('T')[0],
+      visit_date: vDate,
       visit_time: vTime,
       age: patient.age || patient.Age || '',
       gender: patient.Gender || patient.gender || 'Male',
@@ -698,10 +842,12 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
       address: patient.address || '',
       hospitals_charges: String(patient.hospitals_charges || patient.Hospitals_Chargies || '0.00'),
       amount_paid: String(patient.amount_paid || '0.00'),
-      payment_status: patient.payment_status || 'Pending',
-      payment_method: patient.payment_method || 'Cash',
-      status: patient.status || (patient.bed_number ? 'Admitted' : (docId ? 'Assigned' : 'Pending')),
-      condition: patient.condition || patient.Condation || patient.symptoms_severity || 'Normal',
+      payment_status: patient.payment_status || patient.Payment_Status || 'Pending',
+      payment_method: patient.payment_method || patient.Payment_Method || '',
+      status: STATUS_CHOICES.includes(patient.status || patient.Status)
+        ? (patient.status || patient.Status)
+        : ((docId || patient.doctor) ? 'Assigned' : 'Pending'),
+      condition: patient.condition || patient.Condation || patient.Condition || patient.symptoms_severity || '',
       bed_number: patient.bed_number ? String(patient.bed_number) : '',
       nurse: nurseId ? String(nurseId) : (autoRes.nurseId ? String(autoRes.nurseId) : '')
     });
@@ -714,8 +860,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
     setEditFormData(prev => ({
       ...prev,
       bed_number: bedVal,
-      nurse: autoRes.nurseId ? String(autoRes.nurseId) : prev.nurse,
-      status: bedVal ? (prev.status === 'Pending' ? 'Admitted' : prev.status) : prev.status
+      nurse: autoRes.nurseId ? String(autoRes.nurseId) : prev.nurse
     }));
 
     if (autoRes.nurseName) {
@@ -726,10 +871,14 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
   };
 
   const handleEditDoctorChange = (docVal) => {
+    const chosenDoc = doctors.find(d => Number(d.id) === Number(docVal));
+    if (chosenDoc && isDoctorOnLeave(chosenDoc)) {
+      alert(`${chosenDoc.name || 'This doctor'} is currently On Leave and cannot be assigned.`);
+      return;
+    }
     setEditFormData(prev => ({
       ...prev,
-      doctor: docVal,
-      status: docVal && prev.status === 'Pending' ? 'Assigned' : prev.status
+      doctor: docVal
     }));
   };
 
@@ -742,11 +891,41 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
       return;
     }
 
+    if (!editFormData.visit_date) {
+      alert('Please select Appointment Date.');
+      return;
+    }
+
+    if (!editFormData.visit_time) {
+      alert('Please select Appointment Time.');
+      return;
+    }
+
+    if (!editFormData.condition) {
+      alert('Please select Clinical Condition.');
+      return;
+    }
+
+    if (!editFormData.status) {
+      alert('Please select Appointment Status.');
+      return;
+    }
+
+    if (!editFormData.payment_status) {
+      alert('Please select Payment Status.');
+      return;
+    }
+
     try {
       setUpdatingEdit(true);
       const apptId = editModalPatient.Appoment_id || editModalPatient.appoment_id || editModalPatient.appointment_id || editModalPatient.id;
       const numericId = editModalPatient.id;
       const chosenDoc = doctors.find(d => Number(d.id) === Number(editFormData.doctor));
+      if (chosenDoc && isDoctorOnLeave(chosenDoc)) {
+        alert(`Doctor ${chosenDoc.name || ''} is currently On Leave and cannot be assigned.`);
+        setUpdatingEdit(false);
+        return;
+      }
       const parsedBed = editFormData.bed_number ? Number(editFormData.bed_number) : null;
       // Strictly preserve patient's chosen hospital - Receptionist cannot alter hospital
       const hospId = Number(typeof editModalPatient.hospital === 'object' ? editModalPatient.hospital?.id : (editModalPatient.hospital || hospitalInfo?.id)) || null;
@@ -757,7 +936,23 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
 
       let visitIso = editModalPatient.visit_date_time || new Date().toISOString();
       if (editFormData.visit_date) {
-        visitIso = `${editFormData.visit_date}T10:00:00`;
+        let hours = 10;
+        let minutes = 0;
+        if (editFormData.visit_time) {
+          const timeMatch = editFormData.visit_time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+          if (timeMatch) {
+            let h = parseInt(timeMatch[1], 10);
+            const m = parseInt(timeMatch[2], 10);
+            const ampm = timeMatch[3].toUpperCase();
+            if (ampm === 'PM' && h < 12) h += 12;
+            if (ampm === 'AM' && h === 12) h = 0;
+            hours = h;
+            minutes = m;
+          }
+        }
+        const d = new Date(editFormData.visit_date);
+        d.setHours(hours, minutes, 0, 0);
+        visitIso = d.toISOString();
       }
 
       const nameVal = (editFormData.patient_Name || editModalPatient.patient_Name || editModalPatient.name || editModalPatient.patient_name || '').trim();
@@ -790,8 +985,8 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
         hospital_charges: Number(chargesVal).toFixed(2),
         amount_paid: Number(paidVal).toFixed(2),
         payment_status: ['Paid', 'Partial', 'Pending', 'Failed'].includes(editFormData.payment_status) ? editFormData.payment_status : 'Pending',
-        payment_method: ['UPI', 'Credit Card', 'Net Banking', 'Cash'].includes(editFormData.payment_method) ? editFormData.payment_method : 'Cash',
-        status: ['Pending', 'Assigned', 'Admitted', 'Discharged', 'Cancelled'].includes(editFormData.status) ? editFormData.status : (parsedBed ? 'Admitted' : (chosenDoc ? 'Assigned' : 'Pending')),
+        payment_method: editFormData.payment_method || editModalPatient.payment_method || editModalPatient.Payment_Method || 'Cash',
+        status: STATUS_CHOICES.includes(editFormData.status) ? editFormData.status : 'Pending',
         checkup_status: editModalPatient.checkup_status || 'Pending',
         condition: condVal,
         Condation: condVal,
@@ -799,6 +994,10 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
         symptoms_diagnosis: (editFormData.symptoms_diagnosis || editModalPatient.symptoms_diagnosis || editModalPatient.reason_for_visit || 'General Consultation').trim(),
         reason_for_visit: (editFormData.symptoms_diagnosis || editModalPatient.symptoms_diagnosis || editModalPatient.reason_for_visit || 'General Consultation').trim(),
         visit_date_time: visitIso,
+        appointment_date: editFormData.visit_date,
+        appointment_time: editFormData.visit_time,
+        visit_date: editFormData.visit_date,
+        visit_time: editFormData.visit_time,
         is_active: true
       };
 
@@ -835,7 +1034,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-5">
       {/* HEADER BANNER */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-amber-950 to-slate-900 text-white p-5 sm:p-7 shadow-lg border border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -855,23 +1054,51 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
       </div>
 
       {/* QUICK STATS CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         <div
-          onClick={() => setActiveTab('ALL_UNASSIGNED')}
+          onClick={() => { setActiveTab('ALL_UNASSIGNED'); setSeverityFilter('ALL'); }}
           className={`p-4 rounded-2xl bg-white border shadow-xs cursor-pointer transition ${activeTab === 'ALL_UNASSIGNED' ? 'border-amber-500 ring-2 ring-amber-500/20' : 'border-slate-200 hover:border-amber-300'}`}
         >
-          <p className="text-[11px] font-semibold text-slate-500 uppercase">Total Unassigned Patients</p>
+          <p className="text-[11px] font-semibold text-slate-500 uppercase">Total Unassigned</p>
           <h3 className="text-xl sm:text-2xl font-bold text-slate-800 mt-1">{totalUnassignedCount}</h3>
-          <p className="text-[11px] text-amber-600 font-medium mt-0.5">Self-bookings & Admit queue awaiting action</p>
+          <p className="text-[11px] text-amber-600 font-medium mt-0.5">All pending doctor or bed triage</p>
         </div>
 
         <div
-          onClick={() => { setActiveTab('ALL_UNASSIGNED'); setSeverityFilter('Emergency'); }}
-          className="p-4 rounded-2xl bg-white border border-rose-200 shadow-xs cursor-pointer hover:border-rose-400 transition"
+          onClick={() => { setActiveTab('NO_DOCTOR'); setSeverityFilter('ALL'); }}
+          className={`p-4 rounded-2xl bg-white border shadow-xs cursor-pointer transition ${activeTab === 'NO_DOCTOR' ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-200 hover:border-indigo-300'}`}
         >
-          <p className="text-[11px] font-semibold text-rose-600 uppercase">Emergency / Critical Cases</p>
+          <p className="text-[11px] font-semibold text-indigo-600 uppercase">Doctor Required</p>
+          <h3 className="text-xl sm:text-2xl font-bold text-indigo-700 mt-1">{doctorRequiredCount}</h3>
+          <p className="text-[11px] text-indigo-500 font-medium mt-0.5">Awaiting doctor assignment</p>
+        </div>
+
+        <div
+          onClick={() => { setActiveTab('NO_BED'); setSeverityFilter('ALL'); }}
+          className={`p-4 rounded-2xl bg-white border shadow-xs cursor-pointer transition ${activeTab === 'NO_BED' ? 'border-teal-500 ring-2 ring-teal-500/20' : 'border-slate-200 hover:border-teal-300'}`}
+        >
+          <p className="text-[11px] font-semibold text-teal-600 uppercase">Bed / Ward Required</p>
+          <h3 className="text-xl sm:text-2xl font-bold text-teal-700 mt-1">{bedRequiredCount}</h3>
+          <p className="text-[11px] text-teal-600 font-medium mt-0.5">Awaiting bed / ward allocation</p>
+        </div>
+
+        <div
+          onClick={() => { setActiveTab('EMERGENCY'); setSeverityFilter('ALL'); }}
+          className={`p-4 rounded-2xl bg-white border shadow-xs cursor-pointer transition ${activeTab === 'EMERGENCY' ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/30' : 'border-rose-200 hover:border-rose-400'
+            }`}
+        >
+          <p className="text-[11px] font-semibold text-rose-600 uppercase">Emergency / Critical</p>
           <h3 className="text-xl sm:text-2xl font-bold text-rose-700 mt-1">{emergencyUnassignedCount}</h3>
           <p className="text-[11px] text-rose-500 font-semibold mt-0.5">Requires priority triage</p>
+        </div>
+
+        <div
+          onClick={() => { setActiveTab('CANCELLED'); setSeverityFilter('ALL'); }}
+          className={`p-4 rounded-2xl bg-white border shadow-xs cursor-pointer transition ${activeTab === 'CANCELLED' ? 'border-rose-700 ring-2 ring-rose-700/20 bg-rose-50/40' : 'border-slate-200 hover:border-rose-300'}`}
+        >
+          <p className="text-[11px] font-semibold text-rose-700 uppercase">Cancelled</p>
+          <h3 className="text-xl sm:text-2xl font-bold text-rose-800 mt-1">{cancelledCount}</h3>
+          <p className="text-[11px] text-rose-600 font-semibold mt-0.5">Cancelled appointments</p>
         </div>
       </div>
 
@@ -879,16 +1106,19 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
       <div className="space-y-3">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-slate-200">
           {[
-            { id: 'ALL_UNASSIGNED', label: 'All Unassigned', count: totalUnassignedCount },
-            { id: 'NO_BED', label: 'Bed / Ward Required', count: bedRequiredCount }
+            { id: 'ALL_UNASSIGNED', label: 'All Unassigned', count: totalUnassignedCount, activeClass: 'bg-amber-600 text-white shadow-xs' },
+            { id: 'NO_DOCTOR', label: 'Doctor Required', count: doctorRequiredCount, activeClass: 'bg-indigo-600 text-white shadow-xs' },
+            { id: 'NO_BED', label: 'Bed / Ward Required', count: bedRequiredCount, activeClass: 'bg-teal-600 text-white shadow-xs' },
+            { id: 'EMERGENCY', label: 'Emergency / Critical', count: emergencyUnassignedCount, activeClass: 'bg-rose-600 text-white shadow-xs' },
+            { id: 'CANCELLED', label: 'Cancelled', count: cancelledCount, activeClass: 'bg-rose-700 text-white shadow-xs' }
           ].map(tab => (
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => { setActiveTab(tab.id); setSeverityFilter('ALL'); }}
               className={`py-2 px-3.5 rounded-xl font-bold text-xs transition cursor-pointer whitespace-nowrap ${activeTab === tab.id
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  ? tab.activeClass
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                 }`}
             >
               {tab.label} ({tab.count})
@@ -917,8 +1147,8 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
               className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-600/20 transition cursor-pointer"
             >
               <option value="ALL">All Clinical Severities</option>
+              <option value="Emergency">Emergency / Critical / Urgent</option>
               <option value="Critical">Critical</option>
-              <option value="Emergency">Emergency</option>
               <option value="Urgent">Urgent</option>
               <option value="Normal">Normal</option>
             </select>
@@ -931,9 +1161,11 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-sm sm:text-base font-bold text-slate-800">
-              Unassigned Patients Roster ({displayedPatients.length})
+              {activeTab === 'CANCELLED' ? `Cancelled Appointments Roster (${displayedPatients.length})` : `Unassigned Patients Roster (${displayedPatients.length})`}
             </h2>
-            <p className="text-xs text-slate-500">Live reception triage, doctor & timing dispatch, and bed/nurse allocation</p>
+            <p className="text-xs text-slate-500">
+              {activeTab === 'CANCELLED' ? 'Log of all appointments cancelled by patient or hospital' : 'Live reception triage, doctor & timing dispatch, and bed/nurse allocation'}
+            </p>
           </div>
         </div>
 
@@ -961,13 +1193,17 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                 <tr>
                   <td colSpan={9} className="py-10 text-center">
                     <div className="max-w-md mx-auto space-y-2">
-                      <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-2xs">
+                      <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mx-auto shadow-2xs">
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
-                      <h4 className="text-sm font-bold text-slate-800">Queue is Clear!</h4>
-                      <p className="text-xs text-slate-500">All registered patients have been assigned to doctors and beds.</p>
+                      <h4 className="text-sm font-bold text-slate-800">
+                        {activeTab === 'CANCELLED' ? 'No Cancelled Appointments' : 'Queue is Clear!'}
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        {activeTab === 'CANCELLED' ? 'No appointments with Cancelled status found.' : 'All registered patients have been assigned to doctors and beds.'}
+                      </p>
                       <button
                         type="button"
                         onClick={() => { setActiveTab('ALL_UNASSIGNED'); setSeverityFilter('ALL'); setSearchTerm(''); }}
@@ -1062,15 +1298,16 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
 
                       <td className="py-3 px-3">
                         <div className="flex flex-col gap-1">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${(p.status || '').toLowerCase().includes('admit') ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            (p.status || '').toLowerCase().includes('cancel') ? 'bg-rose-100 text-rose-800 border-rose-300' :
+                            (p.status || '').toLowerCase().includes('admit') ? 'bg-purple-50 text-purple-700 border-purple-200' :
                             (p.status || '').toLowerCase().includes('assign') ? 'bg-teal-50 text-teal-700 border-teal-200' :
                               'bg-amber-50 text-amber-700 border-amber-200'
                             }`}>
                             {p.status || 'Unassigned'}
                           </span>
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
-                            p.checkup_status === 'Checkup Done' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-50 text-slate-500 border-slate-200'
-                          }`}>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${p.checkup_status === 'Checkup Done' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-50 text-slate-500 border-slate-200'
+                            }`}>
                             {p.checkup_status === 'Checkup Done' ? '✓ Checkup Done' : '⏳ Checkup Pending'}
                           </span>
                         </div>
@@ -1183,11 +1420,13 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Contact Number</label>
                     <input
-                      type="text"
-                      maxLength={14}
+                      type="tel"
+                      maxLength={10}
+                      pattern="[0-9]{10}"
+                      inputMode="numeric"
                       value={editFormData.contact}
-                      onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })}
-                      placeholder="Phone number"
+                      onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                      placeholder="e.g. 9876543210"
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
                     />
                   </div>
@@ -1242,7 +1481,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                         🔒 Patient Selected (Locked)
                       </span>
                     </label>
-                    <div 
+                    <div
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm text-slate-700 font-bold flex items-center justify-between cursor-not-allowed shadow-2xs"
                       title="Only the patient has the authority to choose their hospital. Receptionists only manage appointments within their hospital."
                     >
@@ -1250,9 +1489,9 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                         <span>🏥</span>
                         <span className="truncate">
                           {hospitals.find(h => Number(h.id) === Number(editFormData.hospital))?.Name ||
-                           hospitals.find(h => Number(h.id) === Number(editFormData.hospital))?.name ||
-                           editModalPatient?.hospital_name ||
-                           hospitalInfo?.Name || hospitalInfo?.name || 'Patient Selected Hospital'}
+                            hospitals.find(h => Number(h.id) === Number(editFormData.hospital))?.name ||
+                            editModalPatient?.hospital_name ||
+                            hospitalInfo?.Name || hospitalInfo?.name || 'Patient Selected Hospital'}
                         </span>
                       </div>
                       <span className="text-[10px] text-slate-400 font-normal">Read-only</span>
@@ -1266,11 +1505,22 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white cursor-pointer"
                     >
                       <option value="">-- Unassigned Doctor --</option>
-                      {doctors.map(d => (
-                        <option key={d.id} value={d.id}>
-                          {d.name} ({d.specialization || d.specialty || 'General'}) {d.consultation_fee ? `- ₹${d.consultation_fee}` : ''}
-                        </option>
-                      ))}
+                      {doctors.map(d => {
+                        const onLeave = isDoctorOnLeave(d);
+                        const docName = d.name?.startsWith('Dr.') ? d.name : `Dr. ${d.name}`;
+                        const specialty = d.specialization || d.specialty || 'General';
+                        return (
+                          <option
+                            key={d.id}
+                            value={d.id}
+                            disabled={onLeave}
+                            style={onLeave ? { color: '#dc2626', fontWeight: 'bold', backgroundColor: '#fff1f2' } : {}}
+                            className={onLeave ? 'text-rose-600 font-bold bg-rose-50' : ''}
+                          >
+                            {docName} ({specialty}) {onLeave ? '• (On Leave)' : (d.consultation_fee ? `- ₹${d.consultation_fee}` : '')}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </div>
@@ -1286,12 +1536,16 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Time Slot</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Appointment Time</label>
                     <select
                       value={editFormData.visit_time}
                       onChange={(e) => setEditFormData({ ...editFormData, visit_time: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white cursor-pointer"
                     >
+                      <option value="">-- Select Appointment Time --</option>
+                      {editFormData.visit_time && !timeSlots.includes(editFormData.visit_time) && (
+                        <option value={editFormData.visit_time}>{editFormData.visit_time}</option>
+                      )}
                       {timeSlots.map(s => (
                         <option key={s} value={s}>{s}</option>
                       ))}
@@ -1304,6 +1558,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                       onChange={(e) => setEditFormData({ ...editFormData, condition: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white cursor-pointer"
                     >
+                      <option value="">-- Select Clinical Condition --</option>
                       {CONDITION_STATUS_CHOICES.map(c => (
                         <option key={c.value} value={c.value}>{c.label}</option>
                       ))}
@@ -1376,12 +1631,10 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                       onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white cursor-pointer"
                     >
+                      <option value="">-- Select Status --</option>
                       {STATUS_CHOICES.map(st => (
                         <option key={st} value={st}>{st}</option>
                       ))}
-                      {(editFormData.status === 'Admitted' || editFormData.status === 'Discharged') && (
-                        <option value={editFormData.status}>{editFormData.status} (Doctor Assigned)</option>
-                      )}
                     </select>
                   </div>
                   <div>
@@ -1391,6 +1644,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                       onChange={(e) => setEditFormData({ ...editFormData, payment_status: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white cursor-pointer"
                     >
+                      <option value="">-- Select Payment Status --</option>
                       {PAYMENT_STATUS_CHOICES.map(ps => (
                         <option key={ps} value={ps}>{ps}</option>
                       ))}
@@ -1403,6 +1657,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                       onChange={(e) => setEditFormData({ ...editFormData, payment_method: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white cursor-pointer"
                     >
+                      <option value="">-- Select Payment Method --</option>
                       {PAYMENT_METHOD_CHOICES.map(pm => (
                         <option key={pm.value} value={pm.value}>{pm.label}</option>
                       ))}

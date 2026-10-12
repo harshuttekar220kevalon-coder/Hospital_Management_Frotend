@@ -53,6 +53,15 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'contact') {
+      const cleanDigits = value.replace(/\D/g, '').slice(0, 10);
+      setFormData((prev) => ({
+        ...prev,
+        [name]: cleanDigits
+      }));
+      if (errorMessage) setErrorMessage('');
+      return;
+    }
     setFormData((prev) => ({
       ...prev,
       [name]: value
@@ -207,7 +216,10 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
               hospital: selectedHospId,
               hospitals: [selectedHospId],
               status: 'On_Duty',
-              is_active: true
+              is_active: true,
+              Shifts: 'Morning First Shift',
+              shift: 'Morning First Shift',
+              opd_timings: 'Morning First Shift'
             };
             const postRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`, {
               method: 'POST',
@@ -250,7 +262,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
               contact_number: contact,
               phone_number: contact,
               hospital: selectedHospId,
-              shift: 'Morning',
+              shift: 'Morning First Shift',
               status: 'On_Duty',
               is_active: true,
               password: pass
@@ -297,7 +309,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
               phone_number: contact,
               email: mail,
               password: pass,
-              shift: 'Morning',
+              shift: 'Morning First Shift',
               status: 'On_Duty',
               is_active: true
             };
@@ -393,7 +405,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
               phone_number: contact,
               email: mail,
               password: pass,
-              shift: 'Morning',
+              shift: 'Morning First Shift',
               status: 'On_Duty',
               is_active: true
             };
@@ -652,12 +664,15 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
                 Contact Number <span className="text-rose-500">*</span>
               </label>
               <input
-                type="text"
+                type="tel"
                 name="contact"
                 autoComplete="off"
+                maxLength={10}
+                pattern="[0-9]{10}"
+                inputMode="numeric"
                 value={formData.contact}
                 onChange={handleChange}
-                placeholder="Enter phone number"
+                placeholder="e.g. 9876543210"
                 required
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150"
               />

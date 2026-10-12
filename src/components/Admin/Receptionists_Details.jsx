@@ -35,11 +35,9 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
   const [showEditPassword, setShowEditPassword] = useState(false);
 
   const shiftsList = [
-    'Morning Shift (07:00 AM - 03:00 PM)',
-    'Evening Shift (03:00 PM - 11:00 PM)',
-    'Night Shift (11:00 PM - 07:00 AM)',
-    'General Day Shift (09:00 AM - 05:00 PM)',
-    'Rotational Shift'
+    'Morning First Shift',
+    'Afternoon Second Shift',
+    'Evening Third Shift'
   ];
 
   const rolesList = [
@@ -65,13 +63,21 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
     is_active: true
   });
 
-  const fetchReceptionistAndHospital = async () => {
+  const fetchReceptionistAndHospital = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       let currentR = selectedReceptionist || receptionistData;
 
       if (currentR?.id) {
         const res = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${currentR.id}/`).catch(() => null);
+        if (res && res.status === 404) {
+          localStorage.removeItem('selectedReceptionist');
+          if (setSelectedReceptionist) setSelectedReceptionist(null);
+          setReceptionistData(null);
+          alert('This receptionist has been deleted from the database.');
+          if (setCurrentPage) setCurrentPage('admin_receptionists');
+          return;
+        }
         if (res && res.ok) {
           const fresh = await res.json();
           currentR = fresh;
@@ -91,12 +97,30 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
     } catch (err) {
       console.error('Error loading receptionist details:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchReceptionistAndHospital();
+
+    const interval = setInterval(() => {
+      fetchReceptionistAndHospital(true);
+    }, 3500);
+
+    const onFocus = () => fetchReceptionistAndHospital(true);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetchReceptionistAndHospital(true);
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [selectedReceptionist]);
 
   const handleOpenEditModal = () => {
@@ -111,7 +135,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
       email: receptionistData.email || '',
       password: receptionistData.password || '',
       status: receptionistData.status || (receptionistData.is_active !== false ? 'On_Duty' : 'Off_Duty'),
-      is_active: receptionistData.is_active !== false
+      is_active: receptionistData.is_active !== false && receptionistData.status !== 'Inactive' && receptionistData.status !== 'Deactivated'
     });
     setShowEditPassword(false);
     setIsEditModalOpen(true);
@@ -126,6 +150,9 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
       const passwordToSend = editFormData.password || receptionistData.password || '';
       const hospId = Number(editFormData.hospital || receptionistData.hospital || currentUser?.hospital || (hospitalData ? hospitalData.id : 1));
       
+      const isActiveFlag = editFormData.is_active !== undefined ? Boolean(editFormData.is_active) : true;
+      const currentStatus = isActiveFlag ? (editFormData.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty') : 'Inactive';
+
       const payload = {
         ...receptionistData,
         ...editFormData,
@@ -139,26 +166,35 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
         contact: editFormData.contact ? editFormData.contact.trim() : '',
         email: editFormData.email ? editFormData.email.trim() : '',
         password: passwordToSend,
-        status: editFormData.status || 'On_Duty',
-        is_active: editFormData.is_active !== undefined ? editFormData.is_active : true
+        status: currentStatus,
+        is_active: isActiveFlag
       };
 
-      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${receptionistData.id}/`, {
+      let response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${receptionistData.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      });
+      }).catch(() => null);
 
-      const updated = await response.json();
+      if (!response || !response.ok) {
+        const patchRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${receptionistData.id}/`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(() => null);
+        if (patchRes && patchRes.ok) response = patchRes;
+      }
 
-      if (response.ok) {
+      if (response && response.ok) {
+        const updated = await response.json();
         alert('Receptionist profile updated successfully!');
         setReceptionistData(updated);
         localStorage.setItem('selectedReceptionist', JSON.stringify(updated));
         if (setSelectedReceptionist) setSelectedReceptionist(updated);
         setIsEditModalOpen(false);
       } else {
-        alert('Failed to update receptionist: ' + JSON.stringify(updated));
+        const errData = response ? await response.json().catch(() => ({})) : {};
+        alert('Failed to update receptionist: ' + JSON.stringify(errData));
       }
     } catch (err) {
       console.error('Error updating receptionist:', err);
@@ -243,7 +279,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
   const emailLower = (receptionistData.email || '').toLowerCase();
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <button
           type="button"
@@ -254,6 +290,15 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
         </button>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <span className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 ${
+            receptionistData.is_active !== false && receptionistData.status !== 'Inactive' && receptionistData.status !== 'Deactivated'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-rose-50 text-rose-700 border-rose-200'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${receptionistData.is_active !== false && receptionistData.status !== 'Inactive' && receptionistData.status !== 'Deactivated' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+            {receptionistData.is_active !== false && receptionistData.status !== 'Inactive' && receptionistData.status !== 'Deactivated' ? 'Active Account' : 'Inactive Account'}
+          </span>
+
           <button
             type="button"
             onClick={handleToggleStatus}
@@ -573,16 +618,16 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={15}
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     value={editFormData.contact}
-                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
-                    placeholder="e.g. 9876543210 / 02212345678"
+                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    placeholder="e.g. 9876543210"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
@@ -615,6 +660,35 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
                   <option value="On_Duty">On_Duty</option>
                   <option value="Off_Duty">Off_Duty</option>
                 </select>
+              </div>
+
+              {/* ACTIVE / INACTIVE ACCOUNT CHECKBOX */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-800 text-xs">
+                    Account Access (Active / Inactive)
+                  </label>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {editFormData.is_active 
+                      ? '✓ Account is ACTIVE. Receptionist CAN log in to the system.' 
+                      : '✕ Account is INACTIVE. Receptionist CANNOT log in to the system.'}
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer gap-2 select-none shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(editFormData.is_active)}
+                    onChange={(e) => setEditFormData({ ...editFormData, is_active: e.target.checked })}
+                    className="w-5 h-5 text-teal-600 rounded border-slate-300 focus:ring-teal-500 cursor-pointer"
+                  />
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+                    editFormData.is_active 
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                      : 'bg-rose-100 text-rose-800 border-rose-300'
+                  }`}>
+                    {editFormData.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </label>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">

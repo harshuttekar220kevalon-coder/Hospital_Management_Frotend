@@ -58,11 +58,9 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
   ];
 
   const shiftsList = [
-    'Morning Shift (08:00 AM - 04:00 PM)',
-    'Evening Shift (04:00 PM - 12:00 AM)',
-    'Night Shift (12:00 AM - 08:00 AM)',
-    'General Shift (09:00 AM - 05:00 PM)',
-    'Rotational Shift'
+    'Morning First Shift',
+    'Afternoon Second Shift',
+    'Evening Third Shift'
   ];
 
   const fetchReceptionistProfile = async () => {
@@ -88,7 +86,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
         if (rRes && rRes.ok) {
           const recs = await rRes.json().catch(() => []);
           if (Array.isArray(recs)) {
-            matchedRec = recs.find(r => 
+            matchedRec = recs.find(r =>
               (r.email && r.email.toLowerCase().trim() === email) ||
               (recId && Number(r.id) === Number(recId)) ||
               (r.name && r.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim())
@@ -102,7 +100,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
       const activeRec = matchedRec || currentUser || {};
       setReceptionistData(activeRec);
 
-      const targetHospId = activeRec.hospital 
+      const targetHospId = activeRec.hospital
         ? (typeof activeRec.hospital === 'object' ? activeRec.hospital.id : activeRec.hospital)
         : (currentUser?.hospital || '');
 
@@ -146,6 +144,8 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
     let finalValue = type === 'checkbox' ? checked : value;
     if (name === 'role' && (!finalValue || finalValue.trim() === '')) {
       finalValue = currentUser?.role || 'Front Desk Receptionist';
+    } else if (name === 'contact' || name === 'phone') {
+      finalValue = String(value).replace(/\D/g, '').slice(0, 10);
     }
     setEditFormData(prev => ({
       ...prev,
@@ -164,7 +164,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
 
       const recId = receptionistData?.id || currentUser?.id;
       const safeRole = (editFormData.role && editFormData.role.trim()) || currentUser?.role || 'Front Desk Receptionist';
-      
+
       const payload = {
         name: (editFormData.name || currentUser?.name || 'Receptionist').trim(),
         email: (editFormData.email || currentUser?.email || '').trim(),
@@ -298,7 +298,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
       {/* HEADER BAR */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-8 lg:px-12">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between py-4 gap-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
@@ -306,7 +306,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
               </div>
               <div>
                 <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                  Receptionist Settings
+                  Receptionist Profile
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
                     {editFormData.receptionist_id || 'REC'}
                   </span>
@@ -334,11 +334,10 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
             <button
               type="button"
               onClick={() => setActiveTab('profile')}
-              className={`px-4 py-2.5 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-2 ${
-                activeTab === 'profile'
+              className={`px-4 py-2.5 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-2 ${activeTab === 'profile'
                   ? 'border-sky-600 text-sky-800'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
+                }`}
             >
               <span>👤</span>
               <span>Receptionist Profile (All Fields)</span>
@@ -346,11 +345,10 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
             <button
               type="button"
               onClick={() => setActiveTab('security')}
-              className={`px-4 py-2.5 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-2 ${
-                activeTab === 'security'
+              className={`px-4 py-2.5 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-2 ${activeTab === 'security'
                   ? 'border-sky-600 text-sky-800'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
+                }`}
             >
               <span>🔒</span>
               <span>Security & Password</span>
@@ -360,7 +358,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <main className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-6 sm:py-8 space-y-6">
         {saveSuccessMsg && (
           <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 shadow-xs">
             <span>✓</span>
@@ -399,17 +397,15 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Duty Status:</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      editFormData.status === 'On_Duty' || editFormData.status === 'Available' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                    }`}>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${editFormData.status === 'On_Duty' || editFormData.status === 'Available' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                      }`}>
                       {editFormData.status || 'On_Duty'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Account Active:</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      editFormData.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                    }`}>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${editFormData.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                      }`}>
                       {editFormData.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </div>
@@ -487,12 +483,15 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                         Contact / Phone <span className="text-rose-500">*</span>
                       </label>
                       <input
-                        type="text"
+                        type="tel"
                         name="contact"
+                        maxLength={10}
+                        pattern="[0-9]{10}"
+                        inputMode="numeric"
                         value={editFormData.contact}
                         onChange={handleInputChange}
                         required
-                        placeholder="+91 9876543210"
+                        placeholder="e.g. 9876543210"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-600/20 transition"
                       />
                     </div>

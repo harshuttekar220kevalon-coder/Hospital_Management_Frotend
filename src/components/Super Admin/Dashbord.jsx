@@ -31,9 +31,9 @@ const SuperAdminDashboard = ({
   const [patients, setPatients] = useState([]);
   const [appointments, setAppointments] = useState([]);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       const [hospRes, adminRes, docRes, nurRes, recRes, patRes, apptRes] = await Promise.all([
         fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null),
@@ -204,56 +204,42 @@ const SuperAdminDashboard = ({
         }
       }
 
-      // Add any additional patient users from appointments that are not in /super-admin/Patients/
-      for (const a of normalizedAppointments) {
-        const aEmail = (a.email || '').toLowerCase().trim();
-        const aContact = (a.contact || a.phone || '').trim();
-        const aName = (a.patient_name || a.patient_Name || a.name || '').trim();
-        const key = aEmail || aContact || (a.id ? `appt_pat_${a.id}` : `pat_${Math.random()}`);
-
-        if (!seenPatientKeys.has(key)) {
-          seenPatientKeys.add(key);
-          const matchingAppts = normalizedAppointments.filter((ba) => {
-            const baEmail = (ba.email || '').toLowerCase().trim();
-            const baContact = (ba.contact || ba.phone || '').trim();
-            const baName = (ba.patient_name || ba.patient_Name || ba.name || '').trim().toLowerCase();
-            return (
-              (aEmail && baEmail && aEmail === baEmail) ||
-              (aContact && baContact && aContact === baContact) ||
-              (aName && baName && aName.toLowerCase() === baName)
-            );
-          });
-
-          combinedPatients.push({
-            id: a.patient || a.patient_id || a.id,
-            patient_id: a.patient_id || (a.id ? `PAT-${a.id}` : 'PAT-0'),
-            uhid: a.uhid || (a.id ? `UHID-${a.id}` : 'UHID-0'),
-            name: aName || 'Patient User',
-            contact: aContact,
-            phone: aContact,
-            email: aEmail,
-            age: a.age ?? a.Age ?? '',
-            gender: a.gender || a.Gender || '',
-            blood_group: a.blood_group || a.Blood_Group || '',
-            address: a.address || a.Address || '',
-            total_appointments: matchingAppts.length,
-            status: 'Active',
-            created_at: a.created_at || a.visit_date_time || new Date().toISOString()
-          });
-        }
-      }
-
       setPatients(combinedPatients);
       setAppointments(normalizedAppointments);
     } catch (err) {
       console.error('Error fetching Super Admin dashboard data:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchDashboardData();
+    let isMounted = true;
+    fetchDashboardData(false);
+
+    // Auto-polling every 3.5s for real-time sync with backend
+    const pollInterval = setInterval(() => {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchDashboardData(true);
+      }
+    }, 3500);
+
+    const handleFocus = () => {
+      if (isMounted) fetchDashboardData(true);
+    };
+    const handleVisibility = () => {
+      if (isMounted && document.visibilityState === 'visible') fetchDashboardData(true);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   useEffect(() => {
@@ -561,7 +547,7 @@ const SuperAdminDashboard = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-5 sm:space-y-6">
       {/* HEADER BANNER */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-800 via-slate-900 to-slate-800 text-white p-4 sm:p-6 shadow-md border border-slate-700">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

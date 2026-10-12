@@ -16,9 +16,33 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
 
   // Status Helpers
-  const isDischargedStatus = (status) => {
-    const s = (status || '').toLowerCase().trim();
-    return s === 'discharged' || s === 'completed' || s.includes('discharg');
+  const isDischargedStatus = (status, checkupStatus, paymentStatus) => {
+    let s = '';
+    let c = '';
+    let b = '';
+    if (typeof status === 'object' && status !== null) {
+      s = (status.status || status.discharge_status || '').toString().toLowerCase().trim();
+      c = (status.checkup_status || status.Checkup_status || '').toString().toLowerCase().trim();
+      b = (status.payment_status || status.Payment_status || status.billing_status || '').toString().toLowerCase().trim();
+    } else {
+      s = (status || '').toString().toLowerCase().trim();
+      c = (checkupStatus || '').toString().toLowerCase().trim();
+      b = (paymentStatus || '').toString().toLowerCase().trim();
+    }
+
+    if (s.includes('pending') || s.includes('unassign') || s.includes('admit') || s.includes('progress') || s.includes('cancel') || s === '') {
+      return false;
+    }
+    if (!s.includes('discharg') && s !== 'completed') {
+      return false;
+    }
+    if (c && (c.includes('pending') || c.includes('wait') || c === 'under checkup')) {
+      return false;
+    }
+    if (b && (b === 'pending' || b.includes('pending') || b === 'unpaid' || b === 'due')) {
+      return false;
+    }
+    return true;
   };
 
   const isCompletedStatus = (status) => {
@@ -32,6 +56,11 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
 
   const isCheckupDone = (checkupStatus) => {
     return checkupStatus === 'Checkup Done';
+  };
+
+  const isCancelledStatus = (status) => {
+    const s = (status || '').toString().toLowerCase().trim();
+    return s === 'cancelled' || s.includes('cancel');
   };
 
   // Condition
@@ -73,11 +102,29 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
     }
   };
 
-  const saveCompletedTodayId = (id) => {
+  const saveCompletedTodayId = (itemOrId) => {
     try {
       const list = getCompletedTodayIds();
-      if (!list.includes(Number(id))) {
-        list.push(Number(id));
+      const idsToAdd = [];
+      if (typeof itemOrId === 'object' && itemOrId !== null) {
+        if (itemOrId.id) idsToAdd.push(String(itemOrId.id), Number(itemOrId.id));
+        if (itemOrId.Appoment_id) idsToAdd.push(String(itemOrId.Appoment_id), Number(itemOrId.Appoment_id));
+        if (itemOrId.appoment_id) idsToAdd.push(String(itemOrId.appoment_id), Number(itemOrId.appoment_id));
+        if (itemOrId.appointment_id) idsToAdd.push(String(itemOrId.appointment_id), Number(itemOrId.appointment_id));
+      } else if (itemOrId !== undefined && itemOrId !== null) {
+        idsToAdd.push(String(itemOrId));
+        if (!isNaN(Number(itemOrId))) idsToAdd.push(Number(itemOrId));
+      }
+
+      let modified = false;
+      idsToAdd.forEach(id => {
+        if (id && !list.includes(id)) {
+          list.push(id);
+          modified = true;
+        }
+      });
+
+      if (modified) {
         localStorage.setItem(getTodayKey(), JSON.stringify(list));
       }
     } catch (e) {
@@ -85,9 +132,20 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
     }
   };
 
-  const removeCompletedTodayId = (id) => {
+  const removeCompletedTodayId = (itemOrId) => {
     try {
-      const list = getCompletedTodayIds().filter(i => Number(i) !== Number(id));
+      const idsToRemove = new Set();
+      if (typeof itemOrId === 'object' && itemOrId !== null) {
+        if (itemOrId.id) { idsToRemove.add(String(itemOrId.id)); idsToRemove.add(Number(itemOrId.id)); }
+        if (itemOrId.Appoment_id) { idsToRemove.add(String(itemOrId.Appoment_id)); idsToRemove.add(Number(itemOrId.Appoment_id)); }
+        if (itemOrId.appoment_id) { idsToRemove.add(String(itemOrId.appoment_id)); idsToRemove.add(Number(itemOrId.appoment_id)); }
+        if (itemOrId.appointment_id) { idsToRemove.add(String(itemOrId.appointment_id)); idsToRemove.add(Number(itemOrId.appointment_id)); }
+      } else if (itemOrId !== undefined && itemOrId !== null) {
+        idsToRemove.add(String(itemOrId));
+        if (!isNaN(Number(itemOrId))) idsToRemove.add(Number(itemOrId));
+      }
+
+      const list = getCompletedTodayIds().filter(i => !idsToRemove.has(i));
       localStorage.setItem(getTodayKey(), JSON.stringify(list));
     } catch (e) {
       console.error(e);
@@ -237,9 +295,9 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
     return false;
   };
 
-  const loadDoctorData = async () => {
+  const loadDoctorData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const email = (currentUser?.email || '').toLowerCase().trim();
       const docId = currentUser?.id;
       const currentDocIdTag = currentUser?.doctor_id;
@@ -316,6 +374,8 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
           const myPatients = allPats
             .filter(p => {
               if (!p) return false;
+              const pStatus = p.status || p.Status || p.appointment_status || p.booking_status;
+              if (isCancelledStatus(pStatus)) return false;
               const pDocId = typeof p.doctor === 'object' && p.doctor !== null ? p.doctor.id : p.doctor;
               const pDocTag = p.doctor_id || p.doctor_tag;
               const pDocEmail = (typeof p.doctor === 'object' && p.doctor?.email ? p.doctor.email : (p.doctor_email || '')).toLowerCase().trim();
@@ -357,6 +417,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
               const hospName = p.hospital_name || hospObj?.Name || hospObj?.name || (typeof p.hospital === 'string' && isNaN(Number(p.hospital)) ? p.hospital : '');
               const patGender = p.gender || p.Gender || p.patient_gender || p.Patient_Gender || p.sex || p.Sex || '';
               const ageVal = p.age || p.Age || '';
+              const resolvedPatUhid = p.patient_uhid || (typeof p.patient_id === 'string' && !p.patient_id.startsWith('APT-') ? p.patient_id : null) || p.uhid || (typeof p.patient === 'object' ? (p.patient?.patient_id || p.patient?.uhid || (p.patient?.id ? `PAT-${p.patient.id}` : '')) : (p.patient ? `PAT-${p.patient}` : '')) || (id ? `PAT-${id}` : '-');
 
               return {
                 ...p,
@@ -364,7 +425,10 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                 Appoment_id: apptId,
                 appoment_id: apptId,
                 appointment_id: apptId,
-                patient_id: `APT-${apptId}`,
+                tracking_id: `APT-${apptId}`,
+                patient_id: resolvedPatUhid,
+                patient_uhid_display: resolvedPatUhid,
+                uhid: resolvedPatUhid,
                 name,
                 patient_Name: name,
                 patient_name: name,
@@ -376,7 +440,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                 Condation: condition,
                 blood_group: blood,
                 Blood_Group: blood,
-                status,
+                status: p.status || p.Status || 'Pending',
                 checkup_status: p.checkup_status || p.Checkup_status || 'Pending',
                 hospital: hospId,
                 hospital_name: hospName
@@ -389,12 +453,38 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
         console.error('Error fetching patients queue:', err);
       }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadDoctorData();
+    let isMounted = true;
+    loadDoctorData(false);
+
+    // Auto-polling every 3.5 seconds to sync status from backend
+    const pollInterval = setInterval(() => {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadDoctorData(true);
+      }
+    }, 3500);
+
+    // Sync on window focus / tab switch
+    const handleFocus = () => {
+      if (isMounted) loadDoctorData(true);
+    };
+    const handleVisibility = () => {
+      if (isMounted && document.visibilityState === 'visible') loadDoctorData(true);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [currentUser]);
 
   const handleUpdatePatientField = async (patient, fieldName, fieldValue) => {
@@ -574,33 +664,85 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
            patHospName === String(hospitalFilter).toLowerCase().trim();
   });
 
+  const isDateToday = (dateVal) => {
+    if (!dateVal) return false;
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return false;
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() &&
+           d.getMonth() === now.getMonth() &&
+           d.getDate() === now.getDate();
+  };
+
+  const isCheckupDoneToday = (p) => {
+    if (!isCheckupDone(p.checkup_status)) return false;
+    if (getAppointmentDateInfo(p).isToday) return true;
+    if (p.completed_at && isDateToday(p.completed_at)) return true;
+    if (p.checkup_date && isDateToday(p.checkup_date)) return true;
+    if (p.checkup_completed_at && isDateToday(p.checkup_completed_at)) return true;
+    if (p.updated_at && isDateToday(p.updated_at)) return true;
+
+    const todayCompletedList = getCompletedTodayIds();
+    const candidateIds = [
+      p.id,
+      String(p.id),
+      Number(p.id),
+      p.Appoment_id,
+      String(p.Appoment_id),
+      Number(p.Appoment_id),
+      p.appoment_id,
+      p.appointment_id
+    ].filter(Boolean);
+
+    return candidateIds.some(id => todayCompletedList.includes(id));
+  };
+
   const isDischargedToday = (p) => {
     if (!isDischargedStatus(p.status)) return false;
-    if (p.discharge_date) {
-      const d = new Date(p.discharge_date);
-      if (!isNaN(d.getTime())) {
-        const now = new Date();
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
-      }
-    }
-    return getAppointmentDateInfo(p).isToday;
+    if (p.discharge_date && isDateToday(p.discharge_date)) return true;
+    if (p.completed_at && isDateToday(p.completed_at)) return true;
+    if (p.updated_at && isDateToday(p.updated_at)) return true;
+    if (getAppointmentDateInfo(p).isToday) return true;
+
+    const todayCompletedList = getCompletedTodayIds();
+    const candidateIds = [p.id, String(p.id), Number(p.id), p.Appoment_id, p.appoment_id, p.appointment_id].filter(Boolean);
+    return candidateIds.some(id => todayCompletedList.includes(id));
+  };
+
+  const isAdmittedToday = (p) => {
+    if (!isAdmitStatus(p.status)) return false;
+    if (p.admission_date && isDateToday(p.admission_date)) return true;
+    if (p.updated_at && isDateToday(p.updated_at)) return true;
+    if (getAppointmentDateInfo(p).isToday) return true;
+
+    const todayCompletedList = getCompletedTodayIds();
+    const candidateIds = [p.id, String(p.id), Number(p.id), p.Appoment_id, p.appoment_id, p.appointment_id].filter(Boolean);
+    return candidateIds.some(id => todayCompletedList.includes(id));
   };
 
   // Day & status filtering
-  const todayPatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isToday);
-  const todayPendingPatients = todayPatients.filter(p => !isCheckupDone(p.checkup_status) && !isAdmitStatus(p.status) && !isDischargedStatus(p.status));
-  const todayCheckupDonePatients = todayPatients.filter(p => isCheckupDone(p.checkup_status) && !isAdmitStatus(p.status) && !isDischargedStatus(p.status));
+  const scheduledTodayPatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isToday);
+  const todayPendingPatients = scheduledTodayPatients.filter(p => !isCheckupDone(p.checkup_status) && !isAdmitStatus(p.status) && !isDischargedStatus(p.status));
+  const todayCheckupDonePatients = hospitalScopedPatients.filter(p => isCheckupDoneToday(p) && !isAdmitStatus(p.status) && !isDischargedStatus(p.status));
   const admittedPatients = hospitalScopedPatients.filter(p => isAdmitStatus(p.status));
-  const todayDischargedPatients = hospitalScopedPatients.filter(p => isDischargedStatus(p.status) && isDischargedToday(p));
+  const todayDischargedPatients = hospitalScopedPatients.filter(p => isDischargedToday(p));
   const dischargedPatients = todayDischargedPatients;
-  const yesterdayPatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isYesterday);
+
+  // All Today includes: scheduled today OR checkup completed today OR discharged today OR admitted today
+  const allTodayPatients = hospitalScopedPatients.filter(p => 
+    getAppointmentDateInfo(p).isToday || isCheckupDoneToday(p) || isDischargedToday(p) || isAdmittedToday(p)
+  );
+  const todayPatients = allTodayPatients;
+  const tomorrowPatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isTomorrow);
+  const yesterdayPatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isYesterday && !isCheckupDoneToday(p) && !isDischargedToday(p));
   const upcomingPatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isUpcoming);
-  const pastOverduePatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isPast && !getAppointmentDateInfo(p).isYesterday);
+  const pastOverduePatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isPast && !getAppointmentDateInfo(p).isYesterday && !isCheckupDoneToday(p) && !isDischargedToday(p));
 
   const filteredPatients = hospitalScopedPatients.filter(p => {
     const term = searchTerm.toLowerCase().trim();
     const nameMatch = (p.name || '').toLowerCase().includes(term);
-    const idMatch = (p.patient_id || p.uhid || `PAT-${p.id}` || '').toLowerCase().includes(term);
+    const apptMatch = (p.tracking_id || `APT-${p.Appoment_id || p.appoment_id || p.appointment_id || p.id}` || '').toLowerCase().includes(term);
+    const idMatch = (p.patient_id || p.uhid || `PAT-${p.id}` || '').toLowerCase().includes(term) || apptMatch;
     const symptomsMatch = (p.symptoms_diagnosis || p.reason || '').toLowerCase().includes(term);
     const contactMatch = (p.contact || p.phone || '').toLowerCase().includes(term);
     const matchesSearch = !term || nameMatch || idMatch || symptomsMatch || contactMatch;
@@ -615,17 +757,17 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
     if (statusFilter === 'Today_Pending') {
       return dateInfo.isToday && !doneCheckup && !admitted && !discharged;
     } else if (statusFilter === 'Checkup_Done') {
-      return dateInfo.isToday && doneCheckup && !admitted && !discharged;
+      return isCheckupDoneToday(p) && !admitted && !discharged;
     } else if (statusFilter === 'Admitted') {
       return admitted;
     } else if (statusFilter === 'Discharged' || statusFilter === 'Today_Completed' || statusFilter === 'Completed') {
       return discharged && isDischargedToday(p);
     } else if (statusFilter === 'Today_All') {
-      return dateInfo.isToday;
+      return dateInfo.isToday || isCheckupDoneToday(p) || isDischargedToday(p) || isAdmittedToday(p);
+    } else if (statusFilter === 'Tomorrow' || statusFilter === 'Upcoming') {
+      return dateInfo.isUpcoming;
     } else if (statusFilter === 'Yesterday') {
       return dateInfo.isYesterday;
-    } else if (statusFilter === 'Upcoming') {
-      return dateInfo.isUpcoming;
     } else if (statusFilter === 'Past_Overdue') {
       return dateInfo.isPast && !dateInfo.isYesterday;
     }
@@ -643,7 +785,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6">
       {/* HEADER */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-5 sm:p-6 shadow-md border border-slate-800">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -841,6 +983,11 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                   Yesterday's Roster
                 </span>
               )}
+              {statusFilter === 'Upcoming' && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                  Upcoming Appointments
+                </span>
+              )}
               {hospitalFilter !== 'ALL' && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
                   Branch: {assignedHospitals.find(h => String(h.id) === String(hospitalFilter))?.Name || 'Selected'}
@@ -979,7 +1126,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
           <table className="w-full text-center text-xs text-slate-600 min-w-[750px]">
             <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
               <tr>
-                <th className="py-3 px-3 text-center">Patient & ID</th>
+                <th className="py-3 px-3 text-center">Patient & Appointment ID</th>
                 <th className="py-3 px-3 text-center">Hospital Branch</th>
                 <th className="py-3 px-3 text-center">Age / Gender</th>
                 <th className="py-3 px-3 text-center">Visit Schedule</th>
@@ -1002,13 +1149,16 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                   <td colSpan={8} className="py-10 text-center text-slate-400">
                     <div className="font-semibold text-slate-600">No patients found for this selection.</div>
                     <div className="text-xs text-slate-400 mt-0.5">
-                      {statusFilter === 'Today_Pending' ? 'No pending patients remaining for Today! All clear.' : 'Try selecting another day or filter tab.'}
+                      {statusFilter === 'Today_Pending' ? 'No pending patients remaining for Today! All clear.' :
+                       statusFilter === 'Upcoming' || statusFilter === 'Tomorrow' ? 'No upcoming appointments scheduled.' :
+                       'Try selecting another day or filter tab.'}
                     </div>
                   </td>
                 </tr>
               ) : (
                 filteredPatients.slice(0, visibleCount).map((pat, idx) => {
-                  const patientIdDisplay = pat.patient_id || pat.uhid || (pat.id ? `PAT-${pat.id}` : '-');
+                  const apptIdDisplay = pat.tracking_id || `APT-${pat.Appoment_id || pat.appoment_id || pat.appointment_id || pat.id}`;
+                  const patientIdDisplay = pat.patient_uhid_display || pat.patient_id || pat.uhid || null;
                   const isDone = isCompletedStatus(pat.status, pat.checkup_status);
                   const isAdmit = isAdmitStatus(pat.status);
                   const isUpdating = updatingPatientId === pat.id;
@@ -1020,10 +1170,15 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                     <tr key={pat.id || idx} className={`transition ${isDone || isAdmit ? 'bg-slate-50/40 opacity-80' : 'hover:bg-slate-50/70'}`}>
                       <td className="py-3 px-3 text-center">
                         <div className="font-bold text-slate-800">{pat.patient_Name || pat.patient_name || pat.name || 'Patient'}</div>
-                        <div className="flex items-center justify-center gap-1 flex-wrap mt-0.5">
-                          <span className="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block">
-                            {patientIdDisplay}
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap mt-0.5">
+                          <span className="font-mono text-[10px] text-sky-700 font-bold bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 inline-block">
+                            {apptIdDisplay}
                           </span>
+                          {patientIdDisplay && patientIdDisplay !== apptIdDisplay && (
+                            <span className="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 inline-block">
+                              {patientIdDisplay}
+                            </span>
+                          )}
                           {pat.bed_number ? (
                             <span className="text-[9px] font-mono font-bold bg-purple-100 text-purple-900 px-1.5 py-0.5 rounded border border-purple-300 inline-block">
                               Bed #{pat.bed_number}
@@ -1148,9 +1303,16 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                 <h3 className="text-lg font-extrabold text-slate-900">
                   {selectedPatientModal.patient_Name || selectedPatientModal.patient_name || selectedPatientModal.name || selectedPatientModal.Patient_Name || 'Patient'}
                 </h3>
-                <span className="font-mono text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
-                  UHID: {selectedPatientModal.patient_id || selectedPatientModal.uhid || `PAT-${selectedPatientModal.id}`}
-                </span>
+                <div className="flex items-center gap-2 flex-wrap mt-1">
+                  <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block">
+                    APT-{selectedPatientModal.Appoment_id || selectedPatientModal.appoment_id || selectedPatientModal.appointment_id || selectedPatientModal.id}
+                  </span>
+                  {(selectedPatientModal.patient_uhid_display || selectedPatientModal.patient_id || selectedPatientModal.uhid) && (
+                    <span className="font-mono text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block">
+                      UHID: {selectedPatientModal.patient_uhid_display || selectedPatientModal.patient_id || selectedPatientModal.uhid}
+                    </span>
+                  )}
+                </div>
               </div>
               <button
                 type="button"

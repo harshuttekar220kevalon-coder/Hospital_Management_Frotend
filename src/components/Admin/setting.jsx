@@ -115,9 +115,13 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
+    let finalVal = type === 'checkbox' ? checked : value;
+    if (name === 'contact' || name === 'phone') {
+      finalVal = String(value).replace(/\D/g, '').slice(0, 10);
+    }
     setEditFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: finalVal
     }));
     if (saveSuccessMsg) setSaveSuccessMsg('');
     if (saveErrorMsg) setSaveErrorMsg('');
@@ -273,7 +277,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
       {/* HEADER BAR */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-8 lg:px-12">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between py-4 gap-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
@@ -281,7 +285,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
               </div>
               <div>
                 <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                  Admin Account Settings
+                  Admin Profile
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
                     {editFormData.employee_id || 'ADM'}
                   </span>
@@ -333,7 +337,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <main className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-6 sm:py-8 space-y-6">
         {/* SUCCESS / ERROR ALERTS */}
         {saveSuccessMsg && (
           <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 shadow-xs animate-in fade-in">
@@ -449,12 +453,15 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                         Contact / Phone <span className="text-rose-500">*</span>
                       </label>
                       <input
-                        type="text"
+                        type="tel"
                         name="contact"
+                        maxLength={10}
+                        pattern="[0-9]{10}"
+                        inputMode="numeric"
                         value={editFormData.contact}
                         onChange={handleInputChange}
                         required
-                        placeholder="+91 9876543210"
+                        placeholder="e.g. 9876543210"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
                       />
                     </div>

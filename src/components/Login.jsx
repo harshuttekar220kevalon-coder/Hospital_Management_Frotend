@@ -59,6 +59,15 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
       // 2. Handle HTTP 200 from backend /login/
       if (response && response.ok && response.status === 200 && data) {
         const userObj = data.user || data;
+
+        if (userObj.is_active === false || data.is_active === false || userObj.status === 'Inactive' || userObj.status === 'Deactivated' || data.status === 'Inactive' || data.status === 'Deactivated') {
+          const msg = 'Your account is deactivated. Please contact your administrator.';
+          setInactivityMessage(msg);
+          alert(msg);
+          setLoading(false);
+          return;
+        }
+
         const backendRole = (
           data.role ||
           userObj.role ||
@@ -681,6 +690,15 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
       }) : null;
 
       if (matchAppt) {
+        const linkedPat = Array.isArray(patList) ? patList.find(p => (p.email && p.email.toLowerCase().trim() === inputLower) || (p.id && Number(p.id) === Number(matchAppt.patient || matchAppt.patient_id))) : null;
+        if (matchAppt.is_active === false || matchAppt.status === 'Inactive' || matchAppt.status === 'Deactivated' || (linkedPat && (linkedPat.is_active === false || linkedPat.status === 'Inactive' || linkedPat.status === 'Deactivated'))) {
+          const msg = 'Your patient account is currently deactivated. Please contact hospital administrator.';
+          setInactivityMessage(msg);
+          alert(msg);
+          setLoading(false);
+          return;
+        }
+
         const aptTag = matchAppt.Appoment_id || matchAppt.appoment_id || matchAppt.id;
         const resolvedAptId = aptTag ? `APT-${aptTag}` : 'APT-01';
         const apptContact = matchAppt.contact || matchAppt.phone || localStorage.getItem(`user_contact_${inputLower}`) || '';

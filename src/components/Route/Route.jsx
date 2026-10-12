@@ -68,6 +68,9 @@ import PatientAbout from '../Patient/About';
 import PatientContact from '../Patient/Contact';
 import PatientAppointment from '../Patient/Appoiement';
 
+// Common Components
+import ScrollToTop from '../Common/ScrollToTop';
+
 
 const getDashboardByRole = (role) => {
   const r = (role || '').toString().toUpperCase();
@@ -76,7 +79,7 @@ const getDashboardByRole = (role) => {
   if (r.includes('DOCTOR')) return 'doctor_dashboard';
   if (r.includes('NURSE')) return 'nurse_dashboard';
   if (r.includes('RECEPTION')) return 'receptionist_dashboard';
-  if (r.includes('PATIENT')) return 'patient_dashboard';
+  if (r.includes('PATIENT')) return 'home';
   return 'login';
 };
 
@@ -259,14 +262,13 @@ const AppRoutes = () => {
     }
 
     const isPatientRole = (userData?.role || '').toString().toUpperCase().includes('PATIENT');
-    const returnPage = localStorage.getItem('login_return_page');
-    if (returnPage && isPatientRole) {
-      localStorage.removeItem('login_return_page');
-      setCurrentPage(returnPage);
-      localStorage.setItem('currentPage', returnPage);
+    localStorage.removeItem('login_return_page');
+
+    if (isPatientRole) {
+      setCurrentPage('home');
+      localStorage.setItem('currentPage', 'home');
       return;
     }
-    localStorage.removeItem('login_return_page');
 
     const targetDashboard = getDashboardByRole(userData?.role);
     setCurrentPage(targetDashboard);
@@ -739,6 +741,9 @@ const AppRoutes = () => {
           </>
         )}
       </main>
+
+      {/* GLOBAL SCROLL TO TOP BUTTON & AUTO-SCROLL LISTENER */}
+      <ScrollToTop currentPage={currentPage} />
     </div>
   );
 };

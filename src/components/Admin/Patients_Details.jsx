@@ -130,13 +130,21 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
     attached_document_name: ''
   });
 
-  const fetchPatientDetails = async () => {
+  const fetchPatientDetails = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       let currentP = selectedPatient || patientData;
 
       if (currentP?.id) {
         const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/${currentP.id}/`).catch(() => null);
+        if (patRes && patRes.status === 404) {
+          localStorage.removeItem('selectedPatient');
+          if (setSelectedPatient) setSelectedPatient(null);
+          setPatientData(null);
+          alert('This patient has been deleted from the database.');
+          if (setCurrentPage) setCurrentPage('admin_patients');
+          return;
+        }
         if (patRes && patRes.ok) {
           const fresh = await patRes.json();
           currentP = fresh;
@@ -274,12 +282,30 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
     } catch (err) {
       console.error('Error loading patient details:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchPatientDetails();
+
+    const interval = setInterval(() => {
+      fetchPatientDetails(true);
+    }, 3500);
+
+    const onFocus = () => fetchPatientDetails(true);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetchPatientDetails(true);
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [selectedPatient]);
 
   const handleOpenEditModal = () => {
@@ -321,7 +347,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
       symptoms_severity: patientData.Condation || patientData.condation || patientData.condition || patientData.symptoms_severity || '',
       visit_date_time: patientData.visit_date_time || patientData.appointment_time || '',
       status: patientData.status || '',
-      is_active: patientData.is_active !== undefined ? patientData.is_active : true,
+      is_active: patientData.is_active !== false && patientData.status !== 'Inactive' && patientData.status !== 'Deactivated',
       attached_document: attachedDocVal,
       attached_document_name: docName
     });
@@ -492,7 +518,7 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
     'bg-emerald-50 text-emerald-700 border-emerald-200';
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <button
           type="button"
@@ -503,6 +529,15 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
         </button>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <span className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 ${
+            patientData.is_active !== false && patientData.status !== 'Inactive' && patientData.status !== 'Deactivated'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-rose-50 text-rose-700 border-rose-200'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${patientData.is_active !== false && patientData.status !== 'Inactive' && patientData.status !== 'Deactivated' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+            {patientData.is_active !== false && patientData.status !== 'Inactive' && patientData.status !== 'Deactivated' ? 'Active Account' : 'Inactive Account'}
+          </span>
+
           <button
             type="button"
             onClick={() => setIsStatusModalOpen(true)}
@@ -1129,12 +1164,12 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                   <input
                     type="tel"
                     inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={15}
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     placeholder="e.g. 9876543210"
                     value={editFormData.contact}
-                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
@@ -1421,6 +1456,35 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* ACTIVE / INACTIVE ACCOUNT CHECKBOX */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-800 text-xs">
+                    Account Access (Active / Inactive)
+                  </label>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {editFormData.is_active 
+                      ? '✓ Account is ACTIVE. Patient CAN log in to the portal.' 
+                      : '✕ Account is INACTIVE. Patient CANNOT log in to the portal.'}
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer gap-2 select-none shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(editFormData.is_active)}
+                    onChange={(e) => setEditFormData({ ...editFormData, is_active: e.target.checked })}
+                    className="w-5 h-5 text-teal-600 rounded border-slate-300 focus:ring-teal-500 cursor-pointer"
+                  />
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+                    editFormData.is_active 
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                      : 'bg-rose-100 text-rose-800 border-rose-300'
+                  }`}>
+                    {editFormData.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </label>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">

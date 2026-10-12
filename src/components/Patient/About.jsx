@@ -77,7 +77,7 @@ const PatientAbout = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => 
 
       <main className="flex-1 space-y-12 sm:space-y-16 pb-16">
         {/* HERO SECTION */}
-        <section className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white py-14 sm:py-20 px-4 sm:px-6 lg:px-8">
+        <section className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white py-14 sm:py-20 px-4 sm:px-8 lg:px-12">
           <div className="max-w-4xl mx-auto text-center space-y-4">
             <span className="px-3.5 py-1.5 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold border border-teal-400/30 uppercase tracking-wider">
               Network Healthcare System
@@ -92,7 +92,7 @@ const PatientAbout = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => 
         </section>
 
         {/* METRICS ROW (100% REAL FROM DATABASE) */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6">
+        <section className="w-full px-4 sm:px-8 lg:px-12 -mt-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {stats.map((s, idx) => (
               <div
@@ -110,7 +110,7 @@ const PatientAbout = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => 
         </section>
 
         {/* ACTIVE NETWORK CAMPUSES (LIVE DATA FROM BACKEND) */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <section className="w-full px-4 sm:px-8 lg:px-12 space-y-6">
           <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
             <div>
               <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">
@@ -200,7 +200,7 @@ const PatientAbout = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => 
         </section>
 
         {/* CLINICAL HEADS & SPECIALISTS (LIVE DATA FROM BACKEND) */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <section className="w-full px-4 sm:px-8 lg:px-12 space-y-6">
           <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
             <div>
               <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">
@@ -295,7 +295,7 @@ const PatientAbout = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => 
         </section>
 
         {/* SYSTEM PROTOCOLS */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section className="w-full px-4 sm:px-8 lg:px-12">
           <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-xs space-y-6">
             <div>
               <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">
@@ -333,7 +333,7 @@ const PatientAbout = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => 
       </main>
 
       {/* PATIENT FOOTER */}
-      <PatientFooter setCurrentPage={setCurrentPage} />
+      <PatientFooter setCurrentPage={setCurrentPage} isLoggedIn={isLoggedIn} currentUser={currentUser} />
     </div>
   );
 };

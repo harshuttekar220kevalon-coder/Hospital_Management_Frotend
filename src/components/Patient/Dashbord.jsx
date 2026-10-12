@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PatientNavbar from './PatientNavbar';
 import PatientFooter from './PatientFooter';
 import { API_BASE_URL } from '../Api/Api';
@@ -16,17 +16,54 @@ const extractArray = (resData) => {
 const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout }) => {
   const [patientProfile, setPatientProfile] = useState(null);
   const [patientInfo, setPatientInfo] = useState(null);
+  const [selectedApptId, setSelectedApptId] = useState(null);
+  const selectedApptIdRef = useRef(null);
   const [allAppointments, setAllAppointments] = useState([]);
   const [doctorsList, setDoctorsList] = useState([]);
   const [hospitalsList, setHospitalsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showDischargeAlert, setShowDischargeAlert] = useState(true);
 
-  const isDischarged = (status) => (status || '').toString().toLowerCase().trim().includes('discharg');
+  const isDischarged = (itemOrStatus, checkupStatus, paymentStatus) => {
+    let s = '';
+    let c = '';
+    let b = '';
+    if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
+      s = (itemOrStatus.status || itemOrStatus.discharge_status || '').toString().toLowerCase().trim();
+      c = (itemOrStatus.checkup_status || itemOrStatus.Checkup_status || '').toString().toLowerCase().trim();
+      b = (itemOrStatus.payment_status || itemOrStatus.Payment_status || itemOrStatus.billing_status || '').toString().toLowerCase().trim();
+    } else {
+      s = (itemOrStatus || '').toString().toLowerCase().trim();
+      c = (checkupStatus || '').toString().toLowerCase().trim();
+      b = (paymentStatus || '').toString().toLowerCase().trim();
+    }
 
-  const loadPatientData = async () => {
+    // If status is Pending or contains pending / unassign / admit / in progress -> NOT discharged
+    if (s.includes('pending') || s.includes('unassign') || s.includes('admit') || s.includes('progress') || s.includes('cancel') || s === '') {
+      return false;
+    }
+
+    // Must explicitly contain discharged or completed
+    if (!s.includes('discharg') && s !== 'completed') {
+      return false;
+    }
+
+    // Checkup status must NOT be pending
+    if (c && (c.includes('pending') || c.includes('wait') || c === 'under checkup')) {
+      return false;
+    }
+
+    // Billing / Payment status must NOT be pending / unpaid
+    if (b && (b === 'pending' || b.includes('pending') || b === 'unpaid' || b === 'due')) {
+      return false;
+    }
+
+    return true;
+  };
+
+  const loadPatientData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const email = (currentUser?.email || '').toLowerCase().trim();
       const patId = currentUser?.id;
       const patPhone = (currentUser?.contact || currentUser?.phone || '').replace(/\D/g, '');
@@ -48,6 +85,12 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
           if (!foundPatientRecord && userUhid) foundPatientRecord = patsArr.find(p => (p.patient_id || p.uhid || '').toLowerCase().trim() === userUhid);
           if (!foundPatientRecord && patId && !isNaN(Number(patId)) && Number(patId) > 0) foundPatientRecord = patsArr.find(p => Number(p.id) === Number(patId));
           if (!foundPatientRecord && patPhone && patPhone.length >= 10) foundPatientRecord = patsArr.find(p => (p.contact || p.phone || '').replace(/\D/g, '') === patPhone);
+          if (!foundPatientRecord && (currentUser?.name || currentUser?.username)) {
+            const checkName = (currentUser?.name || currentUser?.username || '').toLowerCase().trim();
+            if (checkName && checkName.length > 1) {
+              foundPatientRecord = patsArr.find(p => (p.name || p.patient_name || p.patient_Name || '').toLowerCase().trim() === checkName);
+            }
+          }
         }
       }
 
@@ -103,9 +146,10 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
 
         // Read locally cached appointments for this patient
         let localAppts = [];
-        if (patientEmail) {
+        const storedKey = patientEmail ? `patient_appointments_${patientEmail}` : null;
+        if (storedKey) {
           try {
-            const rawStored = localStorage.getItem(`patient_appointments_${patientEmail}`);
+            const rawStored = localStorage.getItem(storedKey);
             if (rawStored) {
               const parsed = JSON.parse(rawStored);
               localAppts = Array.isArray(parsed) ? parsed : [parsed];
@@ -113,18 +157,19 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
           } catch (e) {}
         }
 
-        const combined = [...specificAppts];
-        const seenIds = new Set(specificAppts.map(a => String(a.id || a.Appoment_id || a.appoment_id)));
-
-        for (const loc of localAppts) {
-          const locId = String(loc?.id || loc?.Appoment_id || loc?.appoment_id || '');
-          if (loc && (!locId || !seenIds.has(locId))) {
-            combined.push(loc);
-            if (locId) seenIds.add(locId);
-          }
+        // When backend data is fetched, backend is source of truth. Purge deleted records from cache.
+        const backendIds = new Set(rawAppointments.map(a => String(a.id || a.Appoment_id || a.appoment_id || '')));
+        if (storedKey && localAppts.length > 0) {
+          const activeLocal = localAppts.filter(loc => {
+            const locId = String(loc?.id || loc?.Appoment_id || loc?.appoment_id || '');
+            return locId && backendIds.has(locId);
+          });
+          try {
+            localStorage.setItem(storedKey, JSON.stringify(activeLocal));
+          } catch (e) {}
         }
 
-        fetchedAppointments = combined;
+        fetchedAppointments = specificAppts;
       } catch (e) {
         console.warn('Appointments fetch notice:', e);
       }
@@ -134,23 +179,81 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
       setAllAppointments(fetchedAppointments);
 
       // Only set active appointment if it is NOT discharged
-      const activeList = fetchedAppointments.filter(a => !isDischarged(a.status));
-      const activeOnlyAppt = activeList.length > 0 ? activeList[0] : null;
-      setPatientInfo(activeOnlyAppt);
+      const activeList = fetchedAppointments.filter(a => !isDischarged(a));
+
+      let targetAppt = null;
+      if (selectedApptIdRef.current) {
+        targetAppt = activeList.find(a => String(a.id || a.Appoment_id || a.appoment_id || a.appointment_id) === String(selectedApptIdRef.current));
+      }
+
+      if (!targetAppt) {
+        targetAppt = activeList.length > 0 ? activeList[0] : null;
+      }
+
+      if (targetAppt) {
+        const targetId = String(targetAppt.id || targetAppt.Appoment_id || targetAppt.appoment_id || targetAppt.appointment_id);
+        selectedApptIdRef.current = targetId;
+        setSelectedApptId(targetId);
+      } else {
+        selectedApptIdRef.current = null;
+        setSelectedApptId(null);
+      }
+
+      setPatientInfo(targetAppt);
 
     } catch (err) {
       console.error('Error in PatientDashboard load:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
+  // Real-Time Live Synchronization & Polling
   useEffect(() => {
-    loadPatientData();
+    let isMounted = true;
+    loadPatientData(false);
+
+    // 1. Silent Background Polling every 3.5 seconds
+    const pollInterval = setInterval(() => {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadPatientData(true);
+      }
+    }, 3500);
+
+    // 2. Immediate refetch on Window Focus / Tab Switch
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && isMounted) {
+        loadPatientData(true);
+      }
+    };
+
+    const handleFocus = () => {
+      if (isMounted) {
+        loadPatientData(true);
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleFocus);
+    }
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleFocus);
+      }
+    };
   }, [currentUser]);
 
-  const activeAppointments = allAppointments.filter(a => !isDischarged(a.status));
-  const dischargedAppointments = allAppointments.filter(a => isDischarged(a.status));
+  const activeAppointments = allAppointments.filter(a => !isDischarged(a));
+  const dischargedAppointments = allAppointments.filter(a => isDischarged(a));
   const hasActiveAppointment = activeAppointments.length > 0;
 
   // Auto-hide the discharged alert banner after 5 seconds
@@ -168,36 +271,89 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
 
   // Selected appointment ONLY if it is an active non-discharged appointment
   const activeAppt = hasActiveAppointment
-    ? (patientInfo && !isDischarged(patientInfo.status) ? patientInfo : activeAppointments[0])
+    ? ((selectedApptId || selectedApptIdRef.current)
+        ? (activeAppointments.find(a => String(a.id || a.Appoment_id || a.appoment_id || a.appointment_id) === String(selectedApptId || selectedApptIdRef.current)) || patientInfo || activeAppointments[0])
+        : (patientInfo && !isDischarged(patientInfo) ? patientInfo : activeAppointments[0]))
     : null;
 
   // Dynamically resolve appointment tracking ID
   const activeApptId = activeAppt ? (activeAppt.Appoment_id || activeAppt.appoment_id || activeAppt.appointment_id || activeAppt.id) : null;
   const trackingId = activeApptId ? `APT-${activeApptId}` : (patientProfile?.patient_id || patientProfile?.uhid || (patientProfile?.id ? `PAT-${patientProfile.id}` : 'PAT-01'));
 
-  // Dynamically resolve doctor & hospital for active appointment
+  // Helper to determine if doctor is unassigned
+  const isDoctorValUnassigned = (docVal, docNameVal) => {
+    if (!docVal || docVal === 'null' || docVal === 'None' || docVal === '' || docVal === 0) return true;
+    const dn = (docNameVal || '').toLowerCase().trim();
+    if (!dn || dn.includes('awaiting') || dn.includes('unassign') || dn.includes('none') || dn.includes('null')) return true;
+    return false;
+  };
+
+  // Dynamically resolve doctor & hospital for active appointment strictly from backend
   const targetDocId = typeof activeAppt?.doctor === 'object' ? activeAppt?.doctor?.id : activeAppt?.doctor;
-  const docObj = targetDocId ? doctorsList.find(d => Number(d.id) === Number(targetDocId)) : null;
+  const docObj = targetDocId && !isNaN(Number(targetDocId)) && Number(targetDocId) > 0 ? doctorsList.find(d => Number(d.id) === Number(targetDocId)) : null;
+
+  const hasDoctor = Boolean(activeAppt && !isDoctorValUnassigned(targetDocId, activeAppt.doctor_name || docObj?.name));
+  const docName = hasDoctor
+    ? (docObj?.name ? (docObj.name.startsWith('Dr.') ? docObj.name : `Dr. ${docObj.name}`) : (activeAppt?.doctor_name ? (activeAppt.doctor_name.startsWith('Dr.') ? activeAppt.doctor_name : `Dr. ${activeAppt.doctor_name}`) : (targetDocId ? `Dr. ID #${targetDocId}` : 'Assigned Doctor')))
+    : 'None Assigned';
+  const docSpecialty = hasDoctor
+    ? (docObj?.specialization || docObj?.specialty || activeAppt?.doctor_specialization || 'Consulting Specialist')
+    : 'Pending Triage Assignment';
 
   const targetHospId = typeof activeAppt?.hospital === 'object' ? activeAppt?.hospital?.id : activeAppt?.hospital;
   const hospObj = targetHospId ? hospitalsList.find(h => Number(h.id) === Number(targetHospId)) : null;
 
-  const patName = activeAppt?.patient_Name || activeAppt?.patient_name || activeAppt?.name ||
-    patientProfile?.name || patientProfile?.patient_Name || currentUser?.name || currentUser?.patient_Name || 'Patient';
+  // Logged-in Patient Account Information (strictly user who logged in, NOT appointment)
+  const loggedInProfile = patientProfile || currentUser || {};
 
-  const patGender = activeAppt?.Gender || activeAppt?.gender || activeAppt?.patient_gender || patientProfile?.Gender || patientProfile?.gender || currentUser?.Gender || currentUser?.gender || 'Not Specified';
+  const loggedInName =
+    (loggedInProfile.name && loggedInProfile.name.trim() !== '') ? loggedInProfile.name :
+    (loggedInProfile.patient_name && loggedInProfile.patient_name.trim() !== '') ? loggedInProfile.patient_name :
+    (loggedInProfile.patient_Name && loggedInProfile.patient_Name.trim() !== '') ? loggedInProfile.patient_Name :
+    (currentUser?.name && currentUser.name.trim() !== '') ? currentUser.name :
+    (currentUser?.patient_name && currentUser.patient_name.trim() !== '') ? currentUser.patient_name :
+    (currentUser?.email ? currentUser.email.split('@')[0] : 'Patient');
 
-  const hasDoctor = Boolean(activeAppt && (activeAppt.doctor || activeAppt.doctor_name || docObj?.name));
-  const docName = hasDoctor
-    ? (docObj?.name ? (docObj.name.startsWith('Dr.') ? docObj.name : `Dr. ${docObj.name}`) : (activeAppt?.doctor_name ? (activeAppt.doctor_name.startsWith('Dr.') ? activeAppt.doctor_name : `Dr. ${activeAppt.doctor_name}`) : (targetDocId ? `Dr. ID #${targetDocId}` : 'Assigned Doctor')))
-    : 'None Assigned';
-  const docSpecialty = docObj?.specialization || docObj?.specialty || activeAppt?.doctor_specialization || (hasDoctor ? 'Consulting Specialist' : 'Pending Triage Assignment');
+  const resolvePatientId = () => {
+    if (patientProfile?.uhid && !String(patientProfile.uhid).toUpperCase().startsWith('APT-')) {
+      return patientProfile.uhid;
+    }
+    if (patientProfile?.patient_id && !String(patientProfile.patient_id).toUpperCase().startsWith('APT-')) {
+      return patientProfile.patient_id;
+    }
+    if (patientProfile?.id && !isNaN(Number(patientProfile.id)) && Number(patientProfile.id) > 0) {
+      return `PAT-${patientProfile.id}`;
+    }
+    if (currentUser?.uhid && !String(currentUser.uhid).toUpperCase().startsWith('APT-')) {
+      return currentUser.uhid;
+    }
+    if (currentUser?.patient_id && !String(currentUser.patient_id).toUpperCase().startsWith('APT-')) {
+      return currentUser.patient_id;
+    }
+    if (currentUser?.id && !isNaN(Number(currentUser.id)) && Number(currentUser.id) > 0) {
+      return `PAT-${currentUser.id}`;
+    }
+    return 'PAT-01';
+  };
+
+  const loggedInPatientId = resolvePatientId();
+  const loggedInPhone = loggedInProfile.contact || loggedInProfile.phone || currentUser?.contact || currentUser?.phone || '';
+  const loggedInEmail = loggedInProfile.email || currentUser?.email || '';
+  const loggedInGender = loggedInProfile.gender || loggedInProfile.Gender || currentUser?.gender || currentUser?.Gender || '';
+  const loggedInBloodGroup = loggedInProfile.blood_group || loggedInProfile.Blood_Group || currentUser?.blood_group || currentUser?.Blood_Group || '';
+  const loggedInAge = loggedInProfile.age || loggedInProfile.Age || currentUser?.age || '';
+
+  const patName = loggedInName;
+  const patGender = loggedInGender || activeAppt?.Gender || activeAppt?.gender || 'Not Specified';
 
   const hospName = hospObj?.Name || hospObj?.name || activeAppt?.hospital_name || '';
 
-  const bedNum = activeAppt?.bed_number || null;
-  const floorName = activeAppt?.floor || (bedNum ? `Floor ${Math.floor((Number(bedNum) - 1) / 100) + 1}` : 'Outpatient (OPD)');
-  const statusStr = (activeAppt?.status || '').trim();
+  const rawBed = activeAppt?.bed_number;
+  const bedNum = (rawBed !== null && rawBed !== undefined && rawBed !== 'null' && rawBed !== 'None' && rawBed !== '' && !String(rawBed).toLowerCase().includes('unassign') && Number(rawBed) > 0) ? Number(rawBed) : null;
+  const floorName = bedNum ? `Floor ${Math.floor((Number(bedNum) - 1) / 100) + 1}` : 'Outpatient (OPD)';
+
+  const rawStatus = (activeAppt?.status || '').trim();
+  const statusStr = rawStatus || (hasDoctor ? 'Assigned' : 'Pending');
   const appointmentDate = activeAppt?.appointment_date || (activeAppt?.visit_date_time ? new Date(activeAppt.visit_date_time).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Scheduled');
   const appointmentTime = activeAppt?.appointment_time || (activeAppt?.visit_date_time ? new Date(activeAppt.visit_date_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : (hasDoctor ? 'Slot Assigned' : 'Awaiting Slot'));
 
@@ -228,6 +384,17 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
     { title: 'TOTAL BILLING', value: '₹0.00', sub: 'No pending dues', tag: 'Cleared', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   ];
 
+  const getStatusBadgeStyle = (status) => {
+    const s = (status || '').toString().toLowerCase().trim();
+    if (s.includes('pending') || s.includes('unassign')) return 'bg-amber-50 text-amber-800 border-amber-300';
+    if (s.includes('admit') || s.includes('ipd') || s.includes('ward')) return 'bg-purple-50 text-purple-800 border-purple-300';
+    if (s.includes('checkup') || s.includes('progress') || s.includes('consult')) return 'bg-indigo-50 text-indigo-800 border-indigo-300';
+    if (s.includes('done') || s.includes('complete') || s.includes('approved') || s.includes('confirmed') || s.includes('assigned')) return 'bg-emerald-50 text-emerald-800 border-emerald-300';
+    if (s.includes('discharg')) return 'bg-slate-100 text-slate-800 border-slate-300';
+    if (s.includes('cancel') || s.includes('reject')) return 'bg-rose-50 text-rose-800 border-rose-300';
+    return 'bg-teal-50 text-teal-800 border-teal-200';
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
       {/* UNIFIED PATIENT NAVBAR */}
@@ -239,31 +406,73 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
         currentUser={currentUser}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+      <main className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-5 sm:space-y-6">
         {/* HERO HEADER */}
         <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-5 sm:p-7 shadow-md border border-slate-800">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-semibold border border-teal-400/30">
                 <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
-                Patient Health Portal • Real-Time Appointment Tracker
+                Patient Health Portal • Real-Time Live Status Tracker
               </div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold mt-2 tracking-tight text-slate-100">
-                Hello, {patName}
+                Hello, {loggedInName}
               </h1>
-              <p className="text-xs sm:text-sm text-slate-300 mt-1">
-                {hasActiveAppointment ? (
-                  <>
-                    Tracking Appointment: <span className="font-mono text-teal-300 font-bold px-2 py-0.5 rounded bg-teal-950/60 border border-teal-500/30">{trackingId}</span> • Attending Doctor: <span className="font-semibold text-white">{docName}</span>
-                  </>
-                ) : (
-                  <>
-                    Patient ID: <span className="font-mono text-teal-300 font-bold">{trackingId}</span> • All medical records synced
-                  </>
+              <div className="text-xs sm:text-sm text-slate-300 mt-1.5 flex flex-wrap items-center gap-x-2.5 sm:gap-x-3 gap-y-1">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="text-slate-400">Patient ID:</span>
+                  <span className="font-mono text-teal-300 font-bold px-2 py-0.5 rounded bg-teal-950/60 border border-teal-500/30">
+                    {loggedInPatientId}
+                  </span>
+                </span>
+                {loggedInPhone && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-slate-500">•</span>
+                    <span className="text-slate-400">Phone:</span>
+                    <span className="text-slate-100 font-semibold">{loggedInPhone}</span>
+                  </span>
                 )}
-              </p>
+                {loggedInEmail && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-slate-500">•</span>
+                    <span className="text-slate-400">Email:</span>
+                    <span className="text-slate-100 font-semibold">{loggedInEmail}</span>
+                  </span>
+                )}
+                {loggedInGender && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-slate-500">•</span>
+                    <span className="text-slate-400">Gender:</span>
+                    <span className="text-slate-100 font-semibold">{loggedInGender}</span>
+                  </span>
+                )}
+                {loggedInBloodGroup && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-slate-500">•</span>
+                    <span className="text-slate-400">Blood:</span>
+                    <span className="text-teal-300 font-bold px-1.5 py-0.5 rounded bg-teal-950/40 border border-teal-500/30">{loggedInBloodGroup}</span>
+                  </span>
+                )}
+                {loggedInAge && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-slate-500">•</span>
+                    <span className="text-slate-400">Age:</span>
+                    <span className="text-slate-100 font-semibold">{loggedInAge} Yrs</span>
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => loadPatientData(false)}
+                className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-white text-xs font-bold border border-teal-500/30 hover:border-teal-400/50 transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                title="Live Sync patient status from database"
+              >
+                <span className="text-xs">🔄</span>
+                <span>Live Sync</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setCurrentPage && setCurrentPage('appointment')}
@@ -303,7 +512,7 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                   Live Appointment Progress Tracker • <span className="font-mono text-teal-700">{trackingId}</span>
                 </h3>
               </div>
-              <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
+              <span className={`text-xs font-extrabold px-3 py-1 rounded-full border ${getStatusBadgeStyle(statusStr || (isPendingTriage ? 'Pending Triage' : 'In Progress'))}`}>
                 {statusStr || (isPendingTriage ? 'Pending Triage' : 'In Progress')}
               </span>
             </div>
@@ -437,7 +646,7 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                   </p>
                 </div>
               </div>
-              <span className="px-3 py-1 rounded-full bg-emerald-200 text-emerald-900 text-xs font-bold border border-emerald-300 uppercase shrink-0">
+              <span className={`px-3 py-1 rounded-full text-xs font-bold border uppercase shrink-0 ${getStatusBadgeStyle(statusStr || 'Assigned')}`}>
                 {statusStr || 'Assigned'}
               </span>
             </div>
@@ -529,19 +738,29 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
         {/* MEDICAL & BILLING DETAILS */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           <div className="lg:col-span-2 rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-slate-800">Your Active Appointment & Medical Record</h2>
                 <p className="text-xs text-slate-500">
                   {hasActiveAppointment ? `Live consultation details tracked under ${trackingId}` : 'No active consultation at the moment'}
                 </p>
               </div>
-              <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
-                !hasActiveAppointment ? 'bg-slate-100 text-slate-600 border-slate-200' :
-                isPendingTriage ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-teal-50 text-teal-800 border-teal-200'
-              }`}>
-                {!hasActiveAppointment ? 'No Active Booking' : activeAppt?.status || (isPendingTriage ? 'Pending Triage' : 'Confirmed')}
-              </span>
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* REGISTERED PATIENT ACCOUNT CORNER INFO */}
+                <div className="px-3 py-1 rounded-xl bg-slate-100/90 border border-slate-200/90 text-right shrink-0">
+                  <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">Patient Account</span>
+                  <span className="text-xs font-bold text-slate-800">
+                    {patientProfile?.name || patientProfile?.patient_Name || currentUser?.name || 'Patient'} <span className="font-mono text-teal-700 font-bold">({patientProfile?.patient_id || patientProfile?.uhid || (patientProfile?.id ? `PAT-${patientProfile.id}` : (currentUser?.patient_id || currentUser?.uhid || (currentUser?.id ? `PAT-${currentUser.id}` : 'PAT-0001')))})</span>
+                  </span>
+                </div>
+
+                <span className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border shrink-0 ${
+                  !hasActiveAppointment ? 'bg-slate-100 text-slate-600 border-slate-200' :
+                  isPendingTriage ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-teal-50 text-teal-800 border-teal-200'
+                }`}>
+                  {!hasActiveAppointment ? 'No Active Booking' : activeAppt?.status || (isPendingTriage ? 'Pending Triage' : 'Confirmed')}
+                </span>
+              </div>
             </div>
 
             {hasActiveAppointment ? (
@@ -583,49 +802,132 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                     </p>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                    <p className="text-slate-400 text-[10px] uppercase font-bold">Patient Details & Contact</p>
-                    <p className="font-bold text-slate-800 mt-0.5">{patName} • {activeAppt?.contact || activeAppt?.phone || currentUser?.contact || 'N/A'}</p>
-                    <p className="text-slate-500 text-[11px] mt-0.5">Gender: <strong className="text-slate-800">{patGender}</strong> • Age: {activeAppt?.age || activeAppt?.Age || patientProfile?.age || currentUser?.age || '-'} Yrs</p>
-                  </div>
+                  {/* INDIVIDUAL SEPARATE PATIENT ATTRIBUTE CARDS (STRICTLY FROM APPOINTMENT DATA) */}
+                  <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {/* 1. Patient Name (Appointment Form Data) */}
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                      <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Patient Name</p>
+                      <p className="font-bold text-slate-900 text-sm truncate" title={activeAppt?.patient_Name || activeAppt?.patient_name || activeAppt?.name || '-'}>
+                        {activeAppt?.patient_Name || activeAppt?.patient_name || activeAppt?.name || '-'}
+                      </p>
+                      <p className="text-teal-700 font-mono text-[10px] font-bold">
+                        Appointment ID: {trackingId}
+                      </p>
+                    </div>
 
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                    <p className="text-slate-400 text-[10px] uppercase font-bold">Blood Group & Condition</p>
-                    <p className="font-bold text-slate-800 mt-0.5">
-                      <span className="text-rose-600 font-extrabold">{activeAppt?.Blood_Group || activeAppt?.blood_group || 'Not Specified'}</span>
-                      <span> • {activeAppt?.Condation || activeAppt?.condition || 'Normal'}</span>
-                    </p>
+                    {/* 2. Contact Phone & Email (Appointment Form Data) */}
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                      <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Contact Phone</p>
+                      <p className="font-bold text-slate-900 text-sm">
+                        {activeAppt?.contact || activeAppt?.phone || '-'}
+                      </p>
+                      <p className="text-slate-500 text-[10px] truncate" title={activeAppt?.email || '-'}>
+                        {activeAppt?.email || '-'}
+                      </p>
+                    </div>
+
+                    {/* 3. Age & Gender (Appointment Form Data) */}
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                      <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Age & Gender</p>
+                      <p className="font-bold text-slate-900 text-sm">
+                        {activeAppt?.age || activeAppt?.Age ? `${activeAppt?.age || activeAppt?.Age} Yrs` : '-'}
+                      </p>
+                      <p className="text-slate-600 text-[11px] font-semibold">
+                        {activeAppt?.Gender || activeAppt?.gender || activeAppt?.patient_gender || '-'}
+                      </p>
+                    </div>
+
+                    {/* 4. Blood Group (Appointment Form Data) */}
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                      <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Blood Group</p>
+                      <p className="font-black text-rose-600 text-sm">
+                        {activeAppt?.Blood_Group || activeAppt?.blood_group || '-'}
+                      </p>
+                      <p className="text-slate-500 text-[10px] font-medium">
+                        Blood Type
+                      </p>
+                    </div>
+
+                    {/* 5. Severity / Condition (Appointment Form Data) */}
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                      <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Severity / Condition</p>
+                      <div className="pt-0.5">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          (activeAppt?.Condation || activeAppt?.condition) === 'Critical' ? 'bg-rose-100 text-rose-800 border-rose-200' :
+                          (activeAppt?.Condation || activeAppt?.condition) === 'Urgent' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                          (activeAppt?.Condation || activeAppt?.condition) === 'Emergency' ? 'bg-red-100 text-red-800 border-red-200' :
+                          'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        }`}>
+                          {activeAppt?.Condation || activeAppt?.condition || 'Normal'}
+                        </span>
+                      </div>
+                      <p className="text-slate-400 text-[10px]">
+                        Triage Priority
+                      </p>
+                    </div>
                   </div>
                 </div>
 
                 {/* MULTIPLE ACTIVE APPOINTMENTS (IF ANY) */}
                 {activeAppointments.length > 1 && (
                   <div className="pt-3 border-t border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                      Your Active Bookings ({activeAppointments.length} Active)
-                    </h3>
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                      {activeAppointments.map((app, idx) => (
-                        <div
-                          key={app.id || idx}
-                          onClick={() => setPatientInfo(app)}
-                          className={`p-2.5 rounded-xl border text-xs flex items-center justify-between cursor-pointer transition ${
-                            (patientInfo?.id || activeAppointments[0]?.id) === app.id ? 'bg-teal-50/80 border-teal-300 ring-1 ring-teal-400' : 'bg-slate-50 hover:bg-slate-100 border-slate-200'
-                          }`}
-                        >
-                          <div>
-                            <span className="font-mono text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200">
-                              APT-{app.Appoment_id || app.appoment_id || app.appointment_id || app.id}
-                            </span>
-                            <span className="font-semibold text-slate-800 ml-2">
-                              {app.symptoms_diagnosis || 'OPD Consultation'}
-                            </span>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        Your Active Bookings ({activeAppointments.length} Active)
+                      </h3>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        Click any booking to view details
+                      </span>
+                    </div>
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {activeAppointments.map((app, idx) => {
+                        const curAppId = String(app.id || app.Appoment_id || app.appoment_id || app.appointment_id || idx);
+                        const isSelected = activeAppt && String(activeAppt.id || activeAppt.Appoment_id || activeAppt.appoment_id || activeAppt.appointment_id) === curAppId;
+
+                        return (
+                          <div
+                            key={curAppId}
+                            onClick={() => {
+                              selectedApptIdRef.current = curAppId;
+                              setSelectedApptId(curAppId);
+                              setPatientInfo(app);
+                            }}
+                            className={`p-3 rounded-xl border text-xs flex items-center justify-between cursor-pointer transition-all duration-150 ${
+                              isSelected
+                                ? 'bg-teal-50/90 border-teal-400 ring-2 ring-teal-500/25 shadow-xs'
+                                : 'bg-slate-50 hover:bg-slate-100/80 border-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded border ${
+                                isSelected ? 'text-teal-800 bg-teal-100 border-teal-300' : 'text-sky-700 bg-sky-50 border-sky-200'
+                              }`}>
+                                APT-{app.Appoment_id || app.appoment_id || app.appointment_id || app.id}
+                              </span>
+                              <div className="truncate">
+                                <span className="font-semibold text-slate-800 text-xs">
+                                  {app.symptoms_diagnosis || 'OPD Consultation'}
+                                </span>
+                                {app.hospital_name && (
+                                  <span className="text-[10px] text-slate-500 ml-1.5 hidden sm:inline">
+                                    • {app.hospital_name}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {isSelected && (
+                                <span className="text-[10px] font-bold text-teal-700 bg-teal-100/60 px-1.5 py-0.5 rounded">
+                                  Viewing
+                                </span>
+                              )}
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
+                                {app.status || 'Active'}
+                              </span>
+                            </div>
                           </div>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-800">
-                            {app.status || 'Active'}
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -770,7 +1072,7 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
       </main>
 
       {/* FOOTER */}
-      <PatientFooter />
+      <PatientFooter setCurrentPage={setCurrentPage} isLoggedIn={isLoggedIn} currentUser={currentUser} />
     </div>
   );
 };

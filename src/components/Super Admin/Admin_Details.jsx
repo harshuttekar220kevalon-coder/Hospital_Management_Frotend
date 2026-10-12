@@ -121,6 +121,12 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setSelect
               setAdminData(freshAdmin);
               localStorage.setItem('selectedAdmin', JSON.stringify(freshAdmin));
             }
+          } else if (adminRes && (adminRes.status === 404 || adminRes.status === 410)) {
+            localStorage.removeItem('selectedAdmin');
+            if (setSelectedAdmin) setSelectedAdmin(null);
+            alert('This administrator record has been deleted from the database.');
+            if (setCurrentPage) setCurrentPage('super_admin_admins');
+            return;
           }
         }
 
@@ -281,49 +287,6 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setSelect
                   status: p.status || 'Active'
                 });
               }
-            }
-          }
-
-          // 2. Add any additional patients from branch appointments not in /super-admin/Patients/
-          for (const a of branchAppts) {
-            const aEmail = (a.email || '').toLowerCase().trim();
-            const aContact = (a.contact || a.phone || '').trim();
-            const aUhid = (a.uhid || a.patient_id || '').trim();
-            const aName = (a.patient_name || a.patient_Name || a.name || '').trim();
-            const key = aEmail || aContact || aUhid || (a.id ? `appt_${a.id}` : `pat_${Math.random()}`);
-
-            if (!seenPatientKeys.has(key)) {
-              seenPatientKeys.add(key);
-
-              const matchingAppts = branchAppts.filter(ba => {
-                const baEmail = (ba.email || '').toLowerCase().trim();
-                const baContact = (ba.contact || ba.phone || '').trim();
-                const baUhid = (ba.uhid || ba.patient_id || '').trim();
-                const baName = (ba.patient_name || ba.patient_Name || ba.name || '').trim().toLowerCase();
-                return (
-                  (aEmail && baEmail && aEmail === baEmail) ||
-                  (aContact && baContact && aContact === baContact) ||
-                  (aUhid && baUhid && aUhid === baUhid) ||
-                  (aName && baName && aName.toLowerCase() === baName)
-                );
-              });
-
-              combinedPatients.push({
-                id: a.patient || a.patient_id || a.id,
-                patient_id: a.patient_id || a.uhid || (a.id ? `PAT-${a.id}` : 'PAT-0'),
-                uhid: a.uhid || a.patient_id || (a.id ? `UHID-${a.id}` : 'UHID-0'),
-                name: aName || 'Patient User',
-                contact: aContact,
-                phone: aContact,
-                email: aEmail,
-                gender: a.gender || a.Gender || '',
-                blood_group: a.blood_group || a.Blood_Group || '',
-                age: a.age ?? a.Age ?? '',
-                address: a.address || a.Address || '',
-                total_appointments: matchingAppts.length,
-                condition: a.condition || a.Condation || 'Normal',
-                status: a.status || 'Active'
-              });
             }
           }
 
@@ -677,7 +640,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setSelect
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-5 sm:space-y-6">
       {/* TOP NAVIGATION & BACK BUTTON */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <button
@@ -1623,12 +1586,15 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setSelect
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
                     type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     value={editFormData.contact}
-                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                     placeholder="e.g. 9876543210"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />

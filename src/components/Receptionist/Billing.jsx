@@ -11,7 +11,7 @@ const extractArray = (resData) => {
   return [];
 };
 
-const isAppointmentInHospital = (item, targetHospId, targetHospName = '', hospList = []) => {
+const isAppointmentInHospital = (item, targetHospId, targetHospName = '', hospList = [], doctorsList = []) => {
   if (!item) return false;
 
   // 1. Resolve Target Hospital ID & Name
@@ -26,8 +26,8 @@ const isAppointmentInHospital = (item, targetHospId, targetHospName = '', hospLi
     if (matched) targetId = Number(matched.id);
   }
 
-  // If target hospital is not specified, do NOT leak records
-  if (!targetId && !targetName) return false;
+  // If target hospital is not specified, do NOT hide records
+  if (!targetId && !targetName) return true;
 
   // 2. Resolve Appointment's Hospital ID & Name
   const rawHosp = typeof item.hospital === 'object' && item.hospital !== null 
@@ -74,30 +74,38 @@ const isAppointmentInHospital = (item, targetHospId, targetHospName = '', hospLi
     }
   }
 
-  // If appointment has no hospital assigned, it does NOT belong to this hospital
-  if (!itemHospId && !itemHospName) return false;
-
-  // 3. Strict Comparison
-  if (targetId && itemHospId) {
-    return itemHospId === targetId;
-  }
+  // 3. Direct match
+  if (targetId && itemHospId && itemHospId === targetId) return true;
+  if (targetName && itemHospName && targetName === itemHospName) return true;
 
   if (targetId && itemHospName && Array.isArray(hospList) && hospList.length > 0) {
     const matched = hospList.find(h => (h.Name || h.name || '').toLowerCase().trim() === itemHospName);
-    if (matched) {
-      return Number(matched.id) === targetId;
-    }
+    if (matched && Number(matched.id) === targetId) return true;
   }
 
   if (targetName && itemHospId && Array.isArray(hospList) && hospList.length > 0) {
     const matched = hospList.find(h => Number(h.id) === itemHospId);
-    if (matched) {
-      return (matched.Name || matched.name || '').toLowerCase().trim() === targetName;
-    }
+    if (matched && (matched.Name || matched.name || '').toLowerCase().trim() === targetName) return true;
   }
 
   if (targetName && itemHospName) {
-    return targetName === itemHospName;
+    const cleanTarget = targetName.replace(/hospital|hospitals|care|clinic|super|speciality|specialty/gi, '').trim();
+    const cleanItem = itemHospName.replace(/hospital|hospitals|care|clinic|super|speciality|specialty/gi, '').trim();
+    if (cleanTarget.length >= 3 && cleanItem.length >= 3 && (cleanTarget.includes(cleanItem) || cleanItem.includes(cleanTarget))) {
+      return true;
+    }
+  }
+
+  // 4. Fallback: match via doctor assigned to appointment
+  const docId = typeof item.doctor === 'object' && item.doctor !== null ? item.doctor.id : item.doctor;
+  if (docId && Array.isArray(doctorsList) && doctorsList.length > 0) {
+    const docObj = doctorsList.find(d => Number(d.id) === Number(docId));
+    if (docObj) {
+      const dHosp = typeof docObj.hospital === 'object' && docObj.hospital !== null ? (docObj.hospital.id || docObj.hospital.hospital_id) : docObj.hospital;
+      const dHospName = (docObj.hospital_name || (typeof docObj.hospital === 'object' ? docObj.hospital?.Name : '') || '').toLowerCase().trim();
+      if (targetId && dHosp && Number(dHosp) === targetId) return true;
+      if (targetName && dHospName && targetName === dHospName) return true;
+    }
   }
 
   return false;
@@ -125,18 +133,39 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
     amount_paid: 0,
     payment_method: 'Cash',
     payment_status: 'Paid',
+    Discharge_DateTime: '',
     transaction_ref: '',
     notes: ''
   });
 
-  const isDischarged = (status) => {
-    const s = (status || '').toString().toLowerCase().trim();
-    return s.includes('discharg');
+  const isDischarged = (itemOrStatus) => {
+    if (!itemOrStatus) return false;
+    let s = '';
+    if (typeof itemOrStatus === 'object') {
+      s = (
+        itemOrStatus.status ||
+        itemOrStatus.Status ||
+        itemOrStatus.discharge_status ||
+        itemOrStatus.Discharge_status ||
+        itemOrStatus.Discharge_Status ||
+        ''
+      ).toString().toLowerCase().trim();
+    } else {
+      s = (itemOrStatus || '').toString().toLowerCase().trim();
+    }
+
+    // Never include cancelled appointments
+    if (s.includes('cancel')) {
+      return false;
+    }
+
+    // Must be discharged or completed
+    return s.includes('discharg') || s === 'completed';
   };
 
-  const loadBillingData = async () => {
+  const loadBillingData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setErrorBanner('');
       const email = (currentUser?.email || '').toLowerCase().trim();
       const recId = currentUser?.id;
@@ -251,13 +280,19 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
         const backendHospCharges = Number(item.hospitals_charges ?? item.Hospitals_Chargies ?? item.hospital_charges ?? 0);
         const amountPaid = Number(item.amount_paid ?? item.Amount_Paid ?? 0);
 
+        const resolvedPatUhid = item.patient_uhid || (typeof item.patient_id === 'string' && !item.patient_id.startsWith('APT-') ? item.patient_id : null) || item.uhid || (typeof item.patient === 'object' ? (item.patient?.patient_id || item.patient?.uhid || (item.patient?.id ? `PAT-${item.patient.id}` : '')) : (item.patient ? `PAT-${item.patient}` : '')) || (id ? `PAT-${id}` : '-');
+        const rawDischargeDt = item.Discharge_DateTime || item.discharge_datetime || item.Discharge_datetime || item.discharge_date || item.Discharge_Date || item.completed_at || null;
+
         return {
           ...item,
           id,
           Appoment_id: apptId,
           appoment_id: apptId,
           appointment_id: apptId,
-          patient_id: `APT-${apptId}`,
+          tracking_id: `APT-${apptId}`,
+          patient_id: resolvedPatUhid,
+          patient_uhid_display: resolvedPatUhid,
+          uhid: resolvedPatUhid,
           name,
           patient_name: name,
           patient_Name: name,
@@ -270,18 +305,20 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
           Hospitals_Chargies: backendHospCharges,
           hospital_charges: backendHospCharges,
           amount_paid: amountPaid,
-          bed_number: item.bed_number || null,
+          bed_number: item.bed_number ? Number(item.bed_number) : null,
           gender: item.Gender || item.gender || 'Not Specified',
           Gender: item.Gender || item.gender || 'Not Specified',
           contact: item.contact || item.phone || '',
           payment_status: item.payment_status || 'Pending',
-          payment_method: item.payment_method || 'Cash'
+          payment_method: item.payment_method || 'Cash',
+          Discharge_DateTime: rawDischargeDt,
+          discharge_date: rawDischargeDt
         };
       };
 
       // STRICT HOSPITAL ISOLATION: Only include Discharged patients belonging to THIS Receptionist's hospital
       const dischargedList = rawAppointments
-        .filter(p => isDischarged(p.status) && isAppointmentInHospital(p, recHospitalId, recHospitalName, loadedHospitals))
+        .filter(p => isDischarged(p) && isAppointmentInHospital(p, recHospitalId, recHospitalName, loadedHospitals, doctorsList))
         .map(normalizeDischargedPatient)
         .filter(Boolean);
 
@@ -290,12 +327,37 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
       console.error('Error loading billing records:', err);
       setErrorBanner('Failed to load billing records from backend.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadBillingData();
+    let isMounted = true;
+    loadBillingData(false);
+
+    // Auto-polling every 3.5s for real-time sync with backend
+    const pollInterval = setInterval(() => {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadBillingData(true);
+      }
+    }, 3500);
+
+    const handleFocus = () => {
+      if (isMounted) loadBillingData(true);
+    };
+    const handleVisibility = () => {
+      if (isMounted && document.visibilityState === 'visible') loadBillingData(true);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [currentUser]);
 
   // Calculate bill helpers for each patient
@@ -343,15 +405,31 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
     const bill = calculatePatientBill(patient);
     setSelectedBillingPatient(patient);
 
-    // Default to paid total if settling or keep current paid
-    const currentPaid = bill.paid > 0 ? bill.paid : bill.total;
+    // Preserve existing paid amount or 0 if pending
+    const currentPaid = Number(patient.amount_paid ?? bill.paid ?? 0);
+    const initialPaymentStatus = bill.isPaid
+      ? 'Paid'
+      : (currentPaid > 0 ? 'Partial' : (patient.payment_status || 'Pending'));
+
+    const existingDischargeDt = patient.Discharge_DateTime || patient.discharge_datetime || patient.discharge_date || patient.Discharge_Date || '';
+    let defaultDischargeLocal = '';
+    if (existingDischargeDt) {
+      try {
+        defaultDischargeLocal = new Date(new Date(existingDischargeDt).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      } catch (e) {
+        defaultDischargeLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      }
+    } else {
+      defaultDischargeLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    }
 
     setPaymentForm({
       consultation_fee: bill.docFee > 0 ? String(bill.docFee) : (patient.consultation_fee ? String(patient.consultation_fee) : '0'),
       hospital_charges: bill.hospCharges > 0 ? String(bill.hospCharges) : (patient.hospitals_charges ? String(patient.hospitals_charges) : '0'),
       amount_paid: currentPaid,
       payment_method: patient.payment_method || 'Cash',
-      payment_status: patient.payment_status || (bill.isPaid ? 'Paid' : 'Pending'),
+      payment_status: initialPaymentStatus,
+      Discharge_DateTime: defaultDischargeLocal,
       transaction_ref: patient.transaction_ref || '',
       notes: patient.notes || ''
     });
@@ -377,6 +455,7 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
 
       const numDocFee = Number(paymentForm.consultation_fee) || 0;
       const numHospCharges = Number(paymentForm.hospital_charges) || 0;
+      const dischargeIso = paymentForm.Discharge_DateTime ? new Date(paymentForm.Discharge_DateTime).toISOString() : (selectedBillingPatient.Discharge_DateTime || new Date().toISOString());
 
       // 1. Prepare concise, valid billing patch payload
       const patchPayload = {
@@ -389,8 +468,14 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
         amount_paid: Number(amountPaid).toFixed(2),
         Amount_Paid: Number(amountPaid).toFixed(2),
         payment_method: paymentForm.payment_method || 'Cash',
+        Payment_Method: paymentForm.payment_method || 'Cash',
         payment_status: finalStatus,
-        Payment_Status: finalStatus
+        Payment_Status: finalStatus,
+        Discharge_DateTime: dischargeIso,
+        discharge_datetime: dischargeIso,
+        discharge_date: dischargeIso,
+        Discharge_Date: dischargeIso,
+        completed_at: dischargeIso
       };
 
       if (selectedBillingPatient.status) {
@@ -488,6 +573,10 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
         payment_method: paymentForm.payment_method || 'Cash',
         payment_status: finalStatus,
         Payment_Status: finalStatus,
+        Discharge_DateTime: dischargeIso,
+        discharge_datetime: dischargeIso,
+        discharge_date: dischargeIso,
+        Discharge_Date: dischargeIso,
         settled_at: new Date().toISOString()
       };
 
@@ -521,7 +610,7 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 antialiased">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-5 antialiased">
       {/* HEADER BANNER */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-5 sm:p-6 shadow-md border border-slate-800">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -717,7 +806,12 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
                         <div className="font-semibold text-slate-800">
                           {pat.doctor_name || (typeof pat.doctor === 'object' ? pat.doctor?.name : (pat.doctor ? `Doctor #${pat.doctor}` : 'Assigned Doctor'))}
                         </div>
-                        <span className="text-[10px] text-slate-500">{pat.hospital_name || hospitalInfo?.Name || 'Hospital Unit'}</span>
+                        <span className="text-[10px] text-slate-500 block">{pat.hospital_name || hospitalInfo?.Name || 'Hospital Unit'}</span>
+                        {pat.Discharge_DateTime && (
+                          <span className="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 inline-block mt-0.5" title="Discharge Date & Time">
+                            🕒 {new Date(pat.Discharge_DateTime).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
                       </td>
 
                       <td className="py-3 px-3 text-center font-mono font-semibold text-slate-700">
@@ -854,10 +948,7 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
                       value={paymentForm.consultation_fee}
                       onChange={(e) => {
                         const val = e.target.value;
-                        const numFee = val === '' ? 0 : (Number(val) || 0);
-                        const numHosp = paymentForm.hospital_charges === '' ? 0 : (Number(paymentForm.hospital_charges) || 0);
-                        const newTotal = numFee + numHosp;
-                        setPaymentForm(prev => ({ ...prev, consultation_fee: val, amount_paid: newTotal }));
+                        setPaymentForm(prev => ({ ...prev, consultation_fee: val }));
                       }}
                       className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
@@ -873,14 +964,25 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
                       value={paymentForm.hospital_charges}
                       onChange={(e) => {
                         const val = e.target.value;
-                        const numCharges = val === '' ? 0 : (Number(val) || 0);
-                        const numFee = paymentForm.consultation_fee === '' ? 0 : (Number(paymentForm.consultation_fee) || 0);
-                        const newTotal = numFee + numCharges;
-                        setPaymentForm(prev => ({ ...prev, hospital_charges: val, amount_paid: newTotal }));
+                        setPaymentForm(prev => ({ ...prev, hospital_charges: val }));
                       }}
                       className="w-full px-3 py-1.5 rounded-lg border border-amber-400 bg-amber-50/20 font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200">
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Discharge Date & Time *</label>
+                  <input
+                    type="datetime-local"
+                    value={paymentForm.Discharge_DateTime || ''}
+                    onChange={(e) => setPaymentForm(prev => ({ ...prev, Discharge_DateTime: e.target.value }))}
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    required
+                  />
+                  <p className="text-[10px] text-teal-700 mt-0.5">
+                    Official discharge timestamp saved to backend <span className="font-mono font-semibold">Discharge_DateTime</span>.
+                  </p>
                 </div>
               </div>
 
@@ -1040,6 +1142,11 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
                     <p className="text-slate-600">Care Type: Day-Care / Outpatient</p>
                   )}
                   <p className="font-bold text-emerald-700">Status: Discharged & Settled</p>
+                  {(invoiceModalPatient.Discharge_DateTime || invoiceModalPatient.discharge_datetime || invoiceModalPatient.discharge_date) && (
+                    <p className="text-[11px] font-bold text-purple-800 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 mt-1 inline-block">
+                      Discharged: {new Date(invoiceModalPatient.Discharge_DateTime || invoiceModalPatient.discharge_datetime || invoiceModalPatient.discharge_date).toLocaleString('en-IN')}
+                    </p>
+                  )}
                 </div>
               </div>
 

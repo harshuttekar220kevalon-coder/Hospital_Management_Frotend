@@ -128,7 +128,7 @@ const PatientContact = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) =
 
       <main className="flex-1 space-y-12 sm:space-y-16 pb-16">
         {/* HERO SECTION */}
-        <section className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white py-14 sm:py-20 px-4 sm:px-6 lg:px-8">
+        <section className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white py-14 sm:py-20 px-4 sm:px-8 lg:px-12">
           <div className="max-w-4xl mx-auto text-center space-y-4">
             <span className="px-3.5 py-1.5 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold border border-teal-400/30 uppercase tracking-wider">
               Network Contact & Helplines
@@ -143,7 +143,7 @@ const PatientContact = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) =
         </section>
 
         {/* INTERACTIVE BRANCH SELECTOR (LIVE HOSPITALS) */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <section className="w-full px-4 sm:px-8 lg:px-12 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-slate-200 pb-4">
             <div>
               <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">
@@ -310,7 +310,7 @@ const PatientContact = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) =
         </section>
 
         {/* INQUIRY FORM */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section className="w-full px-4 sm:px-8 lg:px-12">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs">
               <div className="mb-6 space-y-1">
@@ -407,9 +407,12 @@ const PatientContact = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) =
                       <input
                         type="tel"
                         required
-                        placeholder="+91 98765 43210"
+                        maxLength={10}
+                        pattern="[0-9]{10}"
+                        inputMode="numeric"
+                        placeholder="e.g. 9876543210"
                         value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20"
                       />
                     </div>
@@ -540,7 +543,7 @@ const PatientContact = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) =
       </main>
 
       {/* PATIENT FOOTER */}
-      <PatientFooter setCurrentPage={setCurrentPage} />
+      <PatientFooter setCurrentPage={setCurrentPage} isLoggedIn={isLoggedIn} currentUser={currentUser} />
     </div>
   );
 };

@@ -53,11 +53,9 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
   ];
 
   const shiftsList = [
-    'Morning (08:00 AM - 04:00 PM)',
-    'Evening (04:00 PM - 12:00 AM)',
-    'Night (12:00 AM - 08:00 AM)',
-    'General Shift (09:00 AM - 05:00 PM)',
-    'Rotating Shift'
+    'Morning First Shift',
+    'Afternoon Second Shift',
+    'Evening Third Shift'
   ];
 
   const [editFormData, setEditFormData] = useState({
@@ -76,13 +74,21 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
     is_active: true
   });
 
-  const fetchNurseAndHospital = async () => {
+  const fetchNurseAndHospital = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       let currentN = selectedNurse || nurseData;
 
       if (currentN?.id) {
         const res = await fetch(`${API_BASE_URL}/super-admin/Nurses/${currentN.id}/`).catch(() => null);
+        if (res && res.status === 404) {
+          localStorage.removeItem('selectedNurse');
+          if (setSelectedNurse) setSelectedNurse(null);
+          setNurseData(null);
+          alert('This nurse has been deleted from the database.');
+          if (setCurrentPage) setCurrentPage('admin_nurses');
+          return;
+        }
         if (res && res.ok) {
           const fresh = await res.json();
           currentN = fresh;
@@ -119,12 +125,30 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
     } catch (err) {
       console.error('Error loading nurse details:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchNurseAndHospital();
+
+    const interval = setInterval(() => {
+      fetchNurseAndHospital(true);
+    }, 3500);
+
+    const onFocus = () => fetchNurseAndHospital(true);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetchNurseAndHospital(true);
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [selectedNurse]);
 
   const handleOpenEditModal = () => {
@@ -143,7 +167,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
       password: nurseData.password || '',
       hospital: hospId || '',
       status: nurseData.status || (nurseData.is_active !== false ? 'On_Duty' : 'Off_Duty'),
-      is_active: nurseData.is_active !== false
+      is_active: nurseData.is_active !== false && nurseData.status !== 'Inactive' && nurseData.status !== 'Deactivated'
     });
     setShowEditPassword(false);
     setIsEditModalOpen(true);
@@ -159,7 +183,8 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
       const hospId = Number(typeof rawHosp === 'object' ? rawHosp?.id : rawHosp);
       const contactVal = (editFormData.contact || '').trim();
       
-      const currentStatus = editFormData.status || 'On_Duty';
+      const isActiveFlag = editFormData.is_active !== undefined ? Boolean(editFormData.is_active) : true;
+      const currentStatus = isActiveFlag ? (editFormData.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty') : 'Inactive';
       const payload = {
         ...editFormData,
         nurse_id: nurseIdToSend,
@@ -172,7 +197,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
         password: editFormData.password || nurseData.password || 'Nurse@123',
         hospital: hospId,
         status: currentStatus,
-        is_active: editFormData.is_active !== undefined ? editFormData.is_active : true
+        is_active: isActiveFlag
       };
 
       let response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${nurseData.id}/`, {
@@ -296,7 +321,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
   const emailLower = (nurseData.email || '').toLowerCase();
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <button
           type="button"
@@ -307,6 +332,15 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
         </button>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <span className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 ${
+            nurseData.is_active !== false && nurseData.status !== 'Inactive' && nurseData.status !== 'Deactivated'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-rose-50 text-rose-700 border-rose-200'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${nurseData.is_active !== false && nurseData.status !== 'Inactive' && nurseData.status !== 'Deactivated' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+            {nurseData.is_active !== false && nurseData.status !== 'Inactive' && nurseData.status !== 'Deactivated' ? 'Active Account' : 'Inactive Account'}
+          </span>
+
           <button
             type="button"
             onClick={handleToggleStatus}
@@ -613,16 +647,16 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={15}
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     value={editFormData.contact}
-                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
-                    placeholder="e.g. 9876543210 / 02212345678"
+                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    placeholder="e.g. 9876543210"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white font-mono"
                   />
                 </div>
@@ -690,6 +724,35 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
                   <option value="On_Duty">On_Duty</option>
                   <option value="Off_Duty">Off_Duty</option>
                 </select>
+              </div>
+
+              {/* ACTIVE / INACTIVE ACCOUNT CHECKBOX */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-800 text-xs">
+                    Account Access (Active / Inactive)
+                  </label>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {editFormData.is_active 
+                      ? '✓ Account is ACTIVE. Nurse CAN log in to the system.' 
+                      : '✕ Account is INACTIVE. Nurse CANNOT log in to the system.'}
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer gap-2 select-none shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(editFormData.is_active)}
+                    onChange={(e) => setEditFormData({ ...editFormData, is_active: e.target.checked })}
+                    className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+                    editFormData.is_active 
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                      : 'bg-rose-100 text-rose-800 border-rose-300'
+                  }`}>
+                    {editFormData.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </label>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">

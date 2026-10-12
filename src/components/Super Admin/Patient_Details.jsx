@@ -33,7 +33,8 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
     password: '',
     gender: 'Male',
     blood_group: 'A+',
-    address: ''
+    address: '',
+    is_active: true
   });
 
   // Delete Patient Modal State
@@ -73,8 +74,8 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, []);
 
-  const loadPatientAndRelatedData = async () => {
-    setIsDataFetching(true);
+  const loadPatientAndRelatedData = async (silent = false) => {
+    if (!silent) setIsDataFetching(true);
     try {
       let currentPat = selectedPatient || patientData;
       if (!currentPat || !currentPat.id) {
@@ -120,8 +121,16 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
 
       if (currentPat && (currentPat.id || currentPat.email || currentPat.contact)) {
         let freshPat = null;
-        if (currentPat.id && typeof currentPat.id === 'number') {
+        if (currentPat.id && !isNaN(Number(currentPat.id))) {
           const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/${currentPat.id}/`).catch(() => null);
+          if (patRes && patRes.status === 404) {
+            localStorage.removeItem('selectedPatient');
+            if (setSelectedPatient) setSelectedPatient(null);
+            setPatientData(null);
+            alert('This patient has been deleted from the database.');
+            if (setCurrentPage) setCurrentPage('super_admin_patients');
+            return;
+          }
           if (patRes && patRes.ok) {
             freshPat = await patRes.json().catch(() => null);
           }
@@ -214,12 +223,30 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
     } catch (err) {
       console.error('Error fetching patient details:', err);
     } finally {
-      setIsDataFetching(false);
+      if (!silent) setIsDataFetching(false);
     }
   };
 
   useEffect(() => {
     loadPatientAndRelatedData();
+
+    const interval = setInterval(() => {
+      loadPatientAndRelatedData(true);
+    }, 3500);
+
+    const onFocus = () => loadPatientAndRelatedData(true);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') loadPatientAndRelatedData(true);
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [selectedPatient?.id]);
 
   const activePatient = patientData || {};
@@ -243,7 +270,8 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
       password: activePatient.password || activePatient.Password || '',
       gender: activePatient.gender || activePatient.Gender || 'Male',
       blood_group: activePatient.blood_group || activePatient.Blood_Group || 'A+',
-      address: activePatient.address || ''
+      address: activePatient.address || '',
+      is_active: activePatient.is_active !== false && activePatient.status !== 'Inactive' && activePatient.status !== 'Deactivated'
     });
     setShowEditPassword(false);
     setIsEditModalOpen(true);
@@ -255,6 +283,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
     if (!activePatient || !activePatient.id) return;
     try {
       setIsSavingEdit(true);
+      const isActiveFlag = editFormData.is_active !== undefined ? Boolean(editFormData.is_active) : true;
       const payload = {
         name: editFormData.name.trim(),
         patient_name: editFormData.name.trim(),
@@ -266,7 +295,9 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
         Gender: editFormData.gender,
         blood_group: editFormData.blood_group,
         Blood_Group: editFormData.blood_group,
-        address: editFormData.address.trim()
+        address: editFormData.address.trim(),
+        is_active: isActiveFlag,
+        status: isActiveFlag ? (activePatient.status === 'Inactive' || activePatient.status === 'Deactivated' ? 'Active' : (activePatient.status || 'Active')) : 'Inactive'
       };
 
       if (editFormData.password && editFormData.password.trim()) {
@@ -524,7 +555,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-5">
       {/* TOP NAVIGATION & BREADCRUMB */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <button
@@ -557,8 +588,13 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
               <span className="font-mono text-xs font-bold text-sky-800 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
                 {displayId}
               </span>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Active Patient Account
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center gap-1.5 ${
+                activePatient.is_active !== false && activePatient.status !== 'Inactive' && activePatient.status !== 'Deactivated'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-rose-50 text-rose-700 border-rose-200'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${activePatient.is_active !== false && activePatient.status !== 'Inactive' && activePatient.status !== 'Deactivated' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+                {activePatient.is_active !== false && activePatient.status !== 'Inactive' && activePatient.status !== 'Deactivated' ? 'Active Patient Account' : 'Inactive Patient Account'}
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                 {patientAppointments.length} Total Booking{patientAppointments.length === 1 ? '' : 's'}
@@ -937,6 +973,35 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                   onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
+              </div>
+
+              {/* ACTIVE / INACTIVE ACCOUNT CHECKBOX */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-800 text-xs">
+                    Account Access (Active / Inactive)
+                  </label>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {editFormData.is_active 
+                      ? '✓ Account is ACTIVE. Patient CAN log in to the portal.' 
+                      : '✕ Account is INACTIVE. Patient CANNOT log in to the portal.'}
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer gap-2 select-none shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(editFormData.is_active)}
+                    onChange={(e) => setEditFormData({ ...editFormData, is_active: e.target.checked })}
+                    className="w-5 h-5 text-teal-600 rounded border-slate-300 focus:ring-teal-500 cursor-pointer"
+                  />
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+                    editFormData.is_active 
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                      : 'bg-rose-100 text-rose-800 border-rose-300'
+                  }`}>
+                    {editFormData.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </label>
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">

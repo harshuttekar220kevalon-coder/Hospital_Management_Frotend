@@ -87,8 +87,8 @@ const SuperAdminAppointmentDetails = ({
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, []);
 
-  const loadAppointmentDetails = async () => {
-    setIsDataFetching(true);
+  const loadAppointmentDetails = async (silent = false) => {
+    if (!silent) setIsDataFetching(true);
     try {
       let currentAppt = selectedAppointment || appointmentData;
       if (!currentAppt || !currentAppt.id) {
@@ -108,6 +108,15 @@ const SuperAdminAppointmentDetails = ({
           ? fetch(`${API_BASE_URL}/super-admin/appointments/${currentAppt.id}/`).catch(() => null)
           : Promise.resolve(null)
       ]);
+
+      if (currentAppt?.id && apptRes && apptRes.status === 404) {
+        localStorage.removeItem('selectedAppointment');
+        if (setSelectedAppointment) setSelectedAppointment(null);
+        setAppointmentData(null);
+        alert('This appointment has been deleted from the database.');
+        if (setCurrentPage) setCurrentPage('super_admin_appoiment');
+        return;
+      }
 
       let hospData = [];
       let docData = [];
@@ -228,12 +237,30 @@ const SuperAdminAppointmentDetails = ({
     } catch (err) {
       console.error('Error fetching appointment details:', err);
     } finally {
-      setIsDataFetching(false);
+      if (!silent) setIsDataFetching(false);
     }
   };
 
   useEffect(() => {
     loadAppointmentDetails();
+
+    const interval = setInterval(() => {
+      loadAppointmentDetails(true);
+    }, 3500);
+
+    const onFocus = () => loadAppointmentDetails(true);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') loadAppointmentDetails(true);
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [selectedAppointment?.id]);
 
   const activeAppt = appointmentData || {};
@@ -495,7 +522,7 @@ const SuperAdminAppointmentDetails = ({
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6 animate-fade-in">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6 animate-fade-in">
       {/* TOP NAVIGATION & BREADCRUMB */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <button

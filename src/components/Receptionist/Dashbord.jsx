@@ -171,9 +171,9 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
   useEffect(() => {
     let isMounted = true;
 
-    const loadReceptionistData = async () => {
+    const loadReceptionistData = async (silent = false) => {
       try {
-        setLoading(true);
+        if (!silent && isMounted) setLoading(true);
         const email = (currentUser?.email || '').toLowerCase().trim();
         const recId = currentUser?.id;
 
@@ -304,6 +304,7 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
           const status = item.status || (docId ? 'Assigned' : 'Pending');
 
           const apptId = item.Appoment_id || item.appoment_id || item.appointment_id || id;
+          const resolvedPatUhid = item.patient_uhid || (typeof item.patient_id === 'string' && !item.patient_id.startsWith('APT-') ? item.patient_id : null) || item.uhid || (typeof item.patient === 'object' ? (item.patient?.patient_id || item.patient?.uhid || (item.patient?.id ? `PAT-${item.patient.id}` : '')) : (item.patient ? `PAT-${item.patient}` : '')) || (id ? `PAT-${id}` : '-');
 
           return {
             ...item,
@@ -311,7 +312,10 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
             Appoment_id: apptId,
             appoment_id: apptId,
             appointment_id: apptId,
-            patient_id: `APT-${apptId}`,
+            tracking_id: `APT-${apptId}`,
+            patient_id: resolvedPatUhid,
+            patient_uhid_display: resolvedPatUhid,
+            uhid: resolvedPatUhid,
             name,
             patient_name: name,
             hospital: hosp,
@@ -352,12 +356,35 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
       } catch (err) {
         console.error('Error in ReceptionistDashboard load:', err);
       } finally {
-        if (isMounted) setLoading(false);
+        if (!silent && isMounted) setLoading(false);
       }
     };
 
-    loadReceptionistData();
-    return () => { isMounted = false; };
+    loadReceptionistData(false);
+
+    // Auto-polling every 3.5s for real-time sync with backend
+    const pollInterval = setInterval(() => {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadReceptionistData(true);
+      }
+    }, 3500);
+
+    const handleFocus = () => {
+      if (isMounted) loadReceptionistData(true);
+    };
+    const handleVisibility = () => {
+      if (isMounted && document.visibilityState === 'visible') loadReceptionistData(true);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [currentUser]);
 
   const recName = receptionistInfo?.name || currentUser?.name || '';
@@ -378,21 +405,53 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
     return false;
   };
 
-  const isDischargedOrCancelled = (p) => {
-    if (!p) return true;
-    const s = (p.status || '').toLowerCase().trim();
-    return s.includes('discharg') || s.includes('cancel');
+  const isFullyDischarged = (p) => {
+    if (!p) return false;
+    const s = (p.status || p.discharge_status || '').toString().toLowerCase().trim();
+    const c = (p.checkup_status || p.Checkup_status || '').toString().toLowerCase().trim();
+    const b = (p.payment_status || p.Payment_status || p.billing_status || '').toString().toLowerCase().trim();
+
+    // If status is Pending or contains pending / unassign / admit / in progress -> NOT discharged
+    if (s.includes('pending') || s.includes('unassign') || s.includes('admit') || s.includes('progress') || s.includes('cancel') || s === '') {
+      return false;
+    }
+
+    // Must explicitly contain discharged or completed
+    if (!s.includes('discharg') && s !== 'completed') {
+      return false;
+    }
+
+    // Checkup status must NOT be pending
+    if (c && (c.includes('pending') || c.includes('wait') || c === 'under checkup')) {
+      return false;
+    }
+
+    // Billing / Payment status must NOT be pending / unpaid
+    if (b && (b === 'pending' || b.includes('pending') || b === 'unpaid' || b === 'due')) {
+      return false;
+    }
+
+    return true;
+  };
+
+  const isCancelled = (p) => {
+    if (!p) return false;
+    const s = (p.status || '').toString().toLowerCase().trim();
+    return s.includes('cancel');
   };
 
   const unassignedPatients = patients.filter(p => {
-    if (isDischargedOrCancelled(p)) return false;
+    if (isFullyDischarged(p) || isCancelled(p)) return false;
     const s = (p.status || '').toLowerCase().trim();
-    if (s.includes('unassign')) return true;
-    return isDoctorUnassigned(p);
+    const c = (p.checkup_status || '').toLowerCase().trim();
+    if (s.includes('unassign') || s.includes('pending') || s === '' || c.includes('pending') || isDoctorUnassigned(p)) {
+      return true;
+    }
+    return false;
   });
 
   const unassignedCount = unassignedPatients.length;
-  const dischargedCount = patients.filter(p => (p.status || '').toLowerCase().includes('discharg')).length;
+  const dischargedCount = patients.filter(p => isFullyDischarged(p)).length;
 
   const receptionistStats = [
     {
@@ -436,7 +495,7 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6">
       {/* WELCOME BANNER */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-amber-950 to-slate-900 text-white p-5 sm:p-7 shadow-lg border border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -463,7 +522,7 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
               </svg>
-              <span>+ Add Patient</span>
+              <span>Add Patient</span>
             </button>
           </div>
         </div>

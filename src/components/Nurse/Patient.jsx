@@ -139,9 +139,9 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
   useEffect(() => {
     let isMounted = true;
 
-    const loadData = async () => {
+    const loadData = async (silent = false) => {
       try {
-        setLoading(true);
+        if (!silent && isMounted) setLoading(true);
         const email = (currentUser?.email || '').toLowerCase().trim();
         const nurseId = currentUser?.id;
 
@@ -229,12 +229,35 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
       } catch (err) {
         console.error('Error loading nurse patients data:', err);
       } finally {
-        if (isMounted) setLoading(false);
+        if (!silent && isMounted) setLoading(false);
       }
     };
 
-    loadData();
-    return () => { isMounted = false; };
+    loadData(false);
+
+    // Auto-polling every 3.5s for real-time backend updates
+    const pollInterval = setInterval(() => {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadData(true);
+      }
+    }, 3500);
+
+    const handleFocus = () => {
+      if (isMounted) loadData(true);
+    };
+    const handleVisibility = () => {
+      if (isMounted && document.visibilityState === 'visible') loadData(true);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [currentUser]);
 
   const activeNurse = nurseInfo || currentUser;
@@ -542,7 +565,7 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
   }).length;
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6 w-full overflow-x-hidden">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* HEADER BANNER */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white p-5 sm:p-6 shadow-md border border-slate-800">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">

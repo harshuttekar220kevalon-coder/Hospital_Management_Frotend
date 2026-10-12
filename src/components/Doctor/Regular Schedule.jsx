@@ -47,9 +47,14 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
     return p?.Condation || p?.condation || p?.condition || p?.Condition || p?.symptoms_severity || 'Normal';
   };
 
-  const loadDoctorSchedule = async () => {
+  const isCancelledStatus = (status) => {
+    const s = (status || '').toString().toLowerCase().trim();
+    return s === 'cancelled' || s.includes('cancel');
+  };
+
+  const loadDoctorSchedule = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const email = (currentUser?.email || '').toLowerCase().trim();
       const docId = currentUser?.id;
       const currentDocIdTag = currentUser?.doctor_id;
@@ -126,6 +131,8 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
           const myPatients = allPats
             .filter(p => {
               if (!p) return false;
+              const pStatus = p.status || p.Status || p.appointment_status || p.booking_status;
+              if (isCancelledStatus(pStatus)) return false;
               const pDocId = typeof p.doctor === 'object' && p.doctor !== null ? p.doctor.id : p.doctor;
               const pDocTag = p.doctor_id || p.doctor_tag;
               const pDocEmail = (typeof p.doctor === 'object' && p.doctor?.email ? p.doctor.email : (p.doctor_email || '')).toLowerCase().trim();
@@ -168,6 +175,7 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
 
               const patGender = p.gender || p.Gender || p.patient_gender || p.Patient_Gender || p.sex || p.Sex || '';
               const ageVal = p.age || p.Age || '';
+              const resolvedPatUhid = p.patient_uhid || (typeof p.patient_id === 'string' && !p.patient_id.startsWith('APT-') ? p.patient_id : null) || p.uhid || (typeof p.patient === 'object' ? (p.patient?.patient_id || p.patient?.uhid || (p.patient?.id ? `PAT-${p.patient.id}` : '')) : (p.patient ? `PAT-${p.patient}` : '')) || (id ? `PAT-${id}` : '-');
 
               return {
                 ...p,
@@ -175,7 +183,10 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
                 Appoment_id: apptId,
                 appoment_id: apptId,
                 appointment_id: apptId,
-                patient_id: `APT-${apptId}`,
+                tracking_id: `APT-${apptId}`,
+                patient_id: resolvedPatUhid,
+                patient_uhid_display: resolvedPatUhid,
+                uhid: resolvedPatUhid,
                 name,
                 patient_Name: name,
                 patient_name: name,
@@ -187,7 +198,7 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
                 Condation: condition,
                 blood_group: blood,
                 Blood_Group: blood,
-                status,
+                status: p.status || p.Status || 'Pending',
                 checkup_status: p.checkup_status || 'Pending',
                 hospital: hospId,
                 hospital_name: hospName
@@ -200,15 +211,41 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
         console.error('Error fetching schedule queue:', err);
       }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadDoctorSchedule();
+    let isMounted = true;
+    loadDoctorSchedule(false);
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const currentDayName = days[new Date().getDay()];
     setSelectedDay(currentDayName === 'Sunday' ? 'Monday' : currentDayName);
+
+    // Auto-polling every 3.5 seconds to sync status from backend
+    const pollInterval = setInterval(() => {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadDoctorSchedule(true);
+      }
+    }, 3500);
+
+    // Sync on window focus / tab switch
+    const handleFocus = () => {
+      if (isMounted) loadDoctorSchedule(true);
+    };
+    const handleVisibility = () => {
+      if (isMounted && document.visibilityState === 'visible') loadDoctorSchedule(true);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [currentUser]);
 
   const handleToggleDutyStatus = async () => {
@@ -370,7 +407,7 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6">
       {/* HEADER */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-5 sm:p-6 shadow-md border border-slate-800">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -457,13 +494,10 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
               type="button"
               onClick={() => setCurrentPage && setCurrentPage('doctor_settings')}
               className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-teal-300 hover:text-white text-xs font-bold border border-teal-500/30 hover:border-teal-400/60 transition-all duration-200 cursor-pointer flex items-center gap-2 shadow-sm group"
-              title="Doctor Profile & Settings"
+              title="Doctor Profile"
             >
-              <svg className="w-4 h-4 text-teal-400 group-hover:rotate-45 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span>Settings</span>
+              <span className="text-sm">👤</span>
+              <span>Profile</span>
             </button>
           </div>
         </div>
@@ -540,7 +574,16 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
                             <span className="font-mono font-bold text-teal-700 text-[11px]">#{pIdx + 1}</span>
                             <div className="min-w-0">
                               <span className="font-bold text-slate-800 block truncate">{p.name || 'Patient'}</span>
-                              <span className="text-[10px] text-slate-400 font-mono">{p.patient_id || p.uhid || `PAT-${p.id}`}</span>
+                              <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                <span className="font-mono text-[10px] text-sky-700 font-bold bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 inline-block">
+                                  {p.tracking_id || `APT-${p.Appoment_id || p.appoment_id || p.appointment_id || p.id}`}
+                                </span>
+                                {(p.patient_uhid_display || p.patient_id || p.uhid) && (p.patient_uhid_display || p.patient_id || p.uhid) !== (p.tracking_id || `APT-${p.Appoment_id || p.appoment_id || p.appointment_id || p.id}`) && (
+                                  <span className="text-[10px] text-slate-500 font-mono">
+                                    {p.patient_uhid_display || p.patient_id || p.uhid}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
 

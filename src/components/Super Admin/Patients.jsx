@@ -119,9 +119,9 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     });
   };
 
-  const fetchAllData = async () => {
+  const fetchAllData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       const [hospRes, docRes, adminRes, nurseRes, patRes, apptRes] = await Promise.all([
         fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null),
@@ -258,12 +258,37 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAllData();
+    let isMounted = true;
+    fetchAllData(false);
+
+    // Auto-polling every 3.5s for real-time status update from backend
+    const pollInterval = setInterval(() => {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchAllData(true);
+      }
+    }, 3500);
+
+    const handleFocus = () => {
+      if (isMounted) fetchAllData(true);
+    };
+    const handleVisibility = () => {
+      if (isMounted && document.visibilityState === 'visible') fetchAllData(true);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   const handleDoctorChange = (e) => {
@@ -591,7 +616,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6">
       {/* HEADER BANNER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-3">
@@ -914,12 +939,12 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                   <input
                     type="tel"
                     inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={15}
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     placeholder="e.g. 9876543210"
                     value={addFormData.contact}
-                    onChange={(e) => setAddFormData({ ...addFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                    onChange={(e) => setAddFormData({ ...addFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>

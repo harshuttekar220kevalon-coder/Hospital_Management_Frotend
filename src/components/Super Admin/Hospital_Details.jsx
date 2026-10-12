@@ -54,14 +54,22 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
   }, [activeTab]);
 
   useEffect(() => {
-    const fetchHospitalDetailsAndRelatedData = async () => {
+    const fetchHospitalDetailsAndRelatedData = async (silent = false) => {
       if (selectedHospital && selectedHospital.id) {
         try {
-          setLoading(true);
+          if (!silent) setLoading(true);
           // 1. Fetch Specific Hospital Details
-          const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${selectedHospital.id}/`);
+          const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${selectedHospital.id}/`).catch(() => null);
+          if (hospRes && hospRes.status === 404) {
+            localStorage.removeItem('selectedHospital');
+            if (setSelectedHospital) setSelectedHospital(null);
+            setHospitalData(null);
+            alert('This hospital has been deleted from the database.');
+            if (setCurrentPage) setCurrentPage('super_admin_hospital');
+            return;
+          }
           let hospData = null;
-          if (hospRes.ok) {
+          if (hospRes && hospRes.ok) {
             hospData = await hospRes.json();
             setHospitalData(hospData);
           }
@@ -140,14 +148,34 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
         } catch (error) {
           console.error('Error fetching branch details:', error);
         } finally {
-          setLoading(false);
-          setAdminLoading(false);
-          setSubLoading(false);
+          if (!silent) {
+            setLoading(false);
+            setAdminLoading(false);
+            setSubLoading(false);
+          }
         }
       }
     };
 
     fetchHospitalDetailsAndRelatedData();
+
+    const interval = setInterval(() => {
+      fetchHospitalDetailsAndRelatedData(true);
+    }, 3500);
+
+    const onFocus = () => fetchHospitalDetailsAndRelatedData(true);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetchHospitalDetailsAndRelatedData(true);
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [selectedHospital]);
 
   const defaultHospitalData = {
@@ -338,14 +366,14 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-16 text-center">
+      <div className="w-full px-4 sm:px-8 lg:px-12 py-16 text-center">
         <p className="text-sm font-semibold text-slate-500">Loading branch profile...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-5">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-5 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-3">
           <button
@@ -996,16 +1024,16 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={15}
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     value={adminFormData.contact}
-                    onChange={(e) => setAdminFormData({ ...adminFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
-                    placeholder="e.g. 9876543210 / 02212345678"
+                    onChange={(e) => setAdminFormData({ ...adminFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    placeholder="e.g. 9876543210"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -1152,16 +1180,16 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={15}
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     value={editHospitalFormData.contact}
-                    onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
-                    placeholder="e.g. 9876543210 / 02212345678"
+                    onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    placeholder="e.g. 9876543210"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>

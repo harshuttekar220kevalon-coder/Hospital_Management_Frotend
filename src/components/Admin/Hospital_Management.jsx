@@ -740,7 +740,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+      <div className="w-full px-4 sm:px-8 lg:px-12 py-16 text-center">
         <div className="w-12 h-12 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
         <h3 className="text-base font-bold text-slate-800">Loading...</h3>
         <p className="text-xs text-slate-500 mt-1">Loading hospital records and staff data.</p>
@@ -775,7 +775,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
   const curHosp = hospitalData;
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-5 sm:space-y-6">
       
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white p-4 sm:p-6 shadow-md border border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

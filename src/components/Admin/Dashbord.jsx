@@ -62,9 +62,9 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
     if (setCurrentPage) setCurrentPage('admin_receptionist_details');
   };
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setNoHospitalAssigned(false);
 
       let assignedHospitalId = currentUser?.hospital || null;
@@ -189,18 +189,14 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
       if (patRes.status === 'fulfilled' && patRes.value.ok) {
         rawPats = await patRes.value.json().catch(() => []);
       }
-      let rawAppts = [];
-      if (apptRes.status === 'fulfilled' && apptRes.value.ok) {
-        rawAppts = await apptRes.value.json().catch(() => []);
-      }
 
-      const allCombinedPats = [...(Array.isArray(rawAppts) ? rawAppts : []), ...(Array.isArray(rawPats) ? rawPats : [])];
+      const allPats = Array.isArray(rawPats) ? rawPats : [];
       const seenPIds = new Set();
       const branchPats = [];
 
-      for (const item of allCombinedPats) {
+      for (const item of allPats) {
         if (!item) continue;
-        const idKey = String(item.Appoment_id || item.appoment_id || item.appointment_id || item.id);
+        const idKey = String(item.id || item.Appoment_id || item.appoment_id);
         if (seenPIds.has(idKey)) continue;
         seenPIds.add(idKey);
 
@@ -225,17 +221,35 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
     } catch (err) {
       console.error('Error loading admin dashboard data:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchDashboardData();
+
+    const interval = setInterval(() => {
+      fetchDashboardData(true);
+    }, 3500);
+
+    const onFocus = () => fetchDashboardData(true);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetchDashboardData(true);
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [currentUser]);
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-16 text-center">
+      <div className="w-full px-4 sm:px-8 lg:px-12 py-16 text-center">
         <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
         <p className="text-xs font-semibold text-slate-500">Loading your hospital administrator overview...</p>
       </div>
@@ -392,7 +406,7 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
   }).length;
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 sm:space-y-7">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-5 sm:space-y-7">
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-6 shadow-md border border-slate-700/80">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div className="space-y-1.5">

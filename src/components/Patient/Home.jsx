@@ -44,10 +44,16 @@ const PatientHome = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => {
     return name.includes(query) || city.includes(query) || address.includes(query);
   });
 
-  const handleBookAtBranch = () => {
-    if (setCurrentPage) {
-      setCurrentPage('appoint');
+  const handleBookAtBranch = (hospitalId) => {
+    if (hospitalId) {
+      try {
+        sessionStorage.setItem('temp_selected_booking_hospital', String(hospitalId));
+      } catch (e) {}
     }
+    if (setCurrentPage) {
+      setCurrentPage('appointment');
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
   };
 
   return (
@@ -63,7 +69,7 @@ const PatientHome = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => {
 
       <main className="flex-1 space-y-10 sm:space-y-12 pb-16">
         {/* HERO / HEADER SECTION */}
-        <section className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white py-12 sm:py-16 px-4 sm:px-6 lg:px-8">
+        <section className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white py-12 sm:py-16 px-4 sm:px-8 lg:px-12">
           <div className="max-w-5xl mx-auto text-center space-y-4">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold border border-teal-400/30 uppercase tracking-wider">
               <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
@@ -108,7 +114,7 @@ const PatientHome = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => {
         </section>
 
         {/* HOSPITAL BRANCHES LIST & DETAILS */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <section className="w-full px-4 sm:px-8 lg:px-12 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
@@ -261,7 +267,7 @@ const PatientHome = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => {
       </main>
 
       {/* FOOTER */}
-      <PatientFooter setCurrentPage={setCurrentPage} />
+      <PatientFooter setCurrentPage={setCurrentPage} isLoggedIn={isLoggedIn} currentUser={currentUser} />
     </div>
   );
 };

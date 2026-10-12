@@ -32,6 +32,11 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
     return s.includes('admit');
   };
 
+  const isCancelledStatus = (status) => {
+    const s = (status || '').toString().toLowerCase().trim();
+    return s === 'cancelled' || s.includes('cancel');
+  };
+
   // Condition
   const getPatientCondition = (pat) => {
     return pat?.Condation || pat?.condation || pat?.condition || pat?.Condition || pat?.symptoms_severity || 'Normal';
@@ -207,9 +212,9 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
     };
   };
 
-  const loadAppointmentsData = async () => {
+  const loadAppointmentsData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const email = (currentUser?.email || '').toLowerCase().trim();
       const docId = currentUser?.id;
       const currentDocIdTag = currentUser?.doctor_id;
@@ -285,6 +290,8 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
         const myPatients = combinedRecords
           .filter(p => {
             if (!p) return false;
+            const pStatus = p.status || p.Status || p.appointment_status || p.booking_status;
+            if (isCancelledStatus(pStatus)) return false;
             const pDocId = typeof p.doctor === 'object' && p.doctor !== null ? p.doctor.id : p.doctor;
             const pDocTag = p.doctor_id || p.doctor_tag;
             const pDocEmail = (typeof p.doctor === 'object' && p.doctor?.email ? p.doctor.email : (p.doctor_email || '')).toLowerCase().trim();
@@ -326,6 +333,7 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
             const patientHospName = p.hospital_name || hospObj?.Name || hospObj?.name || (typeof p.hospital === 'string' && isNaN(Number(p.hospital)) ? p.hospital : '');
             const patGender = p.gender || p.Gender || p.patient_gender || p.Patient_Gender || p.sex || p.Sex || '';
             const ageVal = p.age || p.Age || '';
+            const resolvedPatUhid = p.patient_uhid || (typeof p.patient_id === 'string' && !p.patient_id.startsWith('APT-') ? p.patient_id : null) || p.uhid || (typeof p.patient === 'object' ? (p.patient?.patient_id || p.patient?.uhid || (p.patient?.id ? `PAT-${p.patient.id}` : '')) : (p.patient ? `PAT-${p.patient}` : '')) || (id ? `PAT-${id}` : '-');
 
             return {
               ...p,
@@ -333,7 +341,10 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
               Appoment_id: apptId,
               appoment_id: apptId,
               appointment_id: apptId,
-              patient_id: `APT-${apptId}`,
+              tracking_id: `APT-${apptId}`,
+              patient_id: resolvedPatUhid,
+              patient_uhid_display: resolvedPatUhid,
+              uhid: resolvedPatUhid,
               name,
               patient_Name: name,
               patient_name: name,
@@ -345,7 +356,7 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
               Condation: condition,
               blood_group: blood,
               Blood_Group: blood,
-              status,
+              status: p.status || p.Status || 'Pending',
               checkup_status: p.checkup_status || p.Checkup_status || 'Pending',
               hospital: hospId,
               hospital_name: patientHospName
@@ -357,12 +368,38 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
         console.error('Error fetching appointments queue:', err);
       }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadAppointmentsData();
+    let isMounted = true;
+    loadAppointmentsData(false);
+
+    // Auto-polling every 3.5 seconds to sync status from backend
+    const pollInterval = setInterval(() => {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadAppointmentsData(true);
+      }
+    }, 3500);
+
+    // Sync on window focus / tab switch
+    const handleFocus = () => {
+      if (isMounted) loadAppointmentsData(true);
+    };
+    const handleVisibility = () => {
+      if (isMounted && document.visibilityState === 'visible') loadAppointmentsData(true);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [currentUser]);
 
   const handleOpenCheckupModal = (patient) => {
@@ -523,7 +560,8 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
   const filteredList = hospitalScopedPatients.filter(p => {
     const term = searchTerm.toLowerCase().trim();
     const nameMatch = (p.patient_Name || p.patient_name || p.name || '').toLowerCase().includes(term);
-    const idMatch = (p.patient_id || p.uhid || `PAT-${p.id}` || '').toLowerCase().includes(term);
+    const apptMatch = (p.tracking_id || `APT-${p.Appoment_id || p.appoment_id || p.appointment_id || p.id}` || '').toLowerCase().includes(term);
+    const idMatch = (p.patient_id || p.uhid || `PAT-${p.id}` || '').toLowerCase().includes(term) || apptMatch;
     const symptomsMatch = (p.symptoms_diagnosis || p.reason || '').toLowerCase().includes(term);
     const contactMatch = (p.contact || p.phone || '').toLowerCase().includes(term);
     const matchesSearch = !term || nameMatch || idMatch || symptomsMatch || contactMatch;
@@ -578,7 +616,7 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
   const hospitalName = hospitalInfo?.Name || doctorInfo?.hospital_name || 'Apex Care Hospital';
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6">
       {/* HEADER */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white p-5 sm:p-6 shadow-md border border-slate-800">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -702,7 +740,7 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
           <table className="w-full text-center text-xs text-slate-600 min-w-[780px]">
             <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
               <tr>
-                <th className="py-3 px-3 text-left">Patient & UHID</th>
+                <th className="py-3 px-3 text-left">Patient & Appointment ID</th>
                 <th className="py-3 px-3 text-center">Priority</th>
                 <th className="py-3 px-3 text-center">Age / Blood</th>
                 <th className="py-3 px-3 text-left">Emergency Symptoms</th>
@@ -723,6 +761,8 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
                 </tr>
               ) : (
                 filteredList.map((pat, idx) => {
+                  const apptIdDisplay = pat.tracking_id || `APT-${pat.Appoment_id || pat.appoment_id || pat.appointment_id || pat.id}`;
+                  const patientIdDisplay = pat.patient_uhid_display || pat.patient_id || pat.uhid || null;
                   const isDone = isCompletedStatus(pat.status, pat.checkup_status);
                   const isAdmit = isAdmitStatus(pat.status);
                   const condition = getPatientCondition(pat);
@@ -731,9 +771,16 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
                     <tr key={pat.id || idx} className="hover:bg-slate-50/70 transition">
                       <td className="py-3 px-3 text-left">
                         <div className="font-bold text-slate-900 text-sm">{pat.patient_Name || pat.patient_name || pat.name || 'Patient'}</div>
-                        <span className="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
-                          {pat.patient_id || pat.uhid || `PAT-${pat.id}`}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                          <span className="font-mono text-[10px] text-sky-700 font-bold bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 inline-block">
+                            {apptIdDisplay}
+                          </span>
+                          {patientIdDisplay && patientIdDisplay !== apptIdDisplay && (
+                            <span className="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 inline-block">
+                              {patientIdDisplay}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="py-3 px-3 text-center">
@@ -790,9 +837,16 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 block">Emergency Doctor Triage & Clinical Decision</span>
                 <h3 className="text-base sm:text-lg font-bold text-slate-900">{selectedPatientModal.patient_Name || selectedPatientModal.patient_name || selectedPatientModal.name}</h3>
-                <span className="font-mono text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
-                  UHID: {selectedPatientModal.patient_id || selectedPatientModal.uhid || `PAT-${selectedPatientModal.id}`}
-                </span>
+                <div className="flex items-center gap-2 flex-wrap mt-1">
+                  <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block">
+                    APT-{selectedPatientModal.Appoment_id || selectedPatientModal.appoment_id || selectedPatientModal.appointment_id || selectedPatientModal.id}
+                  </span>
+                  {(selectedPatientModal.patient_uhid_display || selectedPatientModal.patient_id || selectedPatientModal.uhid) && (
+                    <span className="font-mono text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block">
+                      UHID: {selectedPatientModal.patient_uhid_display || selectedPatientModal.patient_id || selectedPatientModal.uhid}
+                    </span>
+                  )}
+                </div>
               </div>
               <button
                 type="button"

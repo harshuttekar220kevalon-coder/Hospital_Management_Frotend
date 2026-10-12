@@ -26,71 +26,38 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
     return d.toISOString();
   };
 
-  const [formData, setFormData] = useState({
-    patient_name: '',
-    age: '',
-    gender: currentUser?.Gender || currentUser?.gender || '',
-    contact: '',
-    email: currentUser?.email || '',
-    address: '',
-    hospital: '',
-    blood_group: '',
-    condition: '',
-    symptoms_diagnosis: ''
+  const [formData, setFormData] = useState(() => {
+    let preselectedHosp = '';
+    try {
+      preselectedHosp = sessionStorage.getItem('temp_selected_booking_hospital') || '';
+      // Immediately clear so it is consumed only once and will reset on page refresh
+      sessionStorage.removeItem('temp_selected_booking_hospital');
+      localStorage.removeItem('selectedBookingHospital');
+    } catch {}
+    return {
+      patient_name: '',
+      age: '',
+      gender: '',
+      contact: '',
+      email: currentUser?.email || '',
+      address: '',
+      hospital: preselectedHosp,
+      blood_group: '',
+      condition: '',
+      symptoms_diagnosis: ''
+    };
   });
 
   const [attachedFile, setAttachedFile] = useState(null);
 
-  // Sync email & gender with currentUser or backend patient record when logged in
+  // Ensure form starts completely blank on load without prefilling Patient Name, Contact, Address
   useEffect(() => {
-    let isMounted = true;
-    const fetchPatientProfile = async () => {
-      const email = (currentUser?.email || '').toLowerCase().trim();
-      if (!email) return;
-
-      try {
-        const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
-        if (patRes && patRes.ok) {
-          const pats = await patRes.json().catch(() => []);
-          if (Array.isArray(pats) && pats.length > 0) {
-            const matched = pats.find(p => (p.email || '').toLowerCase().trim() === email);
-            if (matched && isMounted) {
-              const backendGender = matched.Gender || matched.gender || currentUser?.Gender || currentUser?.gender || '';
-              const backendBlood = matched.Blood_Group || matched.blood_group || '';
-              const backendName = matched.name || matched.patient_Name || matched.patient_name || '';
-              const backendPhone = matched.contact || matched.phone || '';
-              const backendAge = matched.age || matched.Age || '';
-              const backendAddress = matched.address || '';
-
-              setFormData(prev => ({
-                ...prev,
-                email: currentUser.email,
-                gender: prev.gender || backendGender,
-                patient_name: prev.patient_name || backendName,
-                contact: prev.contact || backendPhone,
-                age: prev.age || (backendAge ? String(backendAge) : ''),
-                address: prev.address || backendAddress,
-                blood_group: prev.blood_group || backendBlood
-              }));
-              return;
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching patient profile for gender sync:', err);
-      }
-
-      if (isMounted) {
-        setFormData(prev => ({
-          ...prev,
-          email: currentUser.email,
-          gender: prev.gender || currentUser.Gender || currentUser.gender || ''
-        }));
-      }
-    };
-
-    fetchPatientProfile();
-    return () => { isMounted = false; };
+    if (currentUser?.email) {
+      setFormData(prev => ({
+        ...prev,
+        email: currentUser.email
+      }));
+    }
   }, [currentUser]);
 
   // Fetch Hospitals list from backend
@@ -122,22 +89,59 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
     };
   }, []);
 
-  // Quick Action: Autofill logged-in user's own details if clicked
-  const handleAutofillMyself = () => {
+  // Sync preselected hospital branch from Home page card click (consumed once)
+  useEffect(() => {
+    try {
+      const savedHosp = sessionStorage.getItem('temp_selected_booking_hospital');
+      if (savedHosp) {
+        setFormData(prev => ({
+          ...prev,
+          hospital: String(savedHosp)
+        }));
+        sessionStorage.removeItem('temp_selected_booking_hospital');
+        localStorage.removeItem('selectedBookingHospital');
+      }
+    } catch {}
+  }, [hospitals]);
+
+  // Quick Action: Autofill logged-in user's own details only when explicitly clicked
+  const handleAutofillMyself = async () => {
     if (!currentUser) return;
-    const currentPatName = currentUser.patient_name || currentUser.patient_Name || currentUser.name || '';
-    const currentBlood = currentUser.blood_group || currentUser.Blood_Group || '';
-    const currentGender = currentUser.Gender || currentUser.gender || '';
-    const currentContact = currentUser.contact || currentUser.phone || '';
-    const currentEmail = currentUser.email || '';
-    const currentAge = currentUser.age || currentUser.Age || '';
-    const currentAddress = currentUser.address || currentUser.Address || '';
+    let currentPatName = currentUser.patient_name || currentUser.patient_Name || currentUser.name || '';
+    let currentBlood = currentUser.blood_group || currentUser.Blood_Group || '';
+    let currentGender = currentUser.Gender || currentUser.gender || '';
+    let currentContact = currentUser.contact || currentUser.phone || '';
+    let currentEmail = currentUser.email || '';
+    let currentAge = currentUser.age || currentUser.Age || '';
+    let currentAddress = currentUser.address || currentUser.Address || '';
+
+    if (!currentBlood || !currentAddress || !currentContact || !currentPatName) {
+      try {
+        const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
+        if (patRes && patRes.ok) {
+          const pats = await patRes.json().catch(() => []);
+          const email = (currentUser.email || '').toLowerCase().trim();
+          const matched = pats.find(p => (p.email || '').toLowerCase().trim() === email);
+          if (matched) {
+            currentPatName = currentPatName || matched.name || matched.patient_Name || matched.patient_name || '';
+            currentBlood = currentBlood || matched.Blood_Group || matched.blood_group || '';
+            currentGender = currentGender || matched.Gender || matched.gender || '';
+            currentContact = currentContact || matched.contact || matched.phone || '';
+            currentAge = currentAge || matched.age || matched.Age || '';
+            currentAddress = currentAddress || matched.address || '';
+          }
+        }
+      } catch (err) {
+        console.warn('Error fetching patient profile for autofill:', err);
+      }
+    }
+
     setFormData(prev => ({
       ...prev,
       patient_name: currentPatName,
       age: currentAge ? String(currentAge) : prev.age,
       gender: currentGender || prev.gender,
-      contact: currentContact || prev.contact,
+      contact: currentContact ? String(currentContact).replace(/\D/g, '').slice(0, 10) : prev.contact,
       email: currentEmail || prev.email,
       address: currentAddress || prev.address,
       blood_group: currentBlood || prev.blood_group
@@ -146,10 +150,14 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
 
   // Quick Action: Clear optional fields (Preserves logged-in email)
   const handleClearPatientInfo = () => {
+    try {
+      sessionStorage.removeItem('temp_selected_booking_hospital');
+      localStorage.removeItem('selectedBookingHospital');
+    } catch {}
     setFormData({
       patient_name: '',
       age: '',
-      gender: currentUser?.Gender || currentUser?.gender || '',
+      gender: '',
       contact: '',
       email: currentUser?.email || '',
       address: '',
@@ -165,7 +173,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
 
   const handleGoToLogin = () => {
     try {
-      localStorage.setItem('login_return_page', 'appoint');
+      localStorage.setItem('login_return_page', 'appointment');
     } catch { }
     if (setCurrentPage) {
       setCurrentPage('login');
@@ -174,7 +182,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
 
   const handleGoToSignUp = () => {
     try {
-      localStorage.setItem('login_return_page', 'appoint');
+      localStorage.setItem('login_return_page', 'appointment');
     } catch { }
     if (setCurrentPage) {
       setCurrentPage('signin');
@@ -183,6 +191,11 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'contact') {
+      const cleanDigits = value.replace(/\D/g, '').slice(0, 10);
+      setFormData(prev => ({ ...prev, [name]: cleanDigits }));
+      return;
+    }
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -229,13 +242,24 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
       return;
     }
 
-    if (!formData.hospital) {
-      alert('Please select a hospital branch.');
+    if (!formData.blood_group) {
+      alert('Blood group select karna anivarya hai! Please select patient blood group.');
       return;
     }
 
-    if (!formData.blood_group) {
-      alert('Please select patient blood group.');
+    const contactDigits = (formData.contact || '').replace(/\D/g, '');
+    if (!contactDigits || contactDigits.length !== 10) {
+      alert('Contact phone number 10 digits ka hona anivarya hai! Please enter a valid 10-digit number.');
+      return;
+    }
+
+    if (!formData.address || !formData.address.trim()) {
+      alert('Residential address fill karna anivarya hai! Please enter patient address.');
+      return;
+    }
+
+    if (!formData.hospital) {
+      alert('Please select a hospital branch.');
       return;
     }
 
@@ -426,11 +450,16 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
   };
 
   const resetForm = () => {
+    try {
+      sessionStorage.removeItem('temp_selected_booking_hospital');
+      localStorage.removeItem('selectedBookingHospital');
+    } catch {}
     setConfirmedBooking(null);
     setAttachedFile(null);
     setFormData({
       patient_name: '',
       age: '',
+      gender: currentUser?.Gender || currentUser?.gender || '',
       contact: '',
       email: currentUser?.email || '',
       address: '',
@@ -454,7 +483,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
 
       <main className="flex-1 space-y-6 sm:space-y-8 pb-16">
         {/* HEADER HERO */}
-        <section className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white py-10 sm:py-14 px-4 sm:px-6 lg:px-8 shadow-md">
+        <section className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white py-10 sm:py-14 px-4 sm:px-8 lg:px-12 shadow-md">
           <div className="max-w-4xl mx-auto text-center space-y-3">
             <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold border border-teal-400/30 uppercase tracking-wider">
               <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
@@ -792,9 +821,11 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                         <input
                           type="tel"
                           name="contact"
-                          maxLength={14}
+                          maxLength={10}
+                          pattern="[0-9]{10}"
+                          inputMode="numeric"
                           required
-                          placeholder="e.g. +91 9876543210"
+                          placeholder="e.g. 9876543210"
                           value={formData.contact}
                           onChange={handleChange}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
@@ -837,12 +868,13 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                       {/* RESIDENTIAL ADDRESS */}
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                          Residential Address
+                          Residential Address *
                         </label>
                         <input
                           type="text"
                           name="address"
-                          placeholder="e.g. 123 Main Street, Sector 4, New Delhi"
+                          required
+                          placeholder="Enter patient full residential address"
                           value={formData.address}
                           onChange={handleChange}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
@@ -973,7 +1005,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
       </main>
 
       {/* PATIENT FOOTER */}
-      <PatientFooter setCurrentPage={setCurrentPage} />
+      <PatientFooter setCurrentPage={setCurrentPage} isLoggedIn={isLoggedIn} currentUser={currentUser} />
     </div>
   );
 };

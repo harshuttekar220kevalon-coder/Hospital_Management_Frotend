@@ -38,11 +38,9 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
   ];
 
   const shiftsList = [
-    'Morning (08:00 AM - 04:00 PM)',
-    'Evening (04:00 PM - 12:00 AM)',
-    'Night (12:00 AM - 08:00 AM)',
-    'General Shift (09:00 AM - 05:00 PM)',
-    'Rotating Shift'
+    'Morning First Shift',
+    'Afternoon Second Shift',
+    'Evening Third Shift'
   ];
 
   const [editFormData, setEditFormData] = useState({
@@ -65,8 +63,8 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, []);
 
-  const loadNurseAndHospitals = async () => {
-    setIsDataFetching(true);
+  const loadNurseAndHospitals = async (silent = false) => {
+    if (!silent) setIsDataFetching(true);
     try {
       let currentNurse = selectedNurse || nurseData;
       if (!currentNurse || !currentNurse.id) {
@@ -85,6 +83,14 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
 
       if (currentNurse && currentNurse.id) {
         const nurseRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/${currentNurse.id}/`).catch(() => null);
+        if (nurseRes && nurseRes.status === 404) {
+          localStorage.removeItem('selectedNurse');
+          if (setSelectedNurse) setSelectedNurse(null);
+          setNurseData(null);
+          alert('This nurse has been deleted from the database.');
+          if (setCurrentPage) setCurrentPage('super_admin_nurses');
+          return;
+        }
         if (nurseRes && nurseRes.ok) {
           const freshNurse = await nurseRes.json();
           setNurseData(freshNurse);
@@ -95,12 +101,30 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
     } catch (err) {
       console.error('Error fetching nurse details:', err);
     } finally {
-      setIsDataFetching(false);
+      if (!silent) setIsDataFetching(false);
     }
   };
 
   useEffect(() => {
     loadNurseAndHospitals();
+
+    const interval = setInterval(() => {
+      loadNurseAndHospitals(true);
+    }, 3500);
+
+    const onFocus = () => loadNurseAndHospitals(true);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') loadNurseAndHospitals(true);
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [selectedNurse?.id]);
 
   const activeNurse = nurseData || {};
@@ -133,7 +157,7 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
       password: activeNurse.password || '',
       hospital: hospId || '',
       status: activeNurse.status || 'On_Duty',
-      is_active: activeNurse.is_active !== false
+      is_active: activeNurse.is_active !== false && activeNurse.status !== 'Inactive' && activeNurse.status !== 'Deactivated'
     });
     setShowEditPassword(false);
     setIsEditModalOpen(true);
@@ -150,10 +174,12 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
     try {
       const nurseIdToSend = editFormData.nurse_id || activeNurse.nurse_id || `NUR-${activeNurse.id}`;
       const nurseRole = editFormData.role || editFormData.nurse_role || activeNurse.role || 'Staff Nurse';
-      const currentStatus = editFormData.status || 'On_Duty';
       const rawHosp = editFormData.hospital || activeNurse.hospital;
       const hospId = Number(typeof rawHosp === 'object' ? rawHosp?.id : rawHosp);
       const contactVal = (editFormData.contact || '').trim();
+
+      const isActiveFlag = editFormData.is_active !== undefined ? Boolean(editFormData.is_active) : true;
+      const currentStatus = isActiveFlag ? (editFormData.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty') : 'Inactive';
 
       const payload = {
         ...editFormData,
@@ -167,7 +193,7 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
         password: activeNurse.password || editFormData.password || 'Nurse@123',
         hospital: hospId,
         status: currentStatus,
-        is_active: editFormData.is_active !== undefined ? editFormData.is_active : true
+        is_active: isActiveFlag
       };
 
       let response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${activeNurse.id}/`, {
@@ -312,7 +338,7 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-5 sm:space-y-6">
       {/* TOP NAVIGATION & BACK BUTTON */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <button
@@ -348,12 +374,20 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                 {displayRole}
               </span>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center gap-1.5 ${
+                activeNurse.is_active !== false && activeNurse.status !== 'Inactive' && activeNurse.status !== 'Deactivated'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                  : 'bg-rose-50 text-rose-700 border-rose-200'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${activeNurse.is_active !== false && activeNurse.status !== 'Inactive' && activeNurse.status !== 'Deactivated' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+                {activeNurse.is_active !== false && activeNurse.status !== 'Inactive' && activeNurse.status !== 'Deactivated' ? 'Active Account' : 'Inactive Account'}
+              </span>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                 activeNurse.status === 'Off_Duty'
                   ? 'bg-amber-50 text-amber-700 border-amber-200' 
                   : 'bg-emerald-50 text-emerald-700 border-emerald-200'
               }`}>
-                {activeNurse.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty'}
+                Duty: {activeNurse.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty'}
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 tracking-tight mt-1">
@@ -742,16 +776,16 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={15}
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     value={editFormData.contact}
-                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
-                    placeholder="e.g. 9876543210 / 02212345678"
+                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    placeholder="e.g. 9876543210"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white font-mono"
                   />
                 </div>
@@ -824,6 +858,35 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
                   <option value="On_Duty">On_Duty</option>
                   <option value="Off_Duty">Off_Duty</option>
                 </select>
+              </div>
+
+              {/* ACTIVE / INACTIVE ACCOUNT CHECKBOX */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-800 text-xs">
+                    Account Access (Active / Inactive)
+                  </label>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {editFormData.is_active 
+                      ? '✓ Account is ACTIVE. Nurse CAN log in to the system.' 
+                      : '✕ Account is INACTIVE. Nurse CANNOT log in to the system.'}
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer gap-2 select-none shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(editFormData.is_active)}
+                    onChange={(e) => setEditFormData({ ...editFormData, is_active: e.target.checked })}
+                    className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+                    editFormData.is_active 
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                      : 'bg-rose-100 text-rose-800 border-rose-300'
+                  }`}>
+                    {editFormData.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </label>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">

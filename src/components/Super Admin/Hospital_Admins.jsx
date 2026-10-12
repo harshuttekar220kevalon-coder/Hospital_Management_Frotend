@@ -56,26 +56,51 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
     }
   };
 
-  const fetchAdmins = async () => {
+  const fetchAdmins = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const response = await fetch(`${API_BASE_URL}/super-admin/Admins/`);
       if (response.ok) {
         const data = await response.json();
-        setAdmins(data);
-      } else {
-        alert('Failed to fetch hospital admins.');
+        setAdmins(Array.isArray(data) ? data : []);
+      } else if (!silent) {
+        console.warn('Failed to fetch hospital admins from backend.');
       }
     } catch (err) {
       console.error('Error fetching admins:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
+    let isMounted = true;
     fetchHospitals();
-    fetchAdmins();
+    fetchAdmins(false);
+
+    // Auto-polling every 3.5s for real-time sync with backend
+    const pollInterval = setInterval(() => {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchAdmins(true);
+      }
+    }, 3500);
+
+    const handleFocus = () => {
+      if (isMounted) fetchAdmins(true);
+    };
+    const handleVisibility = () => {
+      if (isMounted && document.visibilityState === 'visible') fetchAdmins(true);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   const totalAdminsCount = admins.length;
@@ -346,7 +371,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-5 sm:space-y-6">
       {/* HEADER BANNER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-3">
@@ -594,16 +619,16 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={15}
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     value={formData.contact}
-                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
-                    placeholder="e.g. 9876543210 / 02212345678"
+                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    placeholder="e.g. 9876543210"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>

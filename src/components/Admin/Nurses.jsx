@@ -29,10 +29,9 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
   ];
 
   const shiftsList = [
-    'Morning',
-    'Evening',
-    'Night',
-    'Rotating'
+    'Morning First Shift',
+    'Afternoon Second Shift',
+    'Evening Third Shift'
   ];
 
   const initialFormState = {
@@ -55,9 +54,9 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
 
   const generateNurseId = () => `NUR-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  const fetchAdminAndNurses = async () => {
+  const fetchAdminAndNurses = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       let assignedHospitalId = currentUser?.hospital || null;
 
@@ -120,12 +119,30 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
     } catch (err) {
       console.error('Error loading nurses data:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchAdminAndNurses();
+
+    const interval = setInterval(() => {
+      fetchAdminAndNurses(true);
+    }, 3500);
+
+    const onFocus = () => fetchAdminAndNurses(true);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetchAdminAndNurses(true);
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [currentUser]);
 
   useEffect(() => {
@@ -263,7 +280,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
   const leaveCount = nurses.filter(n => n.is_active === false).length;
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6">
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-4 sm:p-6 shadow-md border border-slate-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -524,16 +541,16 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone / Landline *</label>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
                     type="tel"
                     inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={15}
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     value={formData.contact}
-                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
-                    placeholder="e.g. 9876543210 / 02212345678"
+                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    placeholder="e.g. 9876543210"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>

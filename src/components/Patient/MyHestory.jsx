@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PatientNavbar from './PatientNavbar';
 import PatientFooter from './PatientFooter';
 import { API_BASE_URL } from '../Api/Api';
@@ -19,19 +19,52 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
   const [dischargedRecords, setDischargedRecords] = useState([]);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const selectedRecordIdRef = useRef(null);
   const [doctorsList, setDoctorsList] = useState([]);
   const [hospitalsList, setHospitalsList] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedHospitalFilter, setSelectedHospitalFilter] = useState('ALL');
 
-  const isDischargedStatus = (status) => {
-    const s = (status || '').toString().toLowerCase().trim();
-    return s.includes('discharg');
+  const isDischargedStatus = (itemOrStatus, checkupStatus, paymentStatus) => {
+    let s = '';
+    let c = '';
+    let b = '';
+    if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
+      s = (itemOrStatus.status || itemOrStatus.discharge_status || '').toString().toLowerCase().trim();
+      c = (itemOrStatus.checkup_status || itemOrStatus.Checkup_status || '').toString().toLowerCase().trim();
+      b = (itemOrStatus.payment_status || itemOrStatus.Payment_status || itemOrStatus.billing_status || '').toString().toLowerCase().trim();
+    } else {
+      s = (itemOrStatus || '').toString().toLowerCase().trim();
+      c = (checkupStatus || '').toString().toLowerCase().trim();
+      b = (paymentStatus || '').toString().toLowerCase().trim();
+    }
+
+    // If status is Pending or contains pending / unassign / admit / in progress -> NOT discharged
+    if (s.includes('pending') || s.includes('unassign') || s.includes('admit') || s.includes('progress') || s.includes('cancel') || s === '') {
+      return false;
+    }
+
+    // Must explicitly contain discharged or completed
+    if (!s.includes('discharg') && s !== 'completed') {
+      return false;
+    }
+
+    // Checkup status must NOT be pending
+    if (c && (c.includes('pending') || c.includes('wait') || c === 'under checkup')) {
+      return false;
+    }
+
+    // Billing / Payment status must NOT be pending / unpaid
+    if (b && (b === 'pending' || b.includes('pending') || b === 'unpaid' || b === 'due')) {
+      return false;
+    }
+
+    return true;
   };
 
-  const loadHistoryData = async () => {
+  const loadHistoryData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const email = (currentUser?.email || '').toLowerCase().trim();
       const patId = currentUser?.id;
       const patPhone = (currentUser?.contact || currentUser?.phone || '').replace(/\D/g, '');
@@ -106,9 +139,10 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
 
       // 4. Read locally cached appointments for this patient as well
       let localAppts = [];
-      if (patientEmail) {
+      const storedKey = patientEmail ? `patient_appointments_${patientEmail}` : null;
+      if (storedKey) {
         try {
-          const rawStored = localStorage.getItem(`patient_appointments_${patientEmail}`);
+          const rawStored = localStorage.getItem(storedKey);
           if (rawStored) {
             const parsed = JSON.parse(rawStored);
             localAppts = Array.isArray(parsed) ? parsed : [parsed];
@@ -116,19 +150,44 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
         } catch (e) {}
       }
 
-      const combinedAppts = [...userAppointments];
-      const seenApptIds = new Set(userAppointments.map(a => String(a.id || a.Appoment_id || a.appoment_id)));
-      for (const loc of localAppts) {
-        const locId = String(loc?.id || loc?.Appoment_id || loc?.appoment_id || '');
-        if (loc && (!locId || !seenApptIds.has(locId))) {
-          combinedAppts.push(loc);
-          if (locId) seenApptIds.add(locId);
-        }
+      // Backend data takes absolute precedence. Purge deleted records from cache.
+      const backendIds = new Set(rawAppointments.map(a => String(a.id || a.Appoment_id || a.appoment_id || '')));
+      if (storedKey && localAppts.length > 0) {
+        const activeLocal = localAppts.filter(loc => {
+          const locId = String(loc?.id || loc?.Appoment_id || loc?.appoment_id || '');
+          return locId && backendIds.has(locId);
+        });
+        try {
+          localStorage.setItem(storedKey, JSON.stringify(activeLocal));
+        } catch (e) {}
       }
+
+      const combinedAppts = [...userAppointments];
+
+      // Helper to format ISO date and time
+      const formatCustomDateTime = (rawIsoOrDate, rawTime) => {
+        if (!rawIsoOrDate && !rawTime) return '-';
+        if (rawIsoOrDate && typeof rawIsoOrDate === 'string' && (rawIsoOrDate.includes('T') || rawIsoOrDate.includes(' '))) {
+          const d = new Date(rawIsoOrDate);
+          if (!isNaN(d.getTime())) {
+            const dStr = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            const tStr = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+            return `${dStr}, ${tStr}`;
+          }
+        }
+        let dStr = '';
+        if (rawIsoOrDate) {
+          const d = new Date(rawIsoOrDate);
+          dStr = !isNaN(d.getTime()) ? d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : String(rawIsoOrDate);
+        }
+        let tStr = rawTime ? String(rawTime) : '';
+        if (dStr && tStr && dStr !== '-' && tStr !== '-') return `${dStr}, ${tStr}`;
+        return dStr || tStr || '-';
+      };
 
       // 5. Filter DISCHARGED appointments & format complete journey
       const discharged = combinedAppts
-        .filter(a => isDischargedStatus(a.status))
+        .filter(a => isDischargedStatus(a))
         .map(item => {
           const id = item.id || item.appointment_id;
           const apptId = item.Appoment_id || item.appoment_id || item.appointment_id || id;
@@ -137,8 +196,8 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
           const docObj = docId ? docs.find(d => Number(d.id) === Number(docId)) : null;
           const hospObj = hospId ? hosps.find(h => Number(h.id) === Number(hospId)) : null;
 
-          const docName = item.doctor_name || (docObj ? (docObj.name.startsWith('Dr.') ? docObj.name : `Dr. ${docObj.name}`) : (docId ? `Dr. ID #${docId}` : 'Assigned Specialist'));
-          const hospName = hospObj?.Name || hospObj?.name || item.hospital_name || 'Apex Care Central Hospital';
+          const docName = item.doctor_name || (docObj ? (docObj.name.startsWith('Dr.') ? docObj.name : `Dr. ${docObj.name}`) : (docId ? `Dr. ID #${docId}` : '-'));
+          const hospName = hospObj?.Name || hospObj?.name || item.hospital_name || '-';
 
           const docFee = Number(item.consultation_fee ?? item.Consultation_Fee ?? item.consultancy_fee ?? (docObj?.consultation_fee || 0));
           const hospCharge = Number(item.hospitals_charges ?? item.Hospitals_Chargies ?? item.hospital_charges ?? 0);
@@ -146,8 +205,18 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
           const paid = Number(item.amount_paid ?? item.Amount_Paid ?? (item.payment_status === 'Paid' ? total : 0));
           const due = Math.max(0, total - paid);
 
-          const formattedVisitDate = item.appointment_date || (item.visit_date_time ? new Date(item.visit_date_time).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Visit Recorded');
-          const formattedVisitTime = item.appointment_time || (item.visit_date_time ? new Date(item.visit_date_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Consultation Slot');
+          // Booking / Visit Date & Time from backend
+          const rawBookingDate = item.appointment_date || item.visit_date_time || item.created_at || null;
+          const rawBookingTime = item.appointment_time || (item.visit_date_time ? new Date(item.visit_date_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null);
+          const formattedVisitDate = rawBookingDate ? new Date(rawBookingDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+          const formattedVisitTime = rawBookingTime || (item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '-');
+
+          // Discharge Date & Time strictly from backend Discharge_DateTime field
+          const rawDischargeDateTime = item.Discharge_DateTime || item.discharge_datetime || item.Discharge_datetime || item.discharge_date || item.Discharge_Date || item.completed_at || null;
+          const formattedDischargeDateTime = rawDischargeDateTime ? formatCustomDateTime(rawDischargeDateTime) : '-';
+
+          // Proper separation of Patient ID vs Appointment ID
+          const resolvedPatUhid = foundPatientRecord?.patient_id || foundPatientRecord?.uhid || item.patient_uhid || (typeof item.patient_id === 'string' && !item.patient_id.startsWith('APT-') ? item.patient_id : null) || item.uhid || (typeof item.patient === 'object' ? (item.patient?.patient_id || item.patient?.uhid || (item.patient?.id ? `PAT-${item.patient.id}` : '')) : (item.patient ? `PAT-${item.patient}` : '')) || (foundPatientRecord?.id ? `PAT-${foundPatientRecord.id}` : (currentUser?.id ? `PAT-${currentUser.id}` : '-'));
 
           return {
             ...item,
@@ -155,17 +224,18 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
             Appoment_id: apptId,
             appointment_id: apptId,
             tracking_id: `APT-${apptId}`,
-            patient_id: `APT-${apptId}`,
-            patient_Name: item.patient_Name || item.patient_name || item.name || foundPatientRecord?.name || currentUser?.name || 'Patient',
-            gender: item.Gender || item.gender || foundPatientRecord?.Gender || foundPatientRecord?.gender || currentUser?.Gender || currentUser?.gender || 'Not Specified',
-            Gender: item.Gender || item.gender || foundPatientRecord?.Gender || foundPatientRecord?.gender || currentUser?.Gender || currentUser?.gender || 'Not Specified',
+            patient_id: resolvedPatUhid,
+            patient_uhid_display: resolvedPatUhid,
+            patient_Name: item.patient_Name || item.patient_name || item.name || foundPatientRecord?.name || currentUser?.name || '-',
+            gender: item.Gender || item.gender || foundPatientRecord?.Gender || foundPatientRecord?.gender || currentUser?.Gender || currentUser?.gender || '-',
+            Gender: item.Gender || item.gender || foundPatientRecord?.Gender || foundPatientRecord?.gender || currentUser?.Gender || currentUser?.gender || '-',
             age: item.age || item.Age || foundPatientRecord?.age || currentUser?.age || '-',
-            blood_group: item.Blood_Group || item.blood_group || foundPatientRecord?.Blood_Group || foundPatientRecord?.blood_group || 'N/A',
+            blood_group: item.Blood_Group || item.blood_group || foundPatientRecord?.Blood_Group || foundPatientRecord?.blood_group || '-',
             doctor_name: docName,
-            doctor_specialization: docObj?.specialization || docObj?.specialty || item.doctor_specialization || 'Clinical Specialist',
+            doctor_specialization: docObj?.specialization || docObj?.specialty || item.doctor_specialization || '-',
             hospital_name: hospName,
-            hospital_address: hospObj?.Address || hospObj?.address || 'Super Speciality Medical Campus',
-            hospital_phone: hospObj?.Emergency_Number || hospObj?.Phone || '+91 9876543210',
+            hospital_address: hospObj?.Address || hospObj?.address || item.hospital_address || '-',
+            hospital_phone: hospObj?.Emergency_Number || hospObj?.Phone || '-',
             consultation_fee: docFee,
             hospitals_charges: hospCharge,
             total_bill: total,
@@ -173,13 +243,15 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
             due_balance: due,
             payment_status: item.payment_status || (paid >= total && total > 0 ? 'Paid' : 'Paid'),
             payment_method: item.payment_method || 'Cash',
-            bed_number: item.bed_number || null,
-            floor: item.bed_number ? `Floor ${Math.floor((Number(item.bed_number) - 1) / 100) + 1}` : 'Outpatient (OPD)',
+            bed_number: item.bed_number ? Number(item.bed_number) : null,
+            floor: item.bed_number ? `Floor ${Math.floor((Number(item.bed_number) - 1) / 100) + 1}` : '-',
             visit_date_formatted: formattedVisitDate,
             visit_time_formatted: formattedVisitTime,
-            symptoms: item.symptoms_diagnosis || item.reason_for_visit || 'General health consultation and OPD review.',
+            symptoms: item.symptoms_diagnosis || item.reason_for_visit || item.symptoms || '-',
             condition_severity: item.condition || item.Condation || 'Normal',
-            discharge_date: item.settled_at || item.updated_at || item.visit_date_time || new Date().toISOString()
+            Discharge_DateTime: rawDischargeDateTime,
+            discharge_date: rawDischargeDateTime,
+            discharge_datetime_formatted: formattedDischargeDateTime
           };
         });
 
@@ -187,24 +259,84 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
       discharged.sort((a, b) => (Number(b.Appoment_id || b.id) || 0) - (Number(a.Appoment_id || a.id) || 0));
 
       setDischargedRecords(discharged);
-      if (discharged.length > 0 && !selectedRecord) {
-        setSelectedRecord(discharged[0]);
+
+      // Keep selectedRecord updated with fresh backend data for the currently viewed record ID ONLY
+      if (selectedRecordIdRef.current) {
+        const currentViewedId = String(selectedRecordIdRef.current);
+        const updatedMatch = discharged.find(d =>
+          String(d.id) === currentViewedId ||
+          String(d.Appoment_id) === currentViewedId ||
+          String(d.appoment_id) === currentViewedId ||
+          String(d.appointment_id) === currentViewedId ||
+          String(d.tracking_id) === `APT-${currentViewedId}` ||
+          String(d.tracking_id) === currentViewedId
+        );
+        if (updatedMatch) {
+          setSelectedRecord(updatedMatch);
+        }
       }
     } catch (err) {
       console.error('Error loading history data:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadHistoryData();
+    let isMounted = true;
+    loadHistoryData(false);
+
+    const pollInterval = setInterval(() => {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadHistoryData(true);
+      }
+    }, 3500);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && isMounted) {
+        loadHistoryData(true);
+      }
+    };
+
+    const handleFocus = () => {
+      if (isMounted) {
+        loadHistoryData(true);
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleFocus);
+    }
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleFocus);
+      }
+    };
   }, [currentUser]);
 
-  // Open details popup for a specific record
+  // Open details popup for a specific record (locked until explicitly closed)
   const handleOpenDetails = (record) => {
+    if (!record) return;
+    const recId = record.id || record.Appoment_id || record.appoment_id || record.appointment_id;
+    selectedRecordIdRef.current = String(recId);
     setSelectedRecord(record);
     setIsDetailsModalOpen(true);
+  };
+
+  // Close details modal and reset selection lock
+  const handleCloseDetails = () => {
+    setIsDetailsModalOpen(false);
+    selectedRecordIdRef.current = null;
+    setSelectedRecord(null);
   };
 
   // Filtered records by search & hospital
@@ -241,7 +373,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
         currentUser={currentUser}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 sm:space-y-6">
+      <main className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-5 sm:space-y-6">
         {/* HERO HEADER */}
         <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-5 sm:p-7 shadow-md border border-slate-800">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -528,7 +660,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
 
               <button
                 type="button"
-                onClick={() => setIsDetailsModalOpen(false)}
+                onClick={handleCloseDetails}
                 className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center transition cursor-pointer text-sm shrink-0"
                 title="Close"
               >
@@ -548,8 +680,9 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                     1
                   </span>
                   <p className="text-[10px] font-bold text-slate-400 uppercase">Initial Booking</p>
-                  <p className="font-bold text-slate-900 text-xs mt-0.5">{selectedRecord.visit_date_formatted}</p>
-                  <p className="text-[11px] text-slate-500">ID: {selectedRecord.tracking_id}</p>
+                  <p className="font-bold text-slate-900 text-xs mt-0.5">{selectedRecord.visit_date_formatted || '-'}</p>
+                  <p className="text-[11px] text-slate-500">{selectedRecord.visit_time_formatted && selectedRecord.visit_time_formatted !== '-' ? selectedRecord.visit_time_formatted : ''}</p>
+                  <p className="text-[10px] font-mono text-teal-700 font-semibold mt-0.5">ID: {selectedRecord.tracking_id}</p>
                 </div>
 
                 {/* 2. Doctor Care */}
@@ -558,8 +691,8 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                     2
                   </span>
                   <p className="text-[10px] font-bold text-slate-400 uppercase">Doctor Care</p>
-                  <p className="font-bold text-slate-900 text-xs mt-0.5">{selectedRecord.doctor_name}</p>
-                  <p className="text-[11px] text-slate-500">{selectedRecord.doctor_specialization}</p>
+                  <p className="font-bold text-slate-900 text-xs mt-0.5">{selectedRecord.doctor_name || '-'}</p>
+                  <p className="text-[11px] text-slate-500">{selectedRecord.doctor_specialization || '-'}</p>
                 </div>
 
                 {/* 3. Ward/Bed */}
@@ -569,9 +702,11 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                   </span>
                   <p className="text-[10px] font-bold text-slate-400 uppercase">Ward & Bed</p>
                   <p className="font-bold text-slate-900 text-xs mt-0.5">
-                    {selectedRecord.bed_number ? `Bed #${selectedRecord.bed_number}` : 'Outpatient (OPD)'}
+                    {selectedRecord.bed_number ? `Bed #${selectedRecord.bed_number}` : '-'}
                   </p>
-                  <p className="text-[11px] text-slate-500">{selectedRecord.floor}</p>
+                  <p className="text-[11px] text-slate-500">
+                    {selectedRecord.bed_number ? selectedRecord.floor : '-'}
+                  </p>
                 </div>
 
                 {/* 4. Discharge */}
@@ -580,8 +715,12 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                     4
                   </span>
                   <p className="text-[10px] font-bold text-emerald-800 uppercase">Discharge & Bill</p>
-                  <p className="font-bold text-emerald-950 text-xs mt-0.5">Gate Pass Cleared</p>
-                  <p className="text-[11px] text-emerald-700 font-semibold">₹{selectedRecord.total_bill.toFixed(2)} Paid</p>
+                  <p className="font-bold text-emerald-950 text-xs mt-0.5">
+                    {selectedRecord.discharge_datetime_formatted || '-'}
+                  </p>
+                  <p className="text-[11px] text-emerald-700 font-semibold">
+                    {selectedRecord.total_bill > 0 ? `₹${selectedRecord.total_bill.toFixed(2)} Paid` : '-'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -596,19 +735,23 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <span className="text-slate-400 text-[10px]">Patient Name:</span>
-                    <p className="font-bold text-slate-900">{selectedRecord.patient_Name}</p>
+                    <p className="font-bold text-slate-900">{selectedRecord.patient_Name || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px]">Patient ID (UHID):</span>
+                    <p className="font-mono font-bold text-indigo-700">{selectedRecord.patient_uhid_display || '-'}</p>
                   </div>
                   <div>
                     <span className="text-slate-400 text-[10px]">Appointment Tracking ID:</span>
-                    <p className="font-mono font-bold text-teal-700">{selectedRecord.tracking_id}</p>
+                    <p className="font-mono font-bold text-teal-700">{selectedRecord.tracking_id || '-'}</p>
                   </div>
                   <div>
                     <span className="text-slate-400 text-[10px]">Age / Gender:</span>
-                    <p className="font-semibold text-slate-800">{selectedRecord.age} Yrs • {selectedRecord.Gender}</p>
+                    <p className="font-semibold text-slate-800">{selectedRecord.age ? `${selectedRecord.age} Yrs` : '-'} • {selectedRecord.Gender || '-'}</p>
                   </div>
-                  <div>
+                  <div className="col-span-2">
                     <span className="text-slate-400 text-[10px]">Blood Group & Severity:</span>
-                    <p className="font-semibold text-rose-600">{selectedRecord.blood_group} • {selectedRecord.condition_severity}</p>
+                    <p className="font-semibold text-rose-600">{selectedRecord.blood_group || '-'} • {selectedRecord.condition_severity || '-'}</p>
                   </div>
                   <div className="col-span-2">
                     <span className="text-slate-400 text-[10px]">Contact Phone / Email:</span>
@@ -625,20 +768,20 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                 <div className="space-y-1.5">
                   <div>
                     <span className="text-slate-400 text-[10px]">Attending Specialist:</span>
-                    <p className="font-bold text-slate-900">{selectedRecord.doctor_name}</p>
-                    <p className="text-[11px] text-teal-700 font-medium">{selectedRecord.doctor_specialization}</p>
+                    <p className="font-bold text-slate-900">{selectedRecord.doctor_name || '-'}</p>
+                    <p className="text-[11px] text-teal-700 font-medium">{selectedRecord.doctor_specialization || '-'}</p>
                   </div>
                   <div>
                     <span className="text-slate-400 text-[10px]">Hospital Facility:</span>
-                    <p className="font-semibold text-slate-800">{selectedRecord.hospital_name}</p>
-                    <p className="text-[10px] text-slate-500">{selectedRecord.hospital_address}</p>
+                    <p className="font-semibold text-slate-800">{selectedRecord.hospital_name || '-'}</p>
+                    <p className="text-[10px] text-slate-500">{selectedRecord.hospital_address && selectedRecord.hospital_address !== 'None' ? selectedRecord.hospital_address : '-'}</p>
                   </div>
-                  {selectedRecord.bed_number && (
+                  {selectedRecord.bed_number ? (
                     <div className="p-2 rounded-lg bg-purple-50 text-purple-900 border border-purple-200 font-semibold flex items-center justify-between">
                       <span>Inpatient Bed #{selectedRecord.bed_number}</span>
-                      <span className="text-[10px] font-bold">{selectedRecord.floor}</span>
+                      <span className="text-[10px] font-bold">{selectedRecord.floor || '-'}</span>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
@@ -650,7 +793,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[10px] font-bold text-slate-500 uppercase">Chief Complaint / Diagnosis Recorded:</span>
                   <p className="text-slate-900 font-medium text-xs mt-1 leading-relaxed">
-                    {selectedRecord.symptoms}
+                    {selectedRecord.symptoms && selectedRecord.symptoms !== 'None' ? selectedRecord.symptoms : '-'}
                   </p>
                 </div>
               </div>
@@ -691,7 +834,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setIsDetailsModalOpen(false)}
+                onClick={handleCloseDetails}
                 className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
               >
                 Close Window
@@ -711,7 +854,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
       )}
 
       {/* FOOTER */}
-      <PatientFooter />
+      <PatientFooter setCurrentPage={setCurrentPage} isLoggedIn={isLoggedIn} currentUser={currentUser} />
     </div>
   );
 };

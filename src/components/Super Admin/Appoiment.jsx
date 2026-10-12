@@ -63,9 +63,9 @@ const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatien
   const severityLevels = ['Critical', 'Emergency', 'Urgent', 'Normal'];
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-', 'Not Known'];
 
-  const fetchAllAppointmentsData = async () => {
+  const fetchAllAppointmentsData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       const [apptRes, hospRes, docRes, nurRes, patRes] = await Promise.all([
         fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null),
@@ -191,12 +191,37 @@ const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatien
     } catch (err) {
       console.error('Error fetching appointments:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAllAppointmentsData();
+    let isMounted = true;
+    fetchAllAppointmentsData(false);
+
+    // Auto-polling every 3.5s for real-time status update from backend
+    const pollInterval = setInterval(() => {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchAllAppointmentsData(true);
+      }
+    }, 3500);
+
+    const handleFocus = () => {
+      if (isMounted) fetchAllAppointmentsData(true);
+    };
+    const handleVisibility = () => {
+      if (isMounted && document.visibilityState === 'visible') fetchAllAppointmentsData(true);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   useEffect(() => {
@@ -486,7 +511,7 @@ const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatien
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6">
       {/* HEADER BANNER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
@@ -907,10 +932,13 @@ const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatien
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
                     type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     value={bookFormData.contact}
-                    onChange={(e) => setBookFormData({ ...bookFormData, contact: e.target.value })}
-                    placeholder="e.g. +91 9876543210"
+                    onChange={(e) => setBookFormData({ ...bookFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    placeholder="e.g. 9876543210"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white text-slate-800 font-medium focus:outline-none focus:border-sky-600"
                   />
                 </div>

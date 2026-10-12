@@ -92,9 +92,9 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
 
   const generatePatientId = () => `PAT-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  const fetchAdminPatientsAndDoctors = async () => {
+  const fetchAdminPatientsAndDoctors = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       let assignedHospitalId = currentUser?.hospital || null;
 
@@ -190,13 +190,13 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
         }
       } catch (e) {}
 
-      const allCombined = [...(Array.isArray(rawAppointments) ? rawAppointments : []), ...(Array.isArray(rawPatients) ? rawPatients : [])];
+      // Strictly process patients from /super-admin/Patients/
       const seenIds = new Set();
       const uniquePatients = [];
 
-      for (const item of allCombined) {
+      for (const item of (Array.isArray(rawPatients) ? rawPatients : [])) {
         if (!item) continue;
-        const idKey = String(item.Appoment_id || item.appoment_id || item.appointment_id || item.id);
+        const idKey = String(item.id || item.patient_id || item.uhid);
         if (seenIds.has(idKey)) continue;
         seenIds.add(idKey);
 
@@ -211,6 +211,8 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
           } else if (patHospName && currentHospName && patHospName.toLowerCase().trim() === currentHospName.toLowerCase().trim()) {
             isMatch = true;
           }
+        } else {
+          isMatch = true;
         }
 
         if (isMatch) {
@@ -222,12 +224,37 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
     } catch (err) {
       console.error('Error loading patients data:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAdminPatientsAndDoctors();
+    let isMounted = true;
+    fetchAdminPatientsAndDoctors(false);
+
+    // Auto-polling every 3.5s for real-time status update from backend
+    const pollInterval = setInterval(() => {
+      if (isMounted && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchAdminPatientsAndDoctors(true);
+      }
+    }, 3500);
+
+    const handleFocus = () => {
+      if (isMounted) fetchAdminPatientsAndDoctors(true);
+    };
+    const handleVisibility = () => {
+      if (isMounted && document.visibilityState === 'visible') fetchAdminPatientsAndDoctors(true);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [currentUser]);
 
   useEffect(() => {
@@ -475,7 +502,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+    <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6">
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-4 sm:p-6 shadow-md border border-slate-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -868,12 +895,12 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                   <input
                     type="tel"
                     inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={15}
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     placeholder="e.g. 9876543210"
                     value={addFormData.contact}
-                    onChange={(e) => setAddFormData({ ...addFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 15) })}
+                    onChange={(e) => setAddFormData({ ...addFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
