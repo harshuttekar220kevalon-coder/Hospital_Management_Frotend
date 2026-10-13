@@ -130,12 +130,11 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
         }
       }
 
-      if (!hosp) {
+      if (!hosp && assignedHospitalId) {
         const allHospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
         if (allHospRes && allHospRes.ok) {
           const allHosp = await allHospRes.json();
-          hosp = (assignedHospitalId ? allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) : null) || allHosp[0] || null;
-          if (hosp) assignedHospitalId = hosp.id;
+          hosp = allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) || null;
         }
       }
 
@@ -190,13 +189,18 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
         }
       } catch (e) {}
 
-      // Strictly process patients from /super-admin/Patients/
+      // Process patients and booked appointments strictly for this hospital
       const seenIds = new Set();
       const uniquePatients = [];
 
-      for (const item of (Array.isArray(rawPatients) ? rawPatients : [])) {
+      const allRecords = [
+        ...(Array.isArray(rawPatients) ? rawPatients : []),
+        ...(Array.isArray(rawAppointments) ? rawAppointments : [])
+      ];
+
+      for (const item of allRecords) {
         if (!item) continue;
-        const idKey = String(item.id || item.patient_id || item.uhid);
+        const idKey = String(item.id || item.Appoment_id || item.appointment_id || item.patient_id || item.uhid);
         if (seenIds.has(idKey)) continue;
         seenIds.add(idKey);
 
@@ -211,12 +215,30 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
           } else if (patHospName && currentHospName && patHospName.toLowerCase().trim() === currentHospName.toLowerCase().trim()) {
             isMatch = true;
           }
-        } else {
-          isMatch = true;
         }
 
         if (isMatch) {
-          uniquePatients.push(item);
+          const id = item.id || item.appointment_id || item.Appoment_id;
+          const rawApptId = item.Appoment_id || item.appointment_id || item.appoment_id || id;
+          const formattedApptId = rawApptId ? (String(rawApptId).startsWith('APT-') ? String(rawApptId) : `APT-${rawApptId}`) : `APT-${id}`;
+          const rawPatId = item.patient_id || item.uhid || item.patient;
+          const formattedPatId = rawPatId ? (String(rawPatId).startsWith('PAT-') ? String(rawPatId) : `PAT-${rawPatId}`) : (id ? `PAT-${id}` : 'PAT-0');
+          const name = item.patient_name || item.patient_Name || item.name || `Patient #${id}`;
+
+          uniquePatients.push({
+            ...item,
+            id,
+            patient_id: formattedPatId,
+            uhid: item.uhid || formattedPatId,
+            Appoment_id: formattedApptId,
+            appointment_id: formattedApptId,
+            name,
+            patient_name: name,
+            contact: item.contact || item.phone || '',
+            email: item.email || '',
+            symptoms_diagnosis: item.symptoms_diagnosis || item.reason_for_visit || item.reason || 'General Consultation',
+            status: item.status || 'Active'
+          });
         }
       }
 

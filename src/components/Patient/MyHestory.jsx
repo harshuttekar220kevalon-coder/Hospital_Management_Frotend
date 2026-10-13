@@ -16,7 +16,8 @@ const extractArray = (resData) => {
 const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [patientProfile, setPatientProfile] = useState(null);
-  const [dischargedRecords, setDischargedRecords] = useState([]);
+  const [historyRecords, setHistoryRecords] = useState([]);
+  const [selectedTab, setSelectedTab] = useState('ALL');
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const selectedRecordIdRef = useRef(null);
@@ -60,6 +61,16 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
     }
 
     return true;
+  };
+
+  const isCancelledStatus = (itemOrStatus) => {
+    let s = '';
+    if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
+      s = (itemOrStatus.status || '').toString().toLowerCase().trim();
+    } else {
+      s = (itemOrStatus || '').toString().toLowerCase().trim();
+    }
+    return s.includes('cancel') || s.includes('reject');
   };
 
   const loadHistoryData = async (silent = false) => {
@@ -185,85 +196,89 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
         return dStr || tStr || '-';
       };
 
-      // 5. Filter DISCHARGED appointments & format complete journey
-      const discharged = combinedAppts
-        .filter(a => isDischargedStatus(a))
-        .map(item => {
-          const id = item.id || item.appointment_id;
-          const apptId = item.Appoment_id || item.appoment_id || item.appointment_id || id;
-          const docId = typeof item.doctor === 'object' ? item.doctor?.id : item.doctor;
-          const hospId = typeof item.hospital === 'object' ? item.hospital?.id : item.hospital;
-          const docObj = docId ? docs.find(d => Number(d.id) === Number(docId)) : null;
-          const hospObj = hospId ? hosps.find(h => Number(h.id) === Number(hospId)) : null;
+      // 5. Filter DISCHARGED & CANCELLED appointments & format complete journey
+      const relevantAppts = combinedAppts.filter(a => isDischargedStatus(a) || isCancelledStatus(a));
 
-          const docName = item.doctor_name || (docObj ? (docObj.name.startsWith('Dr.') ? docObj.name : `Dr. ${docObj.name}`) : (docId ? `Dr. ID #${docId}` : '-'));
-          const hospName = hospObj?.Name || hospObj?.name || item.hospital_name || '-';
+      const formatted = relevantAppts.map(item => {
+        const id = item.id || item.appointment_id;
+        const apptId = item.Appoment_id || item.appoment_id || item.appointment_id || id;
+        const docId = typeof item.doctor === 'object' ? item.doctor?.id : item.doctor;
+        const hospId = typeof item.hospital === 'object' ? item.hospital?.id : item.hospital;
+        const docObj = docId ? docs.find(d => Number(d.id) === Number(docId)) : null;
+        const hospObj = hospId ? hosps.find(h => Number(h.id) === Number(hospId)) : null;
 
-          const docFee = Number(item.consultation_fee ?? item.Consultation_Fee ?? item.consultancy_fee ?? (docObj?.consultation_fee || 0));
-          const hospCharge = Number(item.hospitals_charges ?? item.Hospitals_Chargies ?? item.hospital_charges ?? 0);
-          const total = docFee + hospCharge;
-          const paid = Number(item.amount_paid ?? item.Amount_Paid ?? (item.payment_status === 'Paid' ? total : 0));
-          const due = Math.max(0, total - paid);
+        const docName = item.doctor_name || (docObj ? (docObj.name.startsWith('Dr.') ? docObj.name : `Dr. ${docObj.name}`) : (docId ? `Dr. ID #${docId}` : '-'));
+        const hospName = hospObj?.Name || hospObj?.name || item.hospital_name || '-';
 
-          // Booking / Visit Date & Time from backend
-          const rawBookingDate = item.appointment_date || item.visit_date_time || item.created_at || null;
-          const rawBookingTime = item.appointment_time || (item.visit_date_time ? new Date(item.visit_date_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null);
-          const formattedVisitDate = rawBookingDate ? new Date(rawBookingDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
-          const formattedVisitTime = rawBookingTime || (item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '-');
+        const isCancelled = isCancelledStatus(item);
 
-          // Discharge Date & Time strictly from backend Discharge_DateTime field
-          const rawDischargeDateTime = item.Discharge_DateTime || item.discharge_datetime || item.Discharge_datetime || item.discharge_date || item.Discharge_Date || item.completed_at || null;
-          const formattedDischargeDateTime = rawDischargeDateTime ? formatCustomDateTime(rawDischargeDateTime) : '-';
+        const docFee = Number(item.consultation_fee ?? item.Consultation_Fee ?? item.consultancy_fee ?? (docObj?.consultation_fee || 0));
+        const hospCharge = Number(item.hospitals_charges ?? item.Hospitals_Chargies ?? item.hospital_charges ?? 0);
+        const total = isCancelled ? 0 : (docFee + hospCharge);
+        const paid = isCancelled ? 0 : Number(item.amount_paid ?? item.Amount_Paid ?? (item.payment_status === 'Paid' ? total : 0));
+        const due = Math.max(0, total - paid);
 
-          // Proper separation of Patient ID vs Appointment ID
-          const resolvedPatUhid = foundPatientRecord?.patient_id || foundPatientRecord?.uhid || item.patient_uhid || (typeof item.patient_id === 'string' && !item.patient_id.startsWith('APT-') ? item.patient_id : null) || item.uhid || (typeof item.patient === 'object' ? (item.patient?.patient_id || item.patient?.uhid || (item.patient?.id ? `PAT-${item.patient.id}` : '')) : (item.patient ? `PAT-${item.patient}` : '')) || (foundPatientRecord?.id ? `PAT-${foundPatientRecord.id}` : (currentUser?.id ? `PAT-${currentUser.id}` : '-'));
+        // Booking / Visit Date & Time from backend
+        const rawBookingDate = item.appointment_date || item.visit_date_time || item.created_at || null;
+        const rawBookingTime = item.appointment_time || (item.visit_date_time ? new Date(item.visit_date_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null);
+        const formattedVisitDate = rawBookingDate ? new Date(rawBookingDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+        const formattedVisitTime = rawBookingTime || (item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '-');
 
-          return {
-            ...item,
-            id,
-            Appoment_id: apptId,
-            appointment_id: apptId,
-            tracking_id: `APT-${apptId}`,
-            patient_id: resolvedPatUhid,
-            patient_uhid_display: resolvedPatUhid,
-            patient_Name: item.patient_Name || item.patient_name || item.name || foundPatientRecord?.name || currentUser?.name || '-',
-            gender: item.Gender || item.gender || foundPatientRecord?.Gender || foundPatientRecord?.gender || currentUser?.Gender || currentUser?.gender || '-',
-            Gender: item.Gender || item.gender || foundPatientRecord?.Gender || foundPatientRecord?.gender || currentUser?.Gender || currentUser?.gender || '-',
-            age: item.age || item.Age || foundPatientRecord?.age || currentUser?.age || '-',
-            blood_group: item.Blood_Group || item.blood_group || foundPatientRecord?.Blood_Group || foundPatientRecord?.blood_group || '-',
-            doctor_name: docName,
-            doctor_specialization: docObj?.specialization || docObj?.specialty || item.doctor_specialization || '-',
-            hospital_name: hospName,
-            hospital_address: hospObj?.Address || hospObj?.address || item.hospital_address || '-',
-            hospital_phone: hospObj?.Emergency_Number || hospObj?.Phone || '-',
-            consultation_fee: docFee,
-            hospitals_charges: hospCharge,
-            total_bill: total,
-            amount_paid: paid,
-            due_balance: due,
-            payment_status: item.payment_status || (paid >= total && total > 0 ? 'Paid' : 'Paid'),
-            payment_method: item.payment_method || 'Cash',
-            bed_number: item.bed_number ? Number(item.bed_number) : null,
-            floor: item.bed_number ? `Floor ${Math.floor((Number(item.bed_number) - 1) / 100) + 1}` : '-',
-            visit_date_formatted: formattedVisitDate,
-            visit_time_formatted: formattedVisitTime,
-            symptoms: item.symptoms_diagnosis || item.reason_for_visit || item.symptoms || '-',
-            condition_severity: item.condition || item.Condation || 'Normal',
-            Discharge_DateTime: rawDischargeDateTime,
-            discharge_date: rawDischargeDateTime,
-            discharge_datetime_formatted: formattedDischargeDateTime
-          };
-        });
+        // Discharge Date & Time strictly from backend Discharge_DateTime field
+        const rawDischargeDateTime = item.Discharge_DateTime || item.discharge_datetime || item.Discharge_datetime || item.discharge_date || item.Discharge_Date || item.completed_at || null;
+        const formattedDischargeDateTime = rawDischargeDateTime ? formatCustomDateTime(rawDischargeDateTime) : '-';
 
-      // Sort newest discharge first (by appointment id descending)
-      discharged.sort((a, b) => (Number(b.Appoment_id || b.id) || 0) - (Number(a.Appoment_id || a.id) || 0));
+        // Proper separation of Patient ID vs Appointment ID
+        const resolvedPatUhid = foundPatientRecord?.patient_id || foundPatientRecord?.uhid || item.patient_uhid || (typeof item.patient_id === 'string' && !item.patient_id.startsWith('APT-') ? item.patient_id : null) || item.uhid || (typeof item.patient === 'object' ? (item.patient?.patient_id || item.patient?.uhid || (item.patient?.id ? `PAT-${item.patient.id}` : '')) : (item.patient ? `PAT-${item.patient}` : '')) || (foundPatientRecord?.id ? `PAT-${foundPatientRecord.id}` : (currentUser?.id ? `PAT-${currentUser.id}` : '-'));
 
-      setDischargedRecords(discharged);
+        return {
+          ...item,
+          id,
+          Appoment_id: apptId,
+          appointment_id: apptId,
+          tracking_id: `APT-${apptId}`,
+          patient_id: resolvedPatUhid,
+          patient_uhid_display: resolvedPatUhid,
+          patient_Name: item.patient_Name || item.patient_name || item.name || foundPatientRecord?.name || currentUser?.name || '-',
+          gender: item.Gender || item.gender || foundPatientRecord?.Gender || foundPatientRecord?.gender || currentUser?.Gender || currentUser?.gender || '-',
+          Gender: item.Gender || item.gender || foundPatientRecord?.Gender || foundPatientRecord?.gender || currentUser?.Gender || currentUser?.gender || '-',
+          age: item.age || item.Age || foundPatientRecord?.age || currentUser?.age || '-',
+          blood_group: item.Blood_Group || item.blood_group || foundPatientRecord?.Blood_Group || foundPatientRecord?.blood_group || '-',
+          doctor_name: docName,
+          doctor_specialization: docObj?.specialization || docObj?.specialty || item.doctor_specialization || '-',
+          hospital_name: hospName,
+          hospital_address: hospObj?.Address || hospObj?.address || item.hospital_address || '-',
+          hospital_phone: hospObj?.Emergency_Number || hospObj?.Phone || '-',
+          consultation_fee: docFee,
+          hospitals_charges: hospCharge,
+          total_bill: total,
+          amount_paid: paid,
+          due_balance: due,
+          payment_status: ((item.payment_status || item.Payment_status || item.billing_status || '').toString().toLowerCase().trim() === 'paid' || (!isCancelled && paid >= total && total > 0)) ? 'Paid' : 'Pending',
+          payment_method: item.payment_method || 'Cash',
+          bed_number: item.bed_number ? Number(item.bed_number) : null,
+          floor: item.bed_number ? `Floor ${Math.floor((Number(item.bed_number) - 1) / 100) + 1}` : '-',
+          visit_date_formatted: formattedVisitDate,
+          visit_time_formatted: formattedVisitTime,
+          symptoms: item.symptoms_diagnosis || item.reason_for_visit || item.symptoms || '-',
+          condition_severity: item.condition || item.Condation || 'Normal',
+          Discharge_DateTime: rawDischargeDateTime,
+          discharge_date: rawDischargeDateTime,
+          discharge_datetime_formatted: formattedDischargeDateTime,
+          is_cancelled: isCancelled,
+          status: isCancelled ? 'Cancelled' : (item.status || 'Discharged')
+        };
+      });
+
+      // Sort newest discharge/cancelled first (by appointment id descending)
+      formatted.sort((a, b) => (Number(b.Appoment_id || b.id) || 0) - (Number(a.Appoment_id || a.id) || 0));
+
+      setHistoryRecords(formatted);
 
       // Keep selectedRecord updated with fresh backend data for the currently viewed record ID ONLY
       if (selectedRecordIdRef.current) {
         const currentViewedId = String(selectedRecordIdRef.current);
-        const updatedMatch = discharged.find(d =>
+        const updatedMatch = formatted.find(d =>
           String(d.id) === currentViewedId ||
           String(d.Appoment_id) === currentViewedId ||
           String(d.appoment_id) === currentViewedId ||
@@ -339,8 +354,18 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
     setSelectedRecord(null);
   };
 
+  const dischargedRecords = historyRecords.filter(r => !r.is_cancelled);
+  const cancelledRecords = historyRecords.filter(r => r.is_cancelled);
+
+  const baseRecords =
+    selectedTab === 'DISCHARGED'
+      ? dischargedRecords
+      : selectedTab === 'CANCELLED'
+      ? cancelledRecords
+      : historyRecords;
+
   // Filtered records by search & hospital
-  const filteredRecords = dischargedRecords.filter((rec) => {
+  const filteredRecords = baseRecords.filter((rec) => {
     const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !q ||
@@ -360,7 +385,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
   // Calculate high level aggregates
   const totalCompletedVisits = dischargedRecords.length;
   const totalAmountPaid = dischargedRecords.reduce((acc, curr) => acc + (curr.amount_paid || 0), 0);
-  const uniqueHospitalsCount = new Set(dischargedRecords.map(r => r.hospital_name)).size;
+  const uniqueHospitalsCount = new Set(dischargedRecords.map(r => r.hospital_name).filter(h => h && h !== '-')).size;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
@@ -383,10 +408,10 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                 Medical History & Discharged Records
               </div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold mt-2 tracking-tight text-slate-100">
-                Discharged Appointments & Treatment History
+                Appointments Treatment & History
               </h1>
               <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-3xl">
-                Jab aap hospital se discharge hote hain, aapki appointment ID ke saath doctor consultation, clinical diagnosis, bed/ward allocation aur itemized billing ki complete journey yahan safe rehti hai. Click <strong>"Details"</strong> on any row to view full journey.
+                Aapki completed, discharged aur cancelled appointments ki complete journey yahan safe rehti hai. Click <strong>"Details"</strong> on any row to view full journey.
               </p>
             </div>
 
@@ -415,24 +440,108 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
           </div>
         </div>
 
-        {/* QUICK STATS CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Completed / Discharged Visits</p>
-            <h3 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">{totalCompletedVisits} Visits</h3>
-            <p className="text-xs text-emerald-700 font-medium mt-1">✓ All medical records archived</p>
+        {/* QUICK STATS CARDS: 4 BOXES (Completed Visits, Total Settled, Hospitals Consulted, Cancelled Appointments) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* BOX 1 */}
+          <div
+            onClick={() => setSelectedTab(selectedTab === 'DISCHARGED' ? 'ALL' : 'DISCHARGED')}
+            className={`p-4 sm:p-5 rounded-2xl bg-white border transition cursor-pointer shadow-2xs flex flex-col justify-between ${
+              selectedTab === 'DISCHARGED'
+                ? 'border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/20'
+                : 'border-slate-200 hover:border-teal-400'
+            }`}
+            title="Click to view discharged visits"
+          >
+            <div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Completed / Discharged Visits</p>
+                {selectedTab === 'DISCHARGED' && (
+                  <span className="text-[10px] font-bold text-teal-800 bg-teal-100 px-1.5 py-0.5 rounded border border-teal-300">Filtered</span>
+                )}
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">{totalCompletedVisits} Visits</h3>
+            </div>
+            <p className="text-xs text-emerald-700 font-medium mt-2">✓ All medical records archived</p>
           </div>
 
-          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Amount Settled</p>
-            <h3 className="text-xl sm:text-2xl font-black text-emerald-800 mt-1">₹{totalAmountPaid.toFixed(2)}</h3>
-            <p className="text-xs text-slate-500 mt-1">100% dues cleared with receipts</p>
+          {/* BOX 2 */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Amount Settled</p>
+              <h3 className="text-xl sm:text-2xl font-black text-emerald-800 mt-1">₹{totalAmountPaid.toFixed(2)}</h3>
+            </div>
+            <p className="text-xs text-slate-500 mt-2">100% dues cleared with receipts</p>
           </div>
 
-          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Hospitals Consulted</p>
-            <h3 className="text-xl sm:text-2xl font-black text-teal-800 mt-1">{uniqueHospitalsCount} Hospitals</h3>
-            <p className="text-xs text-slate-500 mt-1">Specialized care records</p>
+          {/* BOX 3 */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Hospitals Consulted</p>
+              <h3 className="text-xl sm:text-2xl font-black text-teal-800 mt-1">{uniqueHospitalsCount} Hospitals</h3>
+            </div>
+            <p className="text-xs text-slate-500 mt-2">Specialized care records</p>
+          </div>
+
+          {/* BOX 4: CANCELLED APPOINTMENTS */}
+          <div
+            onClick={() => setSelectedTab(selectedTab === 'CANCELLED' ? 'ALL' : 'CANCELLED')}
+            className={`p-4 sm:p-5 rounded-2xl bg-white border transition cursor-pointer shadow-2xs flex flex-col justify-between ${
+              selectedTab === 'CANCELLED'
+                ? 'border-rose-400 ring-2 ring-rose-500/20 bg-rose-50/20'
+                : 'border-slate-200 hover:border-rose-300'
+            }`}
+            title="Click to view cancelled appointments"
+          >
+            <div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cancelled Appointments</p>
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                  cancelledRecords.length > 0
+                    ? selectedTab === 'CANCELLED'
+                      ? 'bg-rose-600 text-white border-rose-600'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                    : 'bg-slate-50 text-slate-400 border-slate-200'
+                }`}>
+                  {cancelledRecords.length > 0 ? (selectedTab === 'CANCELLED' ? 'Filtered' : 'Click to View') : '0 Found'}
+                </span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black text-rose-700 mt-1">
+                {cancelledRecords.length} Cancelled
+              </h3>
+            </div>
+
+            <div className="mt-2 pt-2 border-t border-slate-100">
+              {cancelledRecords.length === 0 ? (
+                <p className="text-xs text-slate-400 font-medium">✓ No cancelled appointments</p>
+              ) : (
+                <div className="space-y-1.5 max-h-24 overflow-y-auto pr-1">
+                  {cancelledRecords.map((c, i) => (
+                    <div
+                      key={c.id || i}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedTab('CANCELLED');
+                        handleOpenDetails(c);
+                      }}
+                      className="flex items-center justify-between text-xs p-1.5 rounded-lg bg-rose-50/90 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 transition"
+                      title={`Click to view full details of ${c.tracking_id}`}
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-mono font-bold text-rose-800 text-[10px] bg-white px-1.5 py-0.5 rounded border border-rose-200 shrink-0">
+                          {c.tracking_id}
+                        </span>
+                        <span className="text-[11px] text-slate-700 font-semibold truncate">
+                          {c.doctor_name && c.doctor_name !== '-' ? c.doctor_name : (c.symptoms && c.symptoms !== '-' ? c.symptoms : 'Appointment')}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-rose-600 font-extrabold shrink-0 ml-1">
+                        ✕ Cancelled
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -443,16 +552,16 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
             <p className="text-sm font-bold text-slate-700">Loading your complete medical history...</p>
             <p className="text-xs text-slate-400 mt-1">Retrieving verified appointment journey, clinical records, doctor notes, and billing history.</p>
           </div>
-        ) : dischargedRecords.length === 0 ? (
-          /* NO DISCHARGE RECORDS YET */
+        ) : historyRecords.length === 0 ? (
+          /* NO RECORDS YET */
           <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center shadow-xs space-y-4 max-w-2xl mx-auto">
             <div className="w-16 h-16 rounded-full bg-teal-50 border border-teal-200 text-teal-700 text-2xl flex items-center justify-center mx-auto shadow-2xs">
               📋
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900">No Discharged Records Yet</h3>
+              <h3 className="text-lg font-bold text-slate-900">No Medical History Records Yet</h3>
               <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                Aapke paas abhi koi discharged appointment record nahi hai. Jab hospital doctor ya receptionist aapki visit ko <strong>Discharged</strong> mark karke billing settle karenge, aapki appointment ID ke sath starting se end tak ki sari details yahan table me show ho jayegi.
+                Aapke paas abhi koi completed, discharged ya cancelled appointment record nahi hai. Jab hospital doctor ya receptionist aapki visit ko complete karenge ya aapki appointment cancel hogi, uski full journey yahan safe preserve rahegi.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
@@ -474,22 +583,63 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
             </div>
           </div>
         ) : (
-          /* TABLE FORMAT VIEW FOR DISCHARGED APPOINTMENTS */
+          /* TABLE FORMAT VIEW FOR APPOINTMENTS HISTORY */
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-0">
             {/* TABLE HEADER & SEARCH BAR */}
             <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50">
               <div>
                 <h2 className="text-base font-bold text-slate-800">
-                  Discharged Appointments History Table ({filteredRecords.length})
+                  {selectedTab === 'CANCELLED'
+                    ? `Cancelled Appointments History Table (${filteredRecords.length})`
+                    : selectedTab === 'DISCHARGED'
+                    ? `Discharged Appointments History Table (${filteredRecords.length})`
+                    : `Appointments Medical History Table (${filteredRecords.length})`}
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Click on the <span className="font-semibold text-teal-800">"Details"</span> button in any row to see full chronological journey from booking to discharge.
+                  Click on the <span className="font-semibold text-teal-800">"Details"</span> button in any row to see full chronological journey from booking to {selectedTab === 'CANCELLED' ? 'cancellation' : 'discharge'}.
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5">
+                {/* View Tabs */}
+                <div className="inline-flex rounded-xl bg-slate-100 p-0.5 border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTab('ALL')}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                      selectedTab === 'ALL'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    All ({historyRecords.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTab('DISCHARGED')}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                      selectedTab === 'DISCHARGED'
+                        ? 'bg-teal-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Discharged ({dischargedRecords.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTab('CANCELLED')}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                      selectedTab === 'CANCELLED'
+                        ? 'bg-rose-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-rose-700'
+                    }`}
+                  >
+                    Cancelled ({cancelledRecords.length})
+                  </button>
+                </div>
+
                 {/* Search Input */}
-                <div className="relative min-w-[220px]">
+                <div className="relative min-w-[200px]">
                   <input
                     type="text"
                     value={searchQuery}
@@ -507,7 +657,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                   className="py-1.5 px-3 rounded-xl border border-slate-200 text-xs bg-white text-slate-700 focus:outline-none focus:border-teal-500"
                 >
                   <option value="ALL">All Hospitals</option>
-                  {Array.from(new Set(dischargedRecords.map(r => r.hospital_name))).map((hName, idx) => (
+                  {Array.from(new Set(historyRecords.map(r => r.hospital_name).filter(h => h && h !== '-'))).map((hName, idx) => (
                     <option key={idx} value={hName}>{hName}</option>
                   ))}
                 </select>
@@ -525,7 +675,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                     <th className="py-3.5 px-4">Visit Date & Time</th>
                     <th className="py-3.5 px-4">Chief Symptoms / Diagnosis</th>
                     <th className="py-3.5 px-4">Ward / Bed</th>
-                    <th className="py-3.5 px-4">Total Bill</th>
+                    <th className="py-3.5 px-4 text-center">Bill Status</th>
                     <th className="py-3.5 px-4 text-center">Status</th>
                     <th className="py-3.5 px-4 text-center">Action</th>
                   </tr>
@@ -587,20 +737,34 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                           )}
                         </td>
 
-                        {/* 7. Total Bill & Paid */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="font-mono font-bold text-slate-900">₹{item.total_bill.toFixed(2)}</div>
-                          <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            Paid ({item.payment_method})
-                          </span>
+                        {/* 7. Bill Status (Only Paid or Pending, no amount) */}
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                          {String(item.payment_status || '').toLowerCase().trim() === 'paid' ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                              Paid
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
+                              Pending
+                            </span>
+                          )}
                         </td>
 
-                        {/* 8. Discharge Status */}
+                        {/* 8. Discharge / Cancelled Status */}
                         <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                            Discharged
-                          </span>
+                          {item.is_cancelled ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-300">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                              Cancelled
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                              Discharged
+                            </span>
+                          )}
                         </td>
 
                         {/* 9. Action: Details Button */}
@@ -625,7 +789,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
             {/* TABLE FOOTER SUMMARY */}
             <div className="p-4 border-t border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
               <p>
-                Showing <strong>{filteredRecords.length}</strong> of <strong>{dischargedRecords.length}</strong> total discharged appointment records.
+                Showing <strong>{filteredRecords.length}</strong> of <strong>{baseRecords.length}</strong> {selectedTab === 'CANCELLED' ? 'cancelled' : selectedTab === 'DISCHARGED' ? 'discharged' : 'total'} appointment records.
               </p>
               <p className="text-[11px]">
                 Records are permanently preserved in your personal medical log.
@@ -646,12 +810,20 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                   <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-300">
                     {selectedRecord.tracking_id}
                   </span>
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                    ✓ Officially Discharged & Cleared
-                  </span>
+                  {selectedRecord.is_cancelled ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-rose-100 text-rose-900 border border-rose-300">
+                      ✕ Cancelled Appointment
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      ✓ Officially Discharged & Cleared
+                    </span>
+                  )}
                 </div>
                 <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
-                  Complete Medical Journey & Discharge Summary
+                  {selectedRecord.is_cancelled
+                    ? 'Appointment Details & Cancellation Record'
+                    : 'Complete Medical Journey & Discharge Summary'}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Hospital: <strong>{selectedRecord.hospital_name}</strong> • Attending: <strong>{selectedRecord.doctor_name}</strong>
@@ -671,7 +843,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
             {/* CHRONOLOGICAL JOURNEY TIMELINE STEPPER (START TO END) */}
             <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 space-y-3">
               <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Chronological Journey (Booking to Discharge)
+                Chronological Journey (Booking to {selectedRecord.is_cancelled ? 'Cancellation' : 'Discharge'})
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 text-xs">
                 {/* 1. Booking */}
@@ -709,17 +881,29 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                   </p>
                 </div>
 
-                {/* 4. Discharge */}
-                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 shadow-2xs">
-                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold text-[10px] flex items-center justify-center mb-1.5">
-                    4
+                {/* 4. Discharge or Cancellation */}
+                <div className={`p-3 rounded-xl border shadow-2xs ${
+                  selectedRecord.is_cancelled ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'
+                }`}>
+                  <span className={`w-5 h-5 rounded-full text-white font-bold text-[10px] flex items-center justify-center mb-1.5 ${
+                    selectedRecord.is_cancelled ? 'bg-rose-600' : 'bg-emerald-600'
+                  }`}>
+                    {selectedRecord.is_cancelled ? '✕' : '4'}
                   </span>
-                  <p className="text-[10px] font-bold text-emerald-800 uppercase">Discharge & Bill</p>
-                  <p className="font-bold text-emerald-950 text-xs mt-0.5">
-                    {selectedRecord.discharge_datetime_formatted || '-'}
+                  <p className={`text-[10px] font-bold uppercase ${
+                    selectedRecord.is_cancelled ? 'text-rose-800' : 'text-emerald-800'
+                  }`}>
+                    {selectedRecord.is_cancelled ? 'Status' : 'Discharge & Bill'}
                   </p>
-                  <p className="text-[11px] text-emerald-700 font-semibold">
-                    {selectedRecord.total_bill > 0 ? `₹${selectedRecord.total_bill.toFixed(2)} Paid` : '-'}
+                  <p className={`font-bold text-xs mt-0.5 ${
+                    selectedRecord.is_cancelled ? 'text-rose-950' : 'text-emerald-950'
+                  }`}>
+                    {selectedRecord.is_cancelled ? 'Visit Cancelled' : (selectedRecord.discharge_datetime_formatted || '-')}
+                  </p>
+                  <p className={`text-[11px] font-semibold ${
+                    selectedRecord.is_cancelled ? 'text-rose-700' : 'text-emerald-700'
+                  }`}>
+                    {selectedRecord.is_cancelled ? 'Charges Voided' : (selectedRecord.total_bill > 0 ? `₹${selectedRecord.total_bill.toFixed(2)} Paid` : '-')}
                   </p>
                 </div>
               </div>
@@ -803,30 +987,40 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                 <p className="text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100 pb-1.5">
                   💳 Itemized Financial Settlement & Receipt
                 </p>
-                <table className="w-full text-xs">
-                  <tbody className="divide-y divide-slate-100">
-                    <tr>
-                      <td className="py-1.5 text-slate-600">Doctor Clinical Consultation & Observation Fee</td>
-                      <td className="py-1.5 text-right font-mono font-bold text-slate-800">₹{selectedRecord.consultation_fee.toFixed(2)}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-1.5 text-slate-600">Hospital & Treatment Facilities Charges</td>
-                      <td className="py-1.5 text-right font-mono font-bold text-slate-800">₹{selectedRecord.hospitals_charges.toFixed(2)}</td>
-                    </tr>
-                    <tr className="border-t-2 border-slate-200 font-bold bg-slate-50/50">
-                      <td className="py-2 text-slate-900 uppercase">Total Billed Amount</td>
-                      <td className="py-2 text-right font-mono font-black text-slate-900 text-sm">₹{selectedRecord.total_bill.toFixed(2)}</td>
-                    </tr>
-                    <tr className="bg-emerald-50 text-emerald-950 font-bold">
-                      <td className="py-2 px-2">Amount Paid ({selectedRecord.payment_method})</td>
-                      <td className="py-2 px-2 text-right font-mono font-black text-emerald-800 text-sm">₹{selectedRecord.amount_paid.toFixed(2)}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-1 px-2 text-slate-400 text-[11px]">Remaining Balance Dues:</td>
-                      <td className="py-1 px-2 text-right font-mono text-slate-400 text-[11px] font-bold">₹0.00 (Fully Settled)</td>
-                    </tr>
-                  </tbody>
-                </table>
+                {selectedRecord.is_cancelled ? (
+                  <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs space-y-1">
+                    <div className="flex items-center gap-2 text-rose-900 font-bold">
+                      <span>✕</span>
+                      <span>This appointment was cancelled. All consultation fees and hospital charges are voided / refunded.</span>
+                    </div>
+                    <p className="text-[11px] text-rose-700">Financial Status: Cancelled • Balance Due: ₹0.00 (No Dues)</p>
+                  </div>
+                ) : (
+                  <table className="w-full text-xs">
+                    <tbody className="divide-y divide-slate-100">
+                      <tr>
+                        <td className="py-1.5 text-slate-600">Doctor Clinical Consultation & Observation Fee</td>
+                        <td className="py-1.5 text-right font-mono font-bold text-slate-800">₹{selectedRecord.consultation_fee.toFixed(2)}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-1.5 text-slate-600">Hospital & Treatment Facilities Charges</td>
+                        <td className="py-1.5 text-right font-mono font-bold text-slate-800">₹{selectedRecord.hospitals_charges.toFixed(2)}</td>
+                      </tr>
+                      <tr className="border-t-2 border-slate-200 font-bold bg-slate-50/50">
+                        <td className="py-2 text-slate-900 uppercase">Total Billed Amount</td>
+                        <td className="py-2 text-right font-mono font-black text-slate-900 text-sm">₹{selectedRecord.total_bill.toFixed(2)}</td>
+                      </tr>
+                      <tr className="bg-emerald-50 text-emerald-950 font-bold">
+                        <td className="py-2 px-2">Amount Paid ({selectedRecord.payment_method})</td>
+                        <td className="py-2 px-2 text-right font-mono font-black text-emerald-800 text-sm">₹{selectedRecord.amount_paid.toFixed(2)}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-1 px-2 text-slate-400 text-[11px]">Remaining Balance Dues:</td>
+                        <td className="py-1 px-2 text-right font-mono text-slate-400 text-[11px] font-bold">₹0.00 (Fully Settled)</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
 

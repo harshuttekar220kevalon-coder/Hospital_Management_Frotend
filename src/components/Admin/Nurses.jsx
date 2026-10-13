@@ -46,8 +46,10 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
     contact: '',
     email: '',
     password: '',
-    status: '',
-    is_active: true
+    status: 'On_Duty',
+    is_active: true,
+    max_patient_capacity: 50,
+    assigned_floor: ''
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -58,16 +60,23 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
     try {
       if (!silent) setLoading(true);
 
-      let assignedHospitalId = currentUser?.hospital || null;
+      let assignedHospitalId = currentUser?.hospital?.id || currentUser?.hospital || currentUser?.hospital_data?.id || null;
+      if (typeof assignedHospitalId === 'object') assignedHospitalId = assignedHospitalId?.id;
+      assignedHospitalId = Number(assignedHospitalId) || null;
 
       try {
         const adminsRes = await fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null);
         if (adminsRes && adminsRes.ok) {
           const adminsList = await adminsRes.json();
           const currentEmail = (currentUser?.email || '').toLowerCase().trim();
-          const matchedAdmin = adminsList.find(a => (a.email || '').toLowerCase().trim() === currentEmail);
+          const currentName = (currentUser?.name || '').toLowerCase().trim();
+          const matchedAdmin = adminsList.find(a =>
+            (a.email || '').toLowerCase().trim() === currentEmail ||
+            (a.name || '').toLowerCase().trim() === currentName ||
+            (currentUser?.id && Number(a.id) === Number(currentUser.id))
+          );
           if (matchedAdmin && matchedAdmin.hospital) {
-            assignedHospitalId = Number(matchedAdmin.hospital);
+            assignedHospitalId = Number(typeof matchedAdmin.hospital === 'object' ? matchedAdmin.hospital.id : matchedAdmin.hospital);
           }
         }
       } catch (e) {
@@ -76,10 +85,20 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
 
       if (!assignedHospitalId) {
         try {
+          const rawUser = localStorage.getItem('currentUser');
+          if (rawUser) {
+            const u = JSON.parse(rawUser);
+            if (u.hospital) assignedHospitalId = Number(typeof u.hospital === 'object' ? u.hospital.id : u.hospital);
+          }
+        } catch {}
+      }
+
+      if (!assignedHospitalId) {
+        try {
           const saved = localStorage.getItem('selectedHospital');
           if (saved) {
             const parsed = JSON.parse(saved);
-            if (parsed?.id) assignedHospitalId = parsed.id;
+            if (parsed?.id) assignedHospitalId = Number(parsed.id);
           }
         } catch {}
       }
@@ -92,12 +111,11 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
         }
       }
 
-      if (!hosp) {
+      if (!hosp && assignedHospitalId) {
         const allHospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
-        if (allHospRes && allHospRes.ok) {
+        if (allHospRes.ok) {
           const allHosp = await allHospRes.json();
-          hosp = (assignedHospitalId ? allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) : null) || allHosp[0] || null;
-          if (hosp) assignedHospitalId = hosp.id;
+          hosp = allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) || null;
         }
       }
 
@@ -110,10 +128,13 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
       if (nursesRes && nursesRes.ok) {
         const allNurses = await nursesRes.json();
         if (assignedHospitalId) {
-          const branchNurses = allNurses.filter(n => Number(typeof n.hospital === 'object' ? n.hospital?.id : n.hospital) === Number(assignedHospitalId));
+          const branchNurses = allNurses.filter(n => {
+            const nHosp = typeof n.hospital === 'object' && n.hospital !== null ? n.hospital.id : n.hospital;
+            return Number(nHosp) === Number(assignedHospitalId);
+          });
           setNurses(branchNurses);
         } else {
-          setNurses(allNurses);
+          setNurses([]);
         }
       }
     } catch (err) {
@@ -179,19 +200,27 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
       const nurseRole = formData.role || formData.nurse_role || 'Staff Nurse';
       const currentStatus = formData.status || 'On_Duty';
       const payload = {
-        ...formData,
-        role: nurseRole,
-        nurse_role: nurseRole,
-        designation: nurseRole,
+        hospital: hospitalData?.id ? Number(hospitalData.id) : Number(currentUser?.hospital?.id || currentUser?.hospital || currentUser?.hospital_data?.id) || null,
         name: formData.name.trim(),
         nurse_id: generatedNurseId,
+        role: nurseRole,
+        ward: formData.ward,
+        shift: formData.shift,
+        qualification: formData.qualification.trim() || null,
+        experience: formData.experience.trim() || null,
         contact: formData.contact.trim(),
-        phone: formData.contact.trim(),
-        password: formData.password || '',
-        hospital: hospitalData?.id ? Number(hospitalData.id) : (currentUser?.hospital ? Number(currentUser.hospital) : null),
+        email: formData.email.trim(),
+        password: formData.password,
         status: currentStatus,
-        is_active: formData.is_active !== undefined ? formData.is_active : true
+        is_active: Boolean(formData.is_active),
+        max_patient_capacity: Number(formData.max_patient_capacity) || 50,
+        assigned_floor: formData.assigned_floor === '' ? null : Number(formData.assigned_floor)
       };
+
+      if (!payload.hospital) {
+        alert('A hospital must be assigned to your admin account before registering a nurse.');
+        return;
+      }
 
       const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/`, {
         method: 'POST',
@@ -212,34 +241,6 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
     } catch (err) {
       console.error('Error registering nurse:', err);
       alert('Network error while saving nurse profile: ' + (err.message || ''));
-    }
-  };
-
-  const handleToggleStatus = async (nurse) => {
-    const currentStatus = nurse.status === 'Off_Duty' ? 'Off_Duty' : (nurse.status === 'On_Duty' ? 'On_Duty' : 'On_Duty');
-    const newStatusStr = currentStatus === 'On_Duty' ? 'Off_Duty' : 'On_Duty';
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/${nurse.id}/`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatusStr })
-      });
-
-      if (response.ok) {
-        setNurses(prev => prev.map(n => n.id === nurse.id ? { ...n, status: newStatusStr } : n));
-      } else {
-        const putRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/${nurse.id}/`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...nurse, status: newStatusStr })
-        });
-        if (putRes.ok) {
-          setNurses(prev => prev.map(n => n.id === nurse.id ? { ...n, status: newStatusStr } : n));
-        }
-      }
-    } catch (err) {
-      console.error('Error toggling nurse status:', err);
     }
   };
 
@@ -324,23 +325,23 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active</span>
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
-              On Duty
+              Active Account
             </span>
           </div>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Active Nurses</p>
-          <h3 className="text-lg sm:text-xl font-bold text-emerald-700 mt-0.5">{activeCount} Available</h3>
-          <p className="text-xs text-emerald-600 mt-1">Working in Wards & ICUs</p>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Active Accounts</p>
+          <h3 className="text-lg sm:text-xl font-bold text-emerald-700 mt-0.5">{activeCount} Active</h3>
+          <p className="text-xs text-emerald-600 mt-1">Login access enabled</p>
         </div>
 
         <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-rose-300 transition">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Leave</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Inactive</span>
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-rose-50 text-rose-700 border-rose-200">
-              On Leave
+              Inactive Account
             </span>
           </div>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Inactive / Leave</p>
-          <h3 className="text-lg sm:text-xl font-bold text-rose-700 mt-0.5">{leaveCount} Off Duty</h3>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Inactive Accounts</p>
+          <h3 className="text-lg sm:text-xl font-bold text-rose-700 mt-0.5">{leaveCount} Inactive</h3>
           <p className="text-xs text-rose-600 mt-1">Login disabled while inactive</p>
         </div>
       </div>
@@ -363,10 +364,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
             className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 focus:outline-none focus:border-teal-600 cursor-pointer"
           >
             <option value="ALL">All Shifts</option>
-            <option value="Morning">Morning Shift</option>
-            <option value="Evening">Evening Shift</option>
-            <option value="Night">Night Shift</option>
-            <option value="Full Day">Full Day</option>
+            {shiftsList.map((shift) => <option key={shift} value={shift}>{shift}</option>)}
           </select>
 
           <select
@@ -452,18 +450,15 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(nurse)}
-                          title="Click to toggle Duty Status (On_Duty / Off_Duty)"
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${
+                        <span
+                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                             nurse.status === 'Off_Duty'
-                              ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                           }`}
                         >
                           {nurse.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty'}
-                        </button>
+                        </span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
@@ -515,6 +510,10 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
 
             <form onSubmit={handleAddSubmit} className="space-y-3 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div><label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Hospital</label><input readOnly value={hospitalData?.Name || 'Loading assigned hospital...'} className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700" /></div>
+                <div><label className="block font-semibold text-slate-700 uppercase mb-1">Nurse ID</label><input readOnly value="Auto-generated on registration" className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-500" /></div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Nurse Full Name *</label>
                   <input
@@ -559,6 +558,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
                   <div className="relative">
                     <input
                       type={showAddPassword ? 'text' : 'password'}
+                      maxLength={12}
                       required
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -623,6 +623,11 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div><label className="block font-semibold text-slate-700 uppercase mb-1">Maximum Patient Capacity</label><input type="number" min="1" value={formData.max_patient_capacity} onChange={(e) => setFormData({ ...formData, max_patient_capacity: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800" /></div>
+                <div><label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Floor</label><input type="number" min="0" value={formData.assigned_floor} onChange={(e) => setFormData({ ...formData, assigned_floor: e.target.value })} placeholder="Optional" className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800" /></div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Qualifications</label>
                   <input
@@ -645,12 +650,8 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Hospital Branch</label>
-                <div className="p-2.5 bg-slate-100 rounded-xl border border-slate-200 text-slate-700 font-medium">
-                  {hospitalData?.Name || 'Not Provided'}
-                </div>
-              </div>
+              <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 font-semibold text-slate-700"><input type="checkbox" checked={formData.is_active} onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })} className="h-4 w-4 rounded text-teal-600" />Account is active and can log in</label>
+              <p className="text-[11px] text-slate-500">Created date is assigned automatically on registration.</p>
 
               {/* DUTY STATUS */}
               <div>

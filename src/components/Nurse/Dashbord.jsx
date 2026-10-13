@@ -1,6 +1,88 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL, extractArray } from '../Api/Api';
 
+const formatAppointmentId = (item) => {
+  if (!item) return 'APT-0';
+  const rawId = item.appointment_id || item.Appoment_id || item.appoment_id || item.tracking_id ||
+    (typeof item.patient_id === 'string' && item.patient_id.trim().toUpperCase().startsWith('APT-') ? item.patient_id : null) ||
+    item.id;
+  if (!rawId) return 'APT-0';
+  const strId = String(rawId).trim();
+  if (strId.toUpperCase().startsWith('APT-')) return strId.toUpperCase();
+  return `APT-${strId}`;
+};
+
+const getNurseFloorNumber = (nurse, user) => {
+  const n = nurse || user;
+  if (!n) return 1;
+
+  // 1. Check assigned_floor (from Nurse settings/profile)
+  const rawAssigned = n.assigned_floor ?? user?.assigned_floor;
+  if (rawAssigned !== undefined && rawAssigned !== null && String(rawAssigned).trim() !== '') {
+    const parsed = parseInt(String(rawAssigned).replace(/\D/g, ''), 10);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+
+  // 2. Check floor property
+  const rawFloor = n.floor ?? user?.floor;
+  if (rawFloor !== undefined && rawFloor !== null && String(rawFloor).trim() !== '') {
+    const parsed = parseInt(String(rawFloor).replace(/\D/g, ''), 10);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+
+  // 3. Check ward property (e.g. "Floor 1 Ward" or "Floor 2")
+  const rawWard = n.ward ?? user?.ward;
+  if (rawWard) {
+    const match = String(rawWard).match(/floor\s*(\d+)/i) || String(rawWard).match(/(\d+)/);
+    if (match) {
+      const parsed = parseInt(match[1], 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+  }
+
+  return 1;
+};
+
+const getPatientBedFloorNumber = (p) => {
+  if (!p) return null;
+  // Patient must have an allocated bed number
+  const rawBed = p.bed_number;
+  if (rawBed === undefined || rawBed === null || String(rawBed).trim() === '' || String(rawBed).trim() === '0') {
+    return null;
+  }
+  const bedNum = parseInt(String(rawBed).replace(/\D/g, ''), 10);
+  if (!isNaN(bedNum) && bedNum > 0) {
+    return Math.floor((bedNum - 1) / 100) + 1;
+  }
+  return null;
+};
+
+const isPatientAssignedToNurse = (p, nurseObj, userObj) => {
+  if (!p) return false;
+  const nurse = nurseObj || userObj;
+  if (!nurse) return false;
+
+  const targetNurseId = nurse?.id ? Number(nurse.id) : (userObj?.id ? Number(userObj.id) : null);
+  const targetNurseName = (nurse?.name || userObj?.name || '').toLowerCase().trim();
+  const targetNurseEmail = (nurse?.email || userObj?.email || '').toLowerCase().trim();
+
+  const pNurse = p.nurse;
+  const rawPNurseId = typeof pNurse === 'object' && pNurse !== null ? pNurse.id : pNurse;
+  const pNurseId = rawPNurseId && !isNaN(Number(rawPNurseId)) ? Number(rawPNurseId) : null;
+  const pNurseName = (p.nurse_name || (typeof pNurse === 'object' && pNurse !== null ? (pNurse.name || pNurse.Name) : '') || '').toLowerCase().trim();
+  const pNurseEmail = (p.nurse_email || (typeof pNurse === 'object' && pNurse !== null ? pNurse.email : '') || '').toLowerCase().trim();
+
+  // If no nurse is assigned on the appointment record, it is NOT assigned
+  if (!pNurseId && !pNurseName && !pNurseEmail) return false;
+
+  // Strict comparison
+  if (targetNurseId && pNurseId && targetNurseId === pNurseId) return true;
+  if (targetNurseName && pNurseName && targetNurseName === pNurseName) return true;
+  if (targetNurseEmail && pNurseEmail && targetNurseEmail === pNurseEmail) return true;
+
+  return false;
+};
+
 const isAppointmentInHospital = (item, targetHospId, targetHospName = '', hospList = []) => {
   if (!item) return false;
 
@@ -188,8 +270,22 @@ const NurseDashboard = ({ currentUser, setCurrentPage }) => {
         const hospPats = targetHospId || targetHospName
           ? allPats.filter(p => isAppointmentInHospital(p, targetHospId, targetHospName, hospitals))
           : [];
+
+        const enriched = hospPats.map(p => {
+          const apptId = p.id;
+          const stored = localStorage.getItem(`nurse_checkup_${apptId}`) ||
+            (p.Appoment_id ? localStorage.getItem(`nurse_checkup_${p.Appoment_id}`) : null) ||
+            (p.appointment_id ? localStorage.getItem(`nurse_checkup_${p.appointment_id}`) : null);
+          if (stored === 'Done') {
+            return { ...p, status: 'Completed', checkup_status: 'Done' };
+          } else if (stored === 'Not Done' && (p.status === 'Completed' || p.checkup_status === 'Done')) {
+            return { ...p, status: 'Admitted', checkup_status: 'Pending' };
+          }
+          return p;
+        });
+
         if (isMounted) {
-          setAllPatients(hospPats);
+          setAllPatients(enriched);
         }
       } catch (err) {
         console.error('Error in NurseDashboard load:', err);
@@ -208,29 +304,39 @@ const NurseDashboard = ({ currentUser, setCurrentPage }) => {
   const wardName = activeNurse?.ward || currentUser?.ward || 'General Care Ward';
   const shiftName = activeNurse?.shift || currentUser?.shift || 'Morning Shift';
   const hospitalName = hospitalInfo?.Name || hospitalInfo?.name || activeNurse?.hospital_name || currentUser?.hospital_name || (typeof activeNurse?.hospital === 'object' ? activeNurse.hospital?.Name : null) || 'Not Provided';
-  const nurseFloor = activeNurse?.floor || 'Floor 1';
+  // Compute nurse's designated floor number & label
+  const nurseFloorNum = getNurseFloorNumber(activeNurse, currentUser);
+  const nurseFloor = `Floor ${nurseFloorNum}`;
 
-  const nurseNameLower = (nurseName || '').toLowerCase().trim();
-  const nurseIdNum = activeNurse?.id ? Number(activeNurse.id) : null;
+  // STRICT REQUIREMENT:
+  // Patient is ONLY displayed on Nurse dashboard if:
+  // 1. Patient is assigned to this nurse
+  // AND
+  // 2. Patient's bed count / bed number matches this nurse's assigned floor
+  const displayedPatients = allPatients.filter(p => {
+    // 1. Must be assigned to this nurse
+    if (!isPatientAssignedToNurse(p, activeNurse, currentUser)) return false;
 
-  const myAssignedPatients = allPatients.filter(p => {
-    const pNurseId = typeof p.nurse === 'object' ? p.nurse?.id : p.nurse;
-    if (nurseIdNum && Number(pNurseId) === nurseIdNum) return true;
-    if (p.nurse_name && p.nurse_name.toLowerCase().trim() === nurseNameLower) return true;
-    return false;
+    // 2. Must have a bed count / bed number matching this nurse's floor
+    const patBedFloor = getPatientBedFloorNumber(p);
+    if (!patBedFloor || patBedFloor !== nurseFloorNum) return false;
+
+    return true;
   });
-
-  const displayedPatients = myAssignedPatients.length > 0 ? myAssignedPatients : allPatients;
 
   const isPatientCheckupDone = (patient) => {
     if (!patient) return false;
     const s = (patient.status || '').toLowerCase().trim();
-    if (s === 'completed' || s === 'discharged' || s === 'checkup done' || s.includes('checkup done') || s.includes('done')) return true;
+    const cs = (patient.checkup_status || '').toLowerCase().trim();
+    const apptId = patient.id;
     try {
-      const stored = localStorage.getItem(`nurse_checkup_${patient.id}`);
+      const stored = localStorage.getItem(`nurse_checkup_${apptId}`) ||
+        (patient.Appoment_id ? localStorage.getItem(`nurse_checkup_${patient.Appoment_id}`) : null) ||
+        (patient.appointment_id ? localStorage.getItem(`nurse_checkup_${patient.appointment_id}`) : null);
       if (stored === 'Done') return true;
       if (stored === 'Not Done') return false;
     } catch {}
+    if (s === 'completed' || s === 'discharged' || s === 'checkup done' || s.includes('checkup done') || s.includes('done') || cs === 'done' || cs === 'completed') return true;
     return false;
   };
 
@@ -328,6 +434,12 @@ const NurseDashboard = ({ currentUser, setCurrentPage }) => {
 
     try {
       localStorage.setItem(`nurse_checkup_${patient.id}`, isDone ? 'Done' : 'Not Done');
+      if (patient.Appoment_id) {
+        localStorage.setItem(`nurse_checkup_${patient.Appoment_id}`, isDone ? 'Done' : 'Not Done');
+      }
+      if (patient.appointment_id) {
+        localStorage.setItem(`nurse_checkup_${patient.appointment_id}`, isDone ? 'Done' : 'Not Done');
+      }
 
       const candidateIds = [
         patient.appointment_pk,
@@ -503,7 +615,7 @@ const NurseDashboard = ({ currentUser, setCurrentPage }) => {
             <thead className="bg-slate-100/80 text-slate-700 uppercase font-semibold text-[11px] tracking-wider rounded-lg">
               <tr>
                 <th className="py-3 px-3">Bed & Floor</th>
-                <th className="py-3 px-3">Patient Name & ID</th>
+                <th className="py-3 px-3">Patient & Appointment ID</th>
                 <th className="py-3 px-3">Age / Gender</th>
                 <th className="py-3 px-3">Condition / Diagnosis</th>
                 <th className="py-3 px-3">Status</th>
@@ -517,9 +629,11 @@ const NurseDashboard = ({ currentUser, setCurrentPage }) => {
                 </tr>
               ) : displayedPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
-                    <p className="font-semibold text-slate-600">No patients assigned to you on {nurseFloor}.</p>
-                    <p className="text-xs text-slate-400 mt-1">Assigned patients on {nurseFloor} will appear here.</p>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <p className="font-bold text-sm text-slate-700">No assigned patients found for your floor.</p>
+                    <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                      Patients will appear here only when assigned to you with an allocated bed on {nurseFloor}.
+                    </p>
                   </td>
                 </tr>
               ) : (
@@ -542,8 +656,12 @@ const NurseDashboard = ({ currentUser, setCurrentPage }) => {
                         </div>
                       </td>
                       <td className="py-3 px-3 font-semibold text-slate-800">
-                        <div>{p.name}</div>
-                        <span className="font-mono text-[10px] text-sky-700 font-bold">{p.patient_id || p.uhid || `PAT-${p.id}`}</span>
+                        <div>{p.patient_name || p.patient_Name || p.name || 'Patient'}</div>
+                        {p.name && (p.patient_name || p.patient_Name) &&
+                         p.name.toLowerCase().trim() !== (p.patient_name || p.patient_Name).toLowerCase().trim() && (
+                          <div className="text-[10px] text-slate-500 font-medium">({p.name})</div>
+                        )}
+                        <span className="font-mono text-[10px] text-sky-700 font-bold">{formatAppointmentId(p)}</span>
                       </td>
                       <td className="py-3 px-3">{p.age ? `${p.age} Y` : 'Adult'} / {p.Gender || p.gender || 'Not Specified'}</td>
                       <td className="py-3 px-3 font-medium text-slate-700">{p.symptoms_diagnosis || p.reason || 'General Inpatient'}</td>

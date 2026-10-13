@@ -47,11 +47,7 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
 
   const rolesList = [
     'Head Nurse',
-    'Staff Nurse',
-    'ICU Nurse',
-    'Emergency Nurse',
-    'General Nurse',
-    'Nurse'
+    'Staff Nurse'
   ];
 
   const wardsList = [
@@ -111,11 +107,32 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
       const activeNurse = matchedNurse || currentUser || {};
       setNurseData(activeNurse);
 
-      const targetHospId = activeNurse.hospital
+      let targetHospId = activeNurse.hospital
         ? (typeof activeNurse.hospital === 'object' ? activeNurse.hospital.id : activeNurse.hospital)
         : (currentUser?.hospital || '');
 
-      const resolvedRole = (activeNurse.role && activeNurse.role.trim()) || (activeNurse.nurse_role && activeNurse.nurse_role.trim()) || currentUser?.role || 'Staff Nurse';
+      if (!targetHospId && email) {
+        const savedHospId = localStorage.getItem(`user_hospital_${email}`);
+        if (savedHospId) targetHospId = savedHospId;
+      }
+
+      if (Array.isArray(loadedHospitals)) {
+        const found = loadedHospitals.find(h =>
+          (targetHospId && Number(h.id) === Number(targetHospId)) ||
+          (activeNurse?.hospital_name && h.Name && h.Name.toLowerCase().trim() === activeNurse.hospital_name.toLowerCase().trim()) ||
+          (typeof activeNurse?.hospital === 'string' && h.Name && h.Name.toLowerCase().trim() === activeNurse.hospital.toLowerCase().trim()) ||
+          (currentUser?.hospital_name && h.Name && h.Name.toLowerCase().trim() === currentUser.hospital_name.toLowerCase().trim())
+        );
+        if (found) {
+          setHospitalData(found);
+          targetHospId = found.id;
+        } else if (selectedHospital) {
+          setHospitalData(selectedHospital);
+        }
+      }
+
+      let rawRole = (activeNurse.role && activeNurse.role.trim()) || (activeNurse.nurse_role && activeNurse.nurse_role.trim()) || currentUser?.role || 'Staff Nurse';
+      const resolvedRole = rolesList.includes(rawRole) ? rawRole : (rawRole.toLowerCase().includes('head') ? 'Head Nurse' : 'Staff Nurse');
 
       setEditFormData({
         name: activeNurse.name || currentUser?.name || '',
@@ -141,12 +158,6 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
         email: activeNurse.email || currentUser?.email || ''
       }));
 
-      if (targetHospId && Array.isArray(loadedHospitals)) {
-        const found = loadedHospitals.find(h => Number(h.id) === Number(targetHospId));
-        if (found) setHospitalData(found);
-      } else if (selectedHospital) {
-        setHospitalData(selectedHospital);
-      }
     } finally {
       setLoading(false);
     }
@@ -181,12 +192,16 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
 
       const nurseId = nurseData?.id || currentUser?.id;
 
+      const registeredHospitalId = nurseData?.hospital
+        ? (typeof nurseData.hospital === 'object' ? nurseData.hospital.id : nurseData.hospital)
+        : (currentUser?.hospital || hospitalData?.id || editFormData.hospital);
+
       const payload = {
         name: editFormData.name.trim(),
         email: editFormData.email.trim(),
         contact: editFormData.contact.trim(),
         phone: editFormData.contact.trim(),
-        role: editFormData.role,
+        role: rolesList.includes(editFormData.role) ? editFormData.role : 'Staff Nurse',
         ward: editFormData.ward,
         shift: editFormData.shift,
         qualification: editFormData.qualification.trim(),
@@ -195,7 +210,7 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
         is_active: Boolean(editFormData.is_active),
         max_patient_capacity: Number(editFormData.max_patient_capacity) || 50,
         assigned_floor: Number(editFormData.assigned_floor) || 1,
-        hospital: editFormData.hospital ? Number(editFormData.hospital) : null
+        hospital: registeredHospitalId ? Number(registeredHospitalId) : null
       };
 
       if (editFormData.password) {
@@ -659,24 +674,26 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                       />
                     </div>
 
-                    {/* 13. HOSPITAL */}
+                    {/* 13. HOSPITAL (LOCKED TO REGISTERED HOSPITAL ONLY) */}
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Hospital
-                      </label>
-                      <select
-                        name="hospital"
-                        value={editFormData.hospital}
-                        onChange={handleInputChange}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition"
-                      >
-                        <option value="">-- Select Hospital --</option>
-                        {hospitalsList.map(h => (
-                          <option key={h.id} value={h.id}>
-                            {h.Name || h.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Hospital <span className="text-rose-500">*</span>
+                        </label>
+                        <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-flex items-center gap-1">
+                          🔒 Registered Hospital (Non-editable)
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={hospitalData?.Name || hospitalData?.name || nurseData?.hospital_name || currentUser?.hospital_name || 'Assigned Hospital'}
+                        disabled
+                        readOnly
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm font-semibold text-slate-700 cursor-not-allowed select-none"
+                      />
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        🔒 Hospital registration ke time select kiya gaya tha aur ise change nahi kiya ja sakta.
+                      </p>
                     </div>
 
                     {/* 15. PASSWORD (READ-ONLY IN PROFILE) */}

@@ -58,6 +58,8 @@ import ReceptionistPatientDetails from '../Receptionist/Patient_Details';
 import ReceptionistSetting from '../Receptionist/Setting';
 import ReceptionistAnassine from '../Receptionist/Anassine';
 import ReceptionistBilling from '../Receptionist/Billing';
+import ReceptionistAppoiment from '../Receptionist/Appoiment';
+import ReceptionistNurse from '../Receptionist/Nurse';
 import PatientDashboard from '../Patient/Dashbord';
 import PatientSetting from '../Patient/Setting';
 import MyHestory from '../Patient/MyHestory';
@@ -668,11 +670,24 @@ const AppRoutes = () => {
                 setSelectedDoctorForPatient={setSelectedDoctorForPatient}
               />
             )}
+            {(currentPage === 'receptionist_appointments' || currentPage === 'receptionist_appoiment' || currentPage === 'receptionist_appointment') && (
+              <ReceptionistAppoiment
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
+                setSelectedPatient={setSelectedPatient}
+              />
+            )}
             {currentPage === 'receptionist_doctors' && (
               <ReceptionistDoctors
                 currentUser={currentUser}
                 setCurrentPage={setCurrentPage}
                 setSelectedDoctorForPatient={setSelectedDoctorForPatient}
+              />
+            )}
+            {(currentPage === 'receptionist_nurses' || currentPage === 'receptionist_nurse') && (
+              <ReceptionistNurse
+                currentUser={currentUser}
+                setCurrentPage={setCurrentPage}
               />
             )}
             {currentPage === 'receptionist_patients' && (

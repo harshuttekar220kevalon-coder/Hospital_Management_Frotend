@@ -205,7 +205,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                           : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                       }`}
                     >
-                      Inpatients & Vitals
+                      Patient
                     </button>
                   </>
                 )}
@@ -213,6 +213,20 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                 {/* Receptionist Navigation (NO Dashboard or Settings in top tabs) */}
                 {(currentUser?.role || '').toString().toUpperCase().includes('RECEPTION') && (
                   <>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('receptionist_appointments')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                        currentPage === 'receptionist_appointments' || currentPage === 'receptionist_appoiment'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-400/50 font-bold shadow-xs'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span>Appointments</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => handleNavClick('receptionist_doctors')}
@@ -223,6 +237,17 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                       }`}
                     >
                       Doctors
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('receptionist_nurses')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer whitespace-nowrap ${
+                        currentPage === 'receptionist_nurses' || currentPage === 'receptionist_nurse'
+                          ? 'bg-slate-800 text-amber-300 border border-amber-500/30'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      Nurses
                     </button>
                     <button
                       type="button"
@@ -505,7 +530,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                   currentPage === 'nurse_patients' ? 'bg-slate-800 text-emerald-300 border border-emerald-500/30' : 'text-slate-300 hover:bg-slate-800'
                 }`}
               >
-                Inpatients & Vitals Chart
+                Patient
               </button>
             </>
           )}
@@ -515,12 +540,35 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
             <>
               <button
                 type="button"
+                onClick={() => handleNavClick('receptionist_appointments')}
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center gap-2 ${
+                  currentPage === 'receptionist_appointments' || currentPage === 'receptionist_appoiment'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-400/50 font-bold'
+                    : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span>Appointments</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => handleNavClick('receptionist_doctors')}
                 className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
                   currentPage === 'receptionist_doctors' ? 'bg-slate-800 text-amber-300 border border-amber-500/30' : 'text-slate-300 hover:bg-slate-800'
                 }`}
               >
                 Doctors
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNavClick('receptionist_nurses')}
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  currentPage === 'receptionist_nurses' || currentPage === 'receptionist_nurse' ? 'bg-slate-800 text-amber-300 border border-amber-500/30' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                Nurses
               </button>
               <button
                 type="button"

@@ -168,6 +168,24 @@ const getFloorNumber = (bed) => {
   return Math.floor((num - 1) / 100) + 1;
 };
 
+const isDoctorOnDuty = (doc) => {
+  if (!doc) return false;
+  if (doc.is_active === false || doc.is_active === 'false') return false;
+  const statusStr = String(doc.status || doc.duty_status || doc.availability || '').toLowerCase().trim();
+  if (statusStr.includes('off') || statusStr.includes('leave') || statusStr === 'inactive' || statusStr === 'false') return false;
+  return true;
+};
+
+const isDoctorOnLeave = (doc) => !isDoctorOnDuty(doc);
+
+const isNurseOnDuty = (nurse) => {
+  if (!nurse) return false;
+  if (nurse.is_active === false || nurse.is_active === 'false') return false;
+  const statusStr = String(nurse.status || nurse.duty_status || nurse.availability || '').toLowerCase().trim();
+  if (statusStr.includes('off') || statusStr.includes('leave') || statusStr === 'inactive' || statusStr === 'false') return false;
+  return true;
+};
+
 // Helper: Auto-assign Nurse based on Bed number and hospital
 const getAutoNurseForBed = (bedNumber, nursesList = [], hospitalId = null) => {
   if (!bedNumber || !nursesList || !Array.isArray(nursesList) || nursesList.length === 0) {
@@ -179,12 +197,16 @@ const getAutoNurseForBed = (bedNumber, nursesList = [], hospitalId = null) => {
     : nursesList;
   const activeNurses = hospNurses.length > 0 ? hospNurses : nursesList;
 
-  if (activeNurses.length === 0) return { nurseId: null, nurseName: '', reason: 'No nurses registered' };
+  // STRICT RULE: Only consider ON-DUTY nurses for auto-allocation!
+  const onDutyNurses = activeNurses.filter(n => isNurseOnDuty(n));
+  if (onDutyNurses.length === 0) {
+    return { nurseId: null, nurseName: '', reason: 'No on-duty nurses available' };
+  }
 
   const floor = getFloorNumber(bedNumber);
 
-  // 1. Try to match nurse by floor or ward
-  const floorNurse = activeNurses.find(n => {
+  // 1. Try to match on-duty nurse by floor or ward
+  const floorNurse = onDutyNurses.find(n => {
     const nWard = (n.ward || '').toLowerCase();
     const nFloor = (n.floor || '').toLowerCase();
     return nWard.includes(`floor ${floor}`) || nWard.includes(`floor${floor}`) ||
@@ -196,7 +218,7 @@ const getAutoNurseForBed = (bedNumber, nursesList = [], hospitalId = null) => {
   }
 
   // 2. Fallback: pick on-duty hospital nurse
-  const chosen = activeNurses[(Number(bedNumber) % activeNurses.length)] || activeNurses[0];
+  const chosen = onDutyNurses[(Number(bedNumber) % onDutyNurses.length)] || onDutyNurses[0];
   return { nurseId: chosen.id, nurseName: chosen.name, reason: `Station Floor ${floor} Ward Staff` };
 };
 
@@ -211,12 +233,6 @@ const PAYMENT_METHOD_CHOICES = [
   { value: 'Net Banking', label: 'Net Banking' }
 ];
 
-const isDoctorOnLeave = (doc) => {
-  if (!doc) return false;
-  if (doc.is_active === false) return true;
-  const statusStr = String(doc.status || doc.duty_status || doc.availability || '').toLowerCase().trim();
-  return statusStr.includes('off') || statusStr.includes('leave');
-};
 const CONDITION_STATUS_CHOICES = [
   { value: 'Critical', label: 'Critical' },
   { value: 'Emergency', label: 'Emergency' },
@@ -414,6 +430,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
 
     let lastError = '';
 
+    // Step 1: Direct candidate IDs PATCH
     for (const targetId of candidateIds) {
       try {
         let res;
@@ -446,6 +463,26 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
         }
       } catch (e) {
         lastError = e.message;
+      }
+    }
+
+    // Step 1.5: Direct candidate IDs PUT fallback
+    if (!file) {
+      for (const targetId of candidateIds) {
+        try {
+          const res = await fetch(`${API_BASE_URL}/super-admin/appointments/${targetId}/`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...(patientItem || {}),
+              ...payload
+            })
+          });
+          if (res && res.ok) {
+            const resJson = await res.json().catch(() => ({}));
+            return { ok: true, data: resJson };
+          }
+        } catch (e) {}
       }
     }
 
@@ -503,6 +540,24 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
             return { ok: true, data: resJson };
           } else if (res) {
             lastError = await res.text().catch(() => '');
+          }
+
+          // Try PUT on matched id
+          if (!file) {
+            try {
+              const putRes = await fetch(`${API_BASE_URL}/super-admin/appointments/${matched.id}/`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  ...matched,
+                  ...payload
+                })
+              });
+              if (putRes && putRes.ok) {
+                const resJson = await putRes.json().catch(() => ({}));
+                return { ok: true, data: resJson };
+              }
+            } catch (e) {}
           }
         }
       }
@@ -817,6 +872,14 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
     const hospId = typeof patient.hospital === 'object' ? patient.hospital?.id : patient.hospital;
     const docId = typeof patient.doctor === 'object' ? patient.doctor?.id : patient.doctor;
     const nurseId = typeof patient.nurse === 'object' ? patient.nurse?.id : patient.nurse;
+
+    // Strict Duty verification for existing assignments
+    const existingDoc = docId ? doctors.find(d => Number(d.id) === Number(docId)) : null;
+    const isDocActive = existingDoc && isDoctorOnDuty(existingDoc);
+
+    const existingNurse = nurseId ? nurses.find(n => Number(n.id) === Number(nurseId)) : null;
+    const isNurseActive = existingNurse && isNurseOnDuty(existingNurse);
+
     const autoRes = patient.bed_number ? getAutoNurseForBed(patient.bed_number, nurses, hospId) : { nurseId: '', nurseName: '' };
 
     if (patient.bed_number && autoRes.nurseName) {
@@ -828,7 +891,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
     setEditFormData({
       patient_Name: patient.patient_Name || patient.patient_name || patient.name || '',
       hospital: hospId ? String(hospId) : (hospitalInfo?.id ? String(hospitalInfo.id) : (hospitals[0]?.id ? String(hospitals[0].id) : '')),
-      doctor: docId ? String(docId) : '',
+      doctor: isDocActive ? String(existingDoc.id) : '',
       visit_date: vDate,
       visit_time: vTime,
       age: patient.age || patient.Age || '',
@@ -849,7 +912,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
         : ((docId || patient.doctor) ? 'Assigned' : 'Pending'),
       condition: patient.condition || patient.Condation || patient.Condition || patient.symptoms_severity || '',
       bed_number: patient.bed_number ? String(patient.bed_number) : '',
-      nurse: nurseId ? String(nurseId) : (autoRes.nurseId ? String(autoRes.nurseId) : '')
+      nurse: isNurseActive ? String(existingNurse.id) : (autoRes.nurseId ? String(autoRes.nurseId) : '')
     });
   };
 
@@ -871,14 +934,30 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
   };
 
   const handleEditDoctorChange = (docVal) => {
-    const chosenDoc = doctors.find(d => Number(d.id) === Number(docVal));
-    if (chosenDoc && isDoctorOnLeave(chosenDoc)) {
-      alert(`${chosenDoc.name || 'This doctor'} is currently On Leave and cannot be assigned.`);
-      return;
+    if (docVal) {
+      const chosenDoc = doctors.find(d => Number(d.id) === Number(docVal));
+      if (chosenDoc && !isDoctorOnDuty(chosenDoc)) {
+        alert(`Doctor ${chosenDoc.name || 'This doctor'} is currently Off Duty / On Leave and cannot be assigned.`);
+        return;
+      }
     }
     setEditFormData(prev => ({
       ...prev,
       doctor: docVal
+    }));
+  };
+
+  const handleEditNurseChange = (nurseVal) => {
+    if (nurseVal) {
+      const chosenNurse = nurses.find(n => Number(n.id) === Number(nurseVal));
+      if (chosenNurse && !isNurseOnDuty(chosenNurse)) {
+        alert(`Nurse ${chosenNurse.name || 'This nurse'} is currently Off Duty and cannot be assigned.`);
+        return;
+      }
+    }
+    setEditFormData(prev => ({
+      ...prev,
+      nurse: nurseVal
     }));
   };
 
@@ -920,39 +999,57 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
       setUpdatingEdit(true);
       const apptId = editModalPatient.Appoment_id || editModalPatient.appoment_id || editModalPatient.appointment_id || editModalPatient.id;
       const numericId = editModalPatient.id;
-      const chosenDoc = doctors.find(d => Number(d.id) === Number(editFormData.doctor));
-      if (chosenDoc && isDoctorOnLeave(chosenDoc)) {
-        alert(`Doctor ${chosenDoc.name || ''} is currently On Leave and cannot be assigned.`);
+
+      const chosenDoc = editFormData.doctor
+        ? doctors.find(d => Number(d.id) === Number(editFormData.doctor))
+        : null;
+
+      if (chosenDoc && !isDoctorOnDuty(chosenDoc)) {
+        alert(`Doctor ${chosenDoc.name || ''} is currently Off Duty / On Leave and cannot be assigned.`);
         setUpdatingEdit(false);
         return;
       }
+
       const parsedBed = editFormData.bed_number ? Number(editFormData.bed_number) : null;
       // Strictly preserve patient's chosen hospital - Receptionist cannot alter hospital
       const hospId = Number(typeof editModalPatient.hospital === 'object' ? editModalPatient.hospital?.id : (editModalPatient.hospital || hospitalInfo?.id)) || null;
-      const chosenHosp = hospitals.find(h => Number(h.id) === Number(hospId)) || hospitalInfo;
 
       const autoRes = parsedBed ? getAutoNurseForBed(parsedBed, nurses, hospId) : { nurseId: null, nurseName: '' };
-      const chosenNurse = nurses.find(n => Number(n.id) === Number(editFormData.nurse)) || (autoRes.nurseId ? nurses.find(n => Number(n.id) === autoRes.nurseId) : null);
+      const chosenNurse = editFormData.nurse
+        ? nurses.find(n => Number(n.id) === Number(editFormData.nurse))
+        : (autoRes.nurseId ? nurses.find(n => Number(n.id) === autoRes.nurseId) : null);
+
+      if (chosenNurse && !isNurseOnDuty(chosenNurse)) {
+        alert(`Nurse ${chosenNurse.name || ''} is currently Off Duty and cannot be assigned.`);
+        setUpdatingEdit(false);
+        return;
+      }
 
       let visitIso = editModalPatient.visit_date_time || new Date().toISOString();
       if (editFormData.visit_date) {
-        let hours = 10;
-        let minutes = 0;
-        if (editFormData.visit_time) {
-          const timeMatch = editFormData.visit_time.match(/(\d+):(\d+)\s*(AM|PM)/i);
-          if (timeMatch) {
-            let h = parseInt(timeMatch[1], 10);
-            const m = parseInt(timeMatch[2], 10);
-            const ampm = timeMatch[3].toUpperCase();
-            if (ampm === 'PM' && h < 12) h += 12;
-            if (ampm === 'AM' && h === 12) h = 0;
-            hours = h;
-            minutes = m;
+        try {
+          let hours = 10;
+          let minutes = 0;
+          if (editFormData.visit_time) {
+            const timeMatch = editFormData.visit_time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+            if (timeMatch) {
+              let h = parseInt(timeMatch[1], 10);
+              const m = parseInt(timeMatch[2], 10);
+              const ampm = timeMatch[3].toUpperCase();
+              if (ampm === 'PM' && h < 12) h += 12;
+              if (ampm === 'AM' && h === 12) h = 0;
+              hours = h;
+              minutes = m;
+            }
           }
+          const d = new Date(editFormData.visit_date);
+          if (!isNaN(d.getTime())) {
+            d.setHours(hours, minutes, 0, 0);
+            visitIso = d.toISOString();
+          }
+        } catch (dErr) {
+          console.warn('Invalid visit date:', dErr);
         }
-        const d = new Date(editFormData.visit_date);
-        d.setHours(hours, minutes, 0, 0);
-        visitIso = d.toISOString();
       }
 
       const nameVal = (editFormData.patient_Name || editModalPatient.patient_Name || editModalPatient.name || editModalPatient.patient_name || '').trim();
@@ -964,70 +1061,75 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
       const genderVal = editFormData.gender || editFormData.Gender || editModalPatient.Gender || editModalPatient.gender || 'Male';
 
       const cleanPayload = {
-        Appoment_id: apptId,
-        appoment_id: apptId,
-        appointment_id: apptId,
         name: nameVal,
-        patient_Name: nameVal,
         patient_name: nameVal,
+        patient_Name: nameVal,
         contact: phoneVal,
         phone: phoneVal,
         email: (editFormData.email || editModalPatient.email || '').trim(),
         age: ageNum,
         gender: genderVal,
-        Gender: genderVal,
-        patient_gender: genderVal,
-        blood_group: ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].includes(editFormData.blood_group) ? editFormData.blood_group : (editModalPatient.blood_group || 'A+'),
-        Blood_Group: ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].includes(editFormData.blood_group) ? editFormData.blood_group : (editModalPatient.blood_group || 'A+'),
-        address: (editFormData.address || editModalPatient.address || 'Hospital Inpatient').trim(),
-        hospitals_charges: Number(chargesVal).toFixed(2),
-        Hospitals_Chargies: Number(chargesVal).toFixed(2),
-        hospital_charges: Number(chargesVal).toFixed(2),
-        amount_paid: Number(paidVal).toFixed(2),
-        payment_status: ['Paid', 'Partial', 'Pending', 'Failed'].includes(editFormData.payment_status) ? editFormData.payment_status : 'Pending',
-        payment_method: editFormData.payment_method || editModalPatient.payment_method || editModalPatient.Payment_Method || 'Cash',
-        status: STATUS_CHOICES.includes(editFormData.status) ? editFormData.status : 'Pending',
-        checkup_status: editModalPatient.checkup_status || 'Pending',
-        condition: condVal,
-        Condation: condVal,
-        Condition: condVal,
+        doctor: chosenDoc ? Number(chosenDoc.id) : (editFormData.doctor ? Number(editFormData.doctor) : null),
+        doctor_name: chosenDoc ? (chosenDoc.name?.startsWith('Dr.') ? chosenDoc.name : `Dr. ${chosenDoc.name}`) : (editFormData.doctor ? `Dr. ID ${editFormData.doctor}` : 'Awaiting Doctor Assignment'),
+        nurse: chosenNurse ? Number(chosenNurse.id) : null,
+        nurse_name: chosenNurse ? (chosenNurse.name || '') : '',
+        bed_number: parsedBed,
+        status: STATUS_CHOICES.includes(editFormData.status) ? editFormData.status : (editModalPatient.status || 'Pending'),
+        appointment_date: editFormData.visit_date,
+        visit_date: editFormData.visit_date,
+        appointment_time: editFormData.visit_time,
+        visit_time: editFormData.visit_time,
         symptoms_diagnosis: (editFormData.symptoms_diagnosis || editModalPatient.symptoms_diagnosis || editModalPatient.reason_for_visit || 'General Consultation').trim(),
         reason_for_visit: (editFormData.symptoms_diagnosis || editModalPatient.symptoms_diagnosis || editModalPatient.reason_for_visit || 'General Consultation').trim(),
-        visit_date_time: visitIso,
-        appointment_date: editFormData.visit_date,
-        appointment_time: editFormData.visit_time,
-        visit_date: editFormData.visit_date,
-        visit_time: editFormData.visit_time,
-        is_active: true
+        hospitals_charges: Number(chargesVal).toFixed(2),
+        payment_status: ['Paid', 'Partial', 'Pending', 'Failed'].includes(editFormData.payment_status) ? editFormData.payment_status : 'Pending'
       };
 
       if (hospId) cleanPayload.hospital = Number(hospId);
-      if (chosenDoc) {
-        cleanPayload.doctor = Number(chosenDoc.id);
-        cleanPayload.doctor_name = chosenDoc.name || '';
-      }
-      if (parsedBed) {
-        cleanPayload.bed_number = Number(parsedBed);
-      }
-      if (chosenNurse) {
-        cleanPayload.nurse = Number(chosenNurse.id);
-        cleanPayload.nurse_name = chosenNurse.name || '';
-      }
+      if (editFormData.payment_method) cleanPayload.payment_method = editFormData.payment_method;
+      if (paidVal > 0) cleanPayload.amount_paid = Number(paidVal).toFixed(2);
+      if (condVal) cleanPayload.condition = condVal;
+      if (editFormData.address) cleanPayload.address = editFormData.address.trim();
+      if (visitIso) cleanPayload.visit_date_time = visitIso;
 
       const result = await updateBackendAppointment(apptId, cleanPayload, editAttachedFile, numericId, editModalPatient);
 
       if (result && result.ok) {
+        // Optimistically update local state immediately
+        const candidateIds = [
+          editModalPatient.id,
+          editModalPatient.appointment_id,
+          editModalPatient.Appoment_id,
+          editModalPatient.appoment_id
+        ].filter(Boolean).map(String);
+
+        setPatients(prev => prev.map(p => {
+          const pId = String(p.id || p.appointment_id || p.Appoment_id || '');
+          if (candidateIds.includes(pId)) {
+            return {
+              ...p,
+              ...cleanPayload,
+              bed_number: parsedBed,
+              nurse: chosenNurse ? Number(chosenNurse.id) : null,
+              nurse_name: chosenNurse ? (chosenNurse.name || '') : '',
+              doctor: chosenDoc ? Number(chosenDoc.id) : p.doctor,
+              doctor_name: chosenDoc ? (chosenDoc.name?.startsWith('Dr.') ? chosenDoc.name : `Dr. ${chosenDoc.name}`) : p.doctor_name
+            };
+          }
+          return p;
+        }));
+
         alert(`Success! Patient triage & appointment for ${cleanPayload.patient_Name} updated successfully in database.`);
         setEditModalPatient(null);
         setEditAttachedFile(null);
-        fetchAllData();
+        fetchAllData(true);
       } else {
         console.error('Update appointment failed:', result?.error);
         alert(`Failed to update appointment.\n${result?.error || 'Please check backend connection.'}`);
       }
     } catch (err) {
       console.error('Error updating appointment:', err);
-      alert('Error connecting to backend.');
+      alert(`Error updating appointment: ${err?.message || 'Please check backend connection.'}`);
     } finally {
       setUpdatingEdit(false);
     }
@@ -1506,18 +1608,18 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                     >
                       <option value="">-- Unassigned Doctor --</option>
                       {doctors.map(d => {
-                        const onLeave = isDoctorOnLeave(d);
+                        const onDuty = isDoctorOnDuty(d);
                         const docName = d.name?.startsWith('Dr.') ? d.name : `Dr. ${d.name}`;
                         const specialty = d.specialization || d.specialty || 'General';
                         return (
                           <option
                             key={d.id}
                             value={d.id}
-                            disabled={onLeave}
-                            style={onLeave ? { color: '#dc2626', fontWeight: 'bold', backgroundColor: '#fff1f2' } : {}}
-                            className={onLeave ? 'text-rose-600 font-bold bg-rose-50' : ''}
+                            disabled={!onDuty}
+                            style={!onDuty ? { color: '#dc2626', fontWeight: 'bold', backgroundColor: '#fff1f2' } : {}}
+                            className={!onDuty ? 'text-rose-600 font-bold bg-rose-50' : ''}
                           >
-                            {docName} ({specialty}) {onLeave ? '• (On Leave)' : (d.consultation_fee ? `- ₹${d.consultation_fee}` : '')}
+                            {docName} ({specialty}){!onDuty ? ' (Off Duty)' : ''}{d.consultation_fee ? ` - ₹${d.consultation_fee}` : ''}
                           </option>
                         );
                       })}
@@ -1605,13 +1707,24 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Assigned Station Nurse</label>
                     <select
                       value={editFormData.nurse}
-                      onChange={(e) => setEditFormData({ ...editFormData, nurse: e.target.value })}
+                      onChange={(e) => handleEditNurseChange(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white cursor-pointer"
                     >
                       <option value="">-- Auto-assigned from Bed Duty --</option>
-                      {nurses.map(n => (
-                        <option key={n.id} value={n.id}>{n.name} ({n.ward || 'Ward Staff'})</option>
-                      ))}
+                      {nurses.map(n => {
+                        const onDuty = isNurseOnDuty(n);
+                        return (
+                          <option
+                            key={n.id}
+                            value={n.id}
+                            disabled={!onDuty}
+                            style={!onDuty ? { color: '#dc2626', fontWeight: 'bold', backgroundColor: '#fff1f2' } : {}}
+                            className={!onDuty ? 'text-rose-600 font-bold bg-rose-50' : ''}
+                          >
+                            {n.name} ({n.ward || 'Ward Staff'}){!onDuty ? ' (Off Duty)' : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </div>

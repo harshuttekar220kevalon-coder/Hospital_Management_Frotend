@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
+const extractArray = (resData) => {
+  if (!resData) return [];
+  if (Array.isArray(resData)) return resData;
+  if (Array.isArray(resData.results)) return resData.results;
+  if (Array.isArray(resData.data)) return resData.data;
+  return [];
+};
+
 const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setSelectedDoctor, setSelectedPatient, setSelectedNurse, setSelectedReceptionist }) => {
   const [loading, setLoading] = useState(true);
   const [hospitalData, setHospitalData] = useState(null);
@@ -10,6 +18,7 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
   const [doctorsList, setDoctorsList] = useState([]);
   const [nursesList, setNursesList] = useState([]);
   const [receptionistsList, setReceptionistsList] = useState([]);
+  const [appointmentsList, setAppointmentsList] = useState([]);
   const [patientsList, setPatientsList] = useState([]);
   const [timePeriod, setTimePeriod] = useState('month');
   const [patientVisibleCount, setPatientVisibleCount] = useState(10);
@@ -44,11 +53,16 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
     if (setCurrentPage) setCurrentPage('admin_doctor_details');
   };
 
-  const handleViewPatient = (pat) => {
-    if (setSelectedPatient) setSelectedPatient(pat);
-    localStorage.setItem('selectedPatient', JSON.stringify(pat));
+  const handleViewAppointment = (appt) => {
+    if (setSelectedPatient) setSelectedPatient(appt);
+    try {
+      localStorage.setItem('selectedPatient', JSON.stringify(appt));
+      localStorage.setItem('selectedAppointment', JSON.stringify(appt));
+    } catch {}
     if (setCurrentPage) setCurrentPage('admin_patient_details');
   };
+
+  const handleViewPatient = handleViewAppointment;
 
   const handleViewNurse = (nurse) => {
     if (setSelectedNurse) setSelectedNurse(nurse);
@@ -85,7 +99,7 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
           if (matchedAdmin) {
             setAdminRecord(matchedAdmin);
             if (matchedAdmin.hospital) {
-              assignedHospitalId = Number(matchedAdmin.hospital);
+              assignedHospitalId = Number(typeof matchedAdmin.hospital === 'object' ? matchedAdmin.hospital.id : matchedAdmin.hospital);
             }
           }
         }
@@ -105,16 +119,14 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
 
       if (!assignedHospitalId) {
         try {
-          const allHospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`);
-          if (allHospRes.ok) {
-            const allHosp = await allHospRes.json();
-            if (Array.isArray(allHosp) && allHosp.length > 0) {
-              assignedHospitalId = allHosp[0].id;
+          const rawUser = localStorage.getItem('currentUser');
+          if (rawUser) {
+            const u = JSON.parse(rawUser);
+            if (u.hospital) {
+              assignedHospitalId = Number(typeof u.hospital === 'object' ? u.hospital.id : u.hospital);
             }
           }
-        } catch (e) {
-          console.error('Hospital list fallback error:', e);
-        }
+        } catch {}
       }
 
       if (!assignedHospitalId) {
@@ -137,8 +149,8 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
         try {
           const allHospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`);
           if (allHospRes && allHospRes.ok) {
-            const allHosp = await allHospRes.json();
-            hosp = allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) || allHosp[0] || null;
+            const allHosp = extractArray(await allHospRes.json());
+            hosp = allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) || null;
           }
         } catch (e) {}
       }
@@ -163,60 +175,166 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
 
       let branchDocs = [];
       if (docRes.status === 'fulfilled' && docRes.value.ok) {
-        const allDocs = await docRes.value.json().catch(() => []);
+        const rawDocs = await docRes.value.json().catch(() => []);
+        const allDocs = extractArray(rawDocs);
         branchDocs = allDocs.filter(d => {
+          if (!d) return false;
           if (Array.isArray(d.hospitals) && d.hospitals.length > 0) {
-            return d.hospitals.some(h => Number(typeof h === 'object' ? h.id : h) === Number(assignedHospitalId));
+            return d.hospitals.some(h => {
+              const hId = typeof h === 'object' && h !== null ? h.id : h;
+              return Number(hId) === Number(assignedHospitalId);
+            });
           }
-          return Number(typeof d.hospital === 'object' ? d.hospital?.id : d.hospital) === Number(assignedHospitalId);
+          const dHosp = typeof d.hospital === 'object' && d.hospital !== null ? d.hospital.id : d.hospital;
+          if (dHosp !== null && dHosp !== undefined && dHosp !== '' && !isNaN(Number(dHosp))) {
+            return Number(dHosp) === Number(assignedHospitalId);
+          }
+          const dHospName = d.hospital_name || (typeof d.hospital === 'string' && isNaN(Number(d.hospital)) ? d.hospital : '');
+          if (dHospName && hosp?.Name && dHospName.toLowerCase().trim() === hosp.Name.toLowerCase().trim()) {
+            return true;
+          }
+          return false;
         });
         setDoctorsList(branchDocs);
       }
 
+      let branchNurs = [];
       if (nurRes.status === 'fulfilled' && nurRes.value.ok) {
-        const allNurs = await nurRes.value.json().catch(() => []);
-        const branchNurs = allNurs.filter(n => Number(typeof n.hospital === 'object' ? n.hospital?.id : n.hospital) === Number(assignedHospitalId));
+        const rawNurs = await nurRes.value.json().catch(() => []);
+        const allNurs = extractArray(rawNurs);
+        branchNurs = allNurs.filter(n => {
+          if (!n) return false;
+          const nHosp = typeof n.hospital === 'object' && n.hospital !== null ? n.hospital.id : n.hospital;
+          if (nHosp !== null && nHosp !== undefined && nHosp !== '' && !isNaN(Number(nHosp))) {
+            return Number(nHosp) === Number(assignedHospitalId);
+          }
+          const nHospName = n.hospital_name || (typeof n.hospital === 'string' && isNaN(Number(n.hospital)) ? n.hospital : '');
+          if (nHospName && hosp?.Name && nHospName.toLowerCase().trim() === hosp.Name.toLowerCase().trim()) {
+            return true;
+          }
+          return false;
+        });
         setNursesList(branchNurs);
       }
 
+      let branchRecs = [];
       if (recRes.status === 'fulfilled' && recRes.value.ok) {
-        const allRecs = await recRes.value.json().catch(() => []);
-        const branchRecs = allRecs.filter(r => Number(typeof r.hospital === 'object' ? r.hospital?.id : r.hospital) === Number(assignedHospitalId));
+        const rawRecs = await recRes.value.json().catch(() => []);
+        const allRecs = extractArray(rawRecs);
+        branchRecs = allRecs.filter(r => {
+          if (!r) return false;
+          const rHosp = typeof r.hospital === 'object' && r.hospital !== null ? r.hospital.id : r.hospital;
+          if (rHosp !== null && rHosp !== undefined && rHosp !== '' && !isNaN(Number(rHosp))) {
+            return Number(rHosp) === Number(assignedHospitalId);
+          }
+          const rHospName = r.hospital_name || (typeof r.hospital === 'string' && isNaN(Number(r.hospital)) ? r.hospital : '');
+          if (rHospName && hosp?.Name && rHospName.toLowerCase().trim() === hosp.Name.toLowerCase().trim()) {
+            return true;
+          }
+          return false;
+        });
         setReceptionistsList(branchRecs);
       }
 
-      let rawPats = [];
-      if (patRes.status === 'fulfilled' && patRes.value.ok) {
-        rawPats = await patRes.value.json().catch(() => []);
+      // Fetch appointments strictly from /super-admin/appointments/ for this hospital
+      let branchAppts = [];
+      if (apptRes.status === 'fulfilled' && apptRes.value.ok) {
+        const rawAppts = await apptRes.value.json().catch(() => []);
+        const allAppts = extractArray(rawAppts);
+        const branchDocIds = new Set(branchDocs.map(d => Number(d.id)));
+
+        for (const item of allAppts) {
+          if (!item) continue;
+          const apptHospId = typeof item.hospital === 'object' && item.hospital !== null ? item.hospital?.id : item.hospital;
+          const apptHospName = item.hospital_name || (typeof item.hospital === 'object' ? (item.hospital?.Name || item.hospital?.name) : (typeof item.hospital === 'string' && isNaN(Number(item.hospital)) ? item.hospital : ''));
+          const currentHospName = hosp?.Name || hosp?.name || '';
+
+          let isMatch = false;
+          if (apptHospId !== null && apptHospId !== undefined && apptHospId !== '' && !isNaN(Number(apptHospId))) {
+            if (Number(apptHospId) === Number(assignedHospitalId)) {
+              isMatch = true;
+            }
+          } else if (apptHospName && currentHospName && apptHospName.toLowerCase().trim() === currentHospName.toLowerCase().trim()) {
+            isMatch = true;
+          } else if (item.doctor && branchDocIds.has(Number(typeof item.doctor === 'object' ? item.doctor?.id : item.doctor))) {
+            isMatch = true;
+          }
+
+          if (isMatch) {
+            const id = item.id || item.appointment_id || item.Appoment_id;
+            const rawApptId = item.Appoment_id || item.appointment_id || item.appoment_id || id;
+            const formattedApptId = rawApptId ? (String(rawApptId).startsWith('APT-') ? String(rawApptId) : `APT-${rawApptId}`) : `APT-${id}`;
+            const rawPatId = item.patient_id || item.uhid || item.patient;
+            const formattedPatId = rawPatId ? (String(rawPatId).startsWith('PAT-') ? String(rawPatId) : `PAT-${rawPatId}`) : (id ? `PAT-${id}` : 'PAT-0');
+            const name = item.patient_name || item.patient_Name || item.name || `Appointment #${id}`;
+            const docId = typeof item.doctor === 'object' ? item.doctor?.id : item.doctor;
+            const matchedDoc = branchDocs.find(d => Number(d.id) === Number(docId));
+
+            let backendDocFee = Number(
+              item.consultation_fee ??
+              item.Consultation_Fee ??
+              item.consultancy_fee ??
+              item.doctor_charges ??
+              item.Doctor_Charges ??
+              item.doctor_fee ??
+              item.Doctor_Fee ??
+              item.doc_fee ??
+              item.Doc_Fee ??
+              0
+            );
+            if (backendDocFee <= 0 && matchedDoc) {
+              backendDocFee = Number(
+                matchedDoc.consultation_fee ??
+                matchedDoc.Consultation_Fee ??
+                matchedDoc.consultancy_fee ??
+                matchedDoc.doctor_charges ??
+                0
+              );
+            }
+
+            const backendHospCharges = Number(
+              item.Hospitals_Chargies ??
+              item.hospital_charges ??
+              item.hospitals_charges ??
+              item.hosp_charges ??
+              0
+            );
+
+            const rawPayStatus = item.payment_status || item.Payment_Status || (item.amount_paid > 0 ? 'Paid' : 'Pending');
+
+            branchAppts.push({
+              ...item,
+              id,
+              Appoment_id: formattedApptId,
+              appointment_id: formattedApptId,
+              patient_id: formattedPatId,
+              uhid: item.uhid || formattedPatId,
+              name,
+              patient_name: name,
+              doctor: docId ? Number(docId) : null,
+              doctor_name: item.doctor_name || matchedDoc?.name || (docId ? `Dr. #${docId}` : 'Not Assigned'),
+              doctor_specialization: item.doctor_specialization || matchedDoc?.specialization || 'General Consultation',
+              contact: item.contact || item.phone || '',
+              email: item.email || '',
+              symptoms_diagnosis: item.symptoms_diagnosis || item.reason_for_visit || item.reason || 'General Consultation',
+              condition: item.condition || item.Condation || item.symptoms_severity || 'Normal',
+              Condation: item.condition || item.Condation || item.symptoms_severity || 'Normal',
+              consultation_fee: backendDocFee,
+              Consultation_Fee: backendDocFee,
+              doctor_charges: backendDocFee,
+              hospital_charges: backendHospCharges,
+              hospitals_charges: backendHospCharges,
+              Hospitals_Chargies: backendHospCharges,
+              payment_status: rawPayStatus,
+              Payment_Status: rawPayStatus,
+              status: item.status || 'Confirmed'
+            });
+          }
+        }
       }
 
-      const allPats = Array.isArray(rawPats) ? rawPats : [];
-      const seenPIds = new Set();
-      const branchPats = [];
-
-      for (const item of allPats) {
-        if (!item) continue;
-        const idKey = String(item.id || item.Appoment_id || item.appoment_id);
-        if (seenPIds.has(idKey)) continue;
-        seenPIds.add(idKey);
-
-        const patHospId = typeof item.hospital === 'object' && item.hospital !== null ? item.hospital?.id : item.hospital;
-        const patHospName = item.hospital_name || (typeof item.hospital === 'object' ? (item.hospital?.Name || item.hospital?.name) : (typeof item.hospital === 'string' && isNaN(Number(item.hospital)) ? item.hospital : ''));
-        const currentHospName = hosp?.Name || hosp?.name || '';
-
-        let isMatch = false;
-        if (patHospId && !isNaN(Number(patHospId)) && Number(patHospId) === Number(assignedHospitalId)) {
-          isMatch = true;
-        } else if (patHospName && currentHospName && patHospName.toLowerCase().trim() === currentHospName.toLowerCase().trim()) {
-          isMatch = true;
-        }
-
-        if (isMatch) {
-          branchPats.push(item);
-        }
-      }
-
-      setPatientsList(branchPats);
+      setAppointmentsList(branchAppts);
+      setPatientsList(branchAppts);
 
     } catch (err) {
       console.error('Error loading admin dashboard data:', err);
@@ -302,108 +420,213 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
   const availableBeds = Math.max(0, totalBedsNum - occupiedBedsNum);
 
   const now = new Date();
-  const isDateToday = (dStr) => {
-    if (!dStr) return false;
+  const parseDateSafe = (dStr) => {
+    if (!dStr) return null;
     const d = new Date(dStr);
-    return !isNaN(d.getTime()) &&
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const isDateToday = (dStr) => {
+    const d = parseDateSafe(dStr);
+    if (!d) return false;
+    return (
       d.getDate() === now.getDate() &&
       d.getMonth() === now.getMonth() &&
-      d.getFullYear() === now.getFullYear();
+      d.getFullYear() === now.getFullYear()
+    );
   };
 
   const isDateThisMonth = (dStr) => {
-    if (!dStr) return false;
-    const d = new Date(dStr);
-    return !isNaN(d.getTime()) &&
+    const d = parseDateSafe(dStr);
+    if (!d) return false;
+    return (
       d.getMonth() === now.getMonth() &&
-      d.getFullYear() === now.getFullYear();
+      d.getFullYear() === now.getFullYear()
+    );
   };
 
   const isDateThisYear = (dStr) => {
-    if (!dStr) return false;
-    const d = new Date(dStr);
-    return !isNaN(d.getTime()) &&
-      d.getFullYear() === now.getFullYear();
+    const d = parseDateSafe(dStr);
+    if (!d) return false;
+    return d.getFullYear() === now.getFullYear();
   };
 
-  const todayPatients = patientsList.filter(p => isDateToday(p.visit_date_time || p.created_at || p.date || p.admission_date));
-  const todayPatientsCount = todayPatients.length;
+  // Extract discharge date strictly from backend fields saved by receptionist
+  const getDischargeDate = (p) => {
+    if (!p) return null;
+    return (
+      p.Discharge_DateTime ||
+      p.discharge_datetime ||
+      p.Discharge_datetime ||
+      p.discharge_date ||
+      p.Discharge_Date ||
+      p.completed_at ||
+      null
+    );
+  };
 
-  const monthPatients = patientsList.filter(p => isDateThisMonth(p.visit_date_time || p.created_at || p.date || p.admission_date));
-  const monthPatientsCount = monthPatients.length;
+  // Check if patient/appointment is discharged and billing is saved by receptionist
+  const isDischargedAndBilled = (p) => {
+    if (!p) return false;
+    const st = (p.status || p.discharge_status || p.Discharge_status || '').toLowerCase();
+    const hasDischargedStatus = st.includes('discharg') || st.includes('complet');
+    const hasDischargeDate = !!getDischargeDate(p);
 
-  const yearPatients = patientsList.filter(p => isDateThisYear(p.visit_date_time || p.created_at || p.date || p.admission_date));
+    const payStatus = (p.payment_status || p.Payment_Status || '').toLowerCase();
+    const isPaid = payStatus === 'paid' || payStatus === 'partial';
+    const amountPaid = parseFloat(p.amount_paid || p.Amount_Paid || 0);
+    const hasTotalBill = (parseFloat(p.consultation_fee || p.Consultation_Fee || 0) + parseFloat(p.Hospitals_Chargies || p.hospital_charges || p.hospitals_charges || 0)) > 0;
 
-  const getFinancials = (pList) => {
+    return (hasDischargedStatus || hasDischargeDate) && (isPaid || amountPaid > 0 || hasTotalBill);
+  };
+
+  // Filter only discharged & billed appointments for revenue calculations
+  const dischargedAndBilledAppointments = appointmentsList.filter(isDischargedAndBilled);
+
+  const todayBilledAppointments = dischargedAndBilledAppointments.filter(p => {
+    const dt = getDischargeDate(p) || p.updated_at || p.completed_at || p.created_at;
+    return isDateToday(dt);
+  });
+
+  const monthBilledAppointments = dischargedAndBilledAppointments.filter(p => {
+    const dt = getDischargeDate(p) || p.updated_at || p.completed_at || p.created_at;
+    return isDateThisMonth(dt);
+  });
+
+  const yearBilledAppointments = dischargedAndBilledAppointments.filter(p => {
+    const dt = getDischargeDate(p) || p.updated_at || p.completed_at || p.created_at;
+    return isDateThisYear(dt);
+  });
+
+  const allBilledAppointments = dischargedAndBilledAppointments;
+
+  const getFinancials = (bList) => {
     let docFees = 0;
     let hospRevenue = 0;
     let totalCollected = 0;
 
-    (pList || []).forEach(p => {
-      const docFee = parseFloat(p.consultation_fee) || 0;
-      const hospCharge = parseFloat(p.Hospitals_Chargies) || parseFloat(p.hospital_charges) || 0;
-      const paid = parseFloat(p.amount_paid) || 0;
-      const statusLower = (p.payment_status || '').toLowerCase();
+    (bList || []).forEach(p => {
+      let docFee = parseFloat(
+        p.consultation_fee ??
+        p.Consultation_Fee ??
+        p.consultancy_fee ??
+        p.doctor_charges ??
+        p.Doctor_Charges ??
+        p.doctor_fee ??
+        p.Doctor_Fee ??
+        p.doc_fee ??
+        p.Doc_Fee ??
+        0
+      );
+
+      if (docFee <= 0 && p.doctor) {
+        const docId = typeof p.doctor === 'object' ? p.doctor?.id : p.doctor;
+        const matchedDoc = doctorsList.find(d => Number(d.id) === Number(docId));
+        if (matchedDoc) {
+          docFee = parseFloat(
+            matchedDoc.consultation_fee ??
+            matchedDoc.Consultation_Fee ??
+            matchedDoc.consultancy_fee ??
+            matchedDoc.doctor_charges ??
+            0
+          );
+        }
+      }
+
+      const hospCharge = parseFloat(
+        p.Hospitals_Chargies ??
+        p.hospital_charges ??
+        p.hospitals_charges ??
+        p.hosp_charges ??
+        0
+      );
+
+      const paid = parseFloat(p.amount_paid ?? p.Amount_Paid ?? 0);
+      const statusLower = (p.payment_status || p.Payment_Status || '').toLowerCase();
       const isPaid = statusLower === 'paid';
       const isPartial = statusLower === 'partial';
 
-      if (isPaid) {
-        docFees += docFee;
-        hospRevenue += hospCharge;
-        totalCollected += paid > 0 ? paid : (docFee + hospCharge);
-      } else if (isPartial && paid > 0) {
-        const gross = docFee + hospCharge;
-        if (gross > 0) {
-          docFees += (docFee / gross) * paid;
-          hospRevenue += (hospCharge / gross) * paid;
+      const totalBill = docFee + hospCharge;
+      let docFeePaid = 0;
+      let hospRevenuePaid = 0;
+      let itemCollected = 0;
+
+      // Track exact doctor fee amount paid by the patient upon discharge
+      if (isPaid || (totalBill > 0 && paid >= totalBill)) {
+        docFeePaid = docFee;
+        hospRevenuePaid = hospCharge;
+        itemCollected = paid > 0 ? paid : totalBill;
+      } else if (isPartial || paid > 0) {
+        itemCollected = paid;
+        if (totalBill > 0) {
+          if (paid >= docFee && docFee > 0) {
+            docFeePaid = docFee;
+            hospRevenuePaid = Math.max(0, paid - docFee);
+          } else if (docFee > 0 && hospCharge <= 0) {
+            docFeePaid = Math.min(docFee, paid);
+            hospRevenuePaid = 0;
+          } else if (docFee <= 0 && hospCharge > 0) {
+            docFeePaid = 0;
+            hospRevenuePaid = Math.min(hospCharge, paid);
+          } else {
+            docFeePaid = (docFee / totalBill) * paid;
+            hospRevenuePaid = (hospCharge / totalBill) * paid;
+          }
+        } else {
+          if (p.doctor) {
+            docFeePaid = paid;
+          } else {
+            hospRevenuePaid = paid;
+          }
         }
-        totalCollected += paid;
+      } else {
+        docFeePaid = 0;
+        hospRevenuePaid = 0;
+        itemCollected = 0;
       }
+
+      docFees += docFeePaid;
+      hospRevenue += hospRevenuePaid;
+      totalCollected += itemCollected;
     });
 
     return {
-      docFees,
-      hospRevenue,
-      totalGross: docFees + hospRevenue,
-      totalCollected
+      docFees: Math.round(docFees),
+      hospRevenue: Math.round(hospRevenue),
+      totalGross: Math.round(docFees + hospRevenue),
+      totalCollected: Math.round(totalCollected)
     };
   };
 
-  const todayFin = getFinancials(todayPatients);
-  const monthFin = getFinancials(monthPatients);
-  const yearFin = getFinancials(yearPatients);
-  const allFin = getFinancials(patientsList);
+  const todayFin = getFinancials(todayBilledAppointments);
+  const monthFin = getFinancials(monthBilledAppointments);
+  const yearFin = getFinancials(yearBilledAppointments);
+  const allFin = getFinancials(allBilledAppointments);
 
-  let activePeriodPatients = patientsList;
+  let activePeriodPatients = appointmentsList;
+  let activePeriodBilled = allBilledAppointments;
   let activePeriodFin = allFin;
   let activePeriodLabel = 'All-Time Record';
 
   if (timePeriod === 'today') {
-    activePeriodPatients = todayPatients;
+    activePeriodPatients = appointmentsList.filter(p => isDateToday(getDischargeDate(p) || p.visit_date_time || p.created_at));
+    activePeriodBilled = todayBilledAppointments;
     activePeriodFin = todayFin;
     activePeriodLabel = "Today's Activity";
   } else if (timePeriod === 'month') {
-    activePeriodPatients = monthPatients;
+    activePeriodPatients = appointmentsList.filter(p => isDateThisMonth(getDischargeDate(p) || p.visit_date_time || p.created_at));
+    activePeriodBilled = monthBilledAppointments;
     activePeriodFin = monthFin;
     activePeriodLabel = "This Month's Activity";
   } else if (timePeriod === 'year') {
-    activePeriodPatients = yearPatients;
+    activePeriodPatients = appointmentsList.filter(p => isDateThisYear(getDischargeDate(p) || p.visit_date_time || p.created_at));
+    activePeriodBilled = yearBilledAppointments;
     activePeriodFin = yearFin;
     activePeriodLabel = "This Year's Activity";
   }
 
-  const activePeriodAdmitted = activePeriodPatients.filter(p => 
-    (p.status || '').toLowerCase().includes('admit') || 
-    (p.admission_status || '').toLowerCase().includes('admit') ||
-    (p.patient_type || '').toLowerCase().includes('ipd')
-  ).length;
-
-  const activePeriodOPD = Math.max(0, activePeriodPatients.length - activePeriodAdmitted);
-  const activePeriodEmergency = activePeriodPatients.filter(p => {
-    const isDischarged = (p.status || '').toLowerCase().includes('discharg') || (p.status || '').toLowerCase().includes('complet');
-    const cond = (p.Condation || p.condation || p.condition || p.symptoms_severity || '').toLowerCase();
-    return !isDischarged && (cond.includes('critical') || cond.includes('emergency') || cond.includes('urgent'));
-  }).length;
+  const activePeriodDischargedCount = activePeriodBilled.length;
+  const activePeriodInQueue = Math.max(0, activePeriodPatients.length - activePeriodDischargedCount);
 
   return (
     <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-5 sm:space-y-7">
@@ -608,7 +831,7 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div>
             <div className="inline-flex items-center gap-2">
-              <h2 className="text-base font-bold text-slate-800">Patient Inflow & Hospital Revenue</h2>
+              <h2 className="text-base font-bold text-slate-800">Appointments Inflow & Hospital Revenue</h2>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
                 {activePeriodLabel}
               </span>
@@ -686,9 +909,9 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
           </div>
 
           <div className="p-4 rounded-xl bg-slate-50/90 border border-slate-200/90">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Patient Inflow ({activePeriodLabel})</span>
-            <h3 className="text-2xl font-bold text-slate-800 mt-1">{activePeriodPatients.length} Patients</h3>
-            <p className="text-xs text-slate-500 mt-0.5">{activePeriodAdmitted} Admitted IPD • {activePeriodOPD} OPD Queue</p>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Appointments Inflow ({activePeriodLabel})</span>
+            <h3 className="text-2xl font-bold text-slate-800 mt-1">{activePeriodPatients.length} Appointments</h3>
+            <p className="text-xs text-slate-500 mt-0.5">{activePeriodDischargedCount} Discharged & Billed • {activePeriodInQueue} In Queue</p>
           </div>
         </div>
 
@@ -1018,27 +1241,28 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm sm:text-base font-bold text-slate-800">Patients & Inflow Queue ({patientsList.length})</h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                {admittedPatients.length} Admitted IPD
+              <h2 className="text-sm sm:text-base font-bold text-slate-800">Booked Appointments & Inflow Queue ({appointmentsList.length})</h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                {appointmentsList.length} Appointments Booked
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">Live in-patient admissions, OPD triage, and billing records for {hospitalData.Name}</p>
+            <p className="text-xs text-slate-500 mt-0.5">Live booked appointments, patient consultations, and queue records for {hospitalData.Name}</p>
           </div>
           <button
             type="button"
             onClick={() => setCurrentPage && setCurrentPage('admin_patients')}
-            className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 cursor-pointer bg-transparent border-0 self-start sm:self-auto"
+            className="text-xs font-semibold text-teal-700 hover:text-teal-900 cursor-pointer bg-transparent border-0 self-start sm:self-auto"
           >
-            Manage All Patients &rarr;
+            Manage All Appointments &rarr;
           </button>
         </div>
 
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-center text-xs text-slate-600 min-w-[700px]">
+          <table className="w-full text-center text-xs text-slate-600 min-w-[750px]">
             <thead className="bg-slate-50 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
               <tr>
-                <th className="py-3 px-3 text-center">Patient Name & ID</th>
+                <th className="py-3 px-3 text-center">Appointment Name & ID</th>
+                <th className="py-3 px-3 text-center">Contact</th>
                 <th className="py-3 px-3 text-center">Assigned Doctor</th>
                 <th className="py-3 px-3 text-center">Symptoms / Diagnosis</th>
                 <th className="py-3 px-3 text-center">Payment</th>
@@ -1047,31 +1271,40 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {patientsList.slice(0, patientVisibleCount).map((pat) => {
-                const assignedDoc = doctorsList.find(d => Number(d.id) === Number(pat.doctor));
+              {appointmentsList.slice(0, patientVisibleCount).map((appt) => {
+                const assignedDoc = doctorsList.find(d => Number(d.id) === Number(appt.doctor));
                 return (
-                  <tr key={pat.id} className="hover:bg-slate-50/70 transition">
+                  <tr key={appt.id} className="hover:bg-slate-50/70 transition">
                     <td className="py-3 px-3 text-center">
-                      <span className="font-bold text-slate-800 block">{pat.name || 'Patient'}</span>
-                      <div className="flex items-center justify-center gap-1.5 mt-0.5">
-                        <span className="font-mono text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block">
-                          {pat.patient_id || pat.uhid || `PAT-${pat.id}`}
-                        </span>
-                        {pat.age && (
-                          <span className="text-[10px] text-slate-400 font-semibold">{pat.age}Y • {pat.gender || 'M'}</span>
-                        )}
-                      </div>
+                      <span className="font-bold text-slate-800 block">{appt.patient_name || appt.name || 'Appointment'}</span>
+                      <span className="font-mono text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
+                        {appt.Appoment_id || appt.appointment_id || (appt.id ? (String(appt.id).startsWith('APT-') ? appt.id : `APT-${appt.id}`) : '-')}
+                      </span>
                     </td>
                     <td className="py-3 px-3 text-center">
-                      <span className="font-semibold text-slate-800 block">{assignedDoc?.name || pat.doctor_name || 'Dr. Consultant'}</span>
-                      <span className="text-[10px] text-teal-700">{assignedDoc?.specialization || 'General'}</span>
+                      <span className="font-bold text-slate-800 block">{appt.contact || appt.phone || '-'}</span>
+                      {appt.email ? (
+                        <a
+                          href={`mailto:${appt.email.toLowerCase()}`}
+                          title={`Send email to ${appt.email}`}
+                          className="text-[10px] text-teal-600 hover:text-teal-800 hover:underline block lowercase truncate max-w-[150px] mx-auto font-medium"
+                        >
+                          {appt.email}
+                        </a>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 block">-</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className="font-semibold text-slate-800 block">{assignedDoc?.name || appt.doctor_name || 'Dr. Consultant'}</span>
+                      <span className="text-[10px] text-teal-700 font-medium">{assignedDoc?.specialization || appt.doctor_specialization || 'General Consultation'}</span>
                     </td>
                     <td className="py-3 px-3 text-center">
                       <span className="text-slate-700 font-medium block max-w-[180px] mx-auto truncate">
-                        {pat.symptoms_diagnosis || pat.reason || 'General Consultation'}
+                        {appt.symptoms_diagnosis || appt.reason_for_visit || appt.reason || 'General Consultation'}
                       </span>
                       {(() => {
-                        const cond = pat.Condation || pat.condation || pat.condition || pat.symptoms_severity;
+                        const cond = appt.Condation || appt.condation || appt.condition || appt.symptoms_severity;
                         if (!cond) return null;
                         return (
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border inline-block mt-0.5 ${
@@ -1086,30 +1319,34 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
                       })()}
                     </td>
                     <td className="py-3 px-3 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                        pat.payment_status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                        pat.payment_status === 'Partial' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border inline-block ${
+                        (appt.payment_status || '').toLowerCase() === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        (appt.payment_status || '').toLowerCase() === 'partial' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                         'bg-rose-50 text-rose-700 border-rose-200'
                       }`}>
-                        {pat.payment_status || 'Paid'} • ₹{pat.amount_paid || pat.consultation_fee || 500}
+                        {appt.payment_status || 'Pending'}
                       </span>
                     </td>
                     <td className="py-3 px-3 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                        (pat.status || '').toLowerCase().includes('admit')
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border inline-block ${
+                        (appt.status || '').toLowerCase().includes('admit')
                           ? 'bg-purple-50 text-purple-700 border-purple-200'
-                          : (pat.status || '').toLowerCase().includes('discharg')
+                          : (appt.status || '').toLowerCase().includes('discharg')
                           ? 'bg-slate-100 text-slate-700 border-slate-300'
-                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : (appt.status || '').toLowerCase().includes('confirm') || (appt.status || '').toLowerCase().includes('active')
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : (appt.status || '').toLowerCase().includes('cancel')
+                          ? 'bg-rose-50 text-rose-700 border-rose-200'
+                          : 'bg-teal-50 text-teal-700 border-teal-200'
                       }`}>
-                        {pat.status || 'Admitted'}
+                        {appt.status || 'Confirmed'}
                       </span>
                     </td>
                     <td className="py-3 px-3 text-center">
                       <button
                         type="button"
-                        onClick={() => handleViewPatient(pat)}
-                        className="px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white font-bold text-xs transition cursor-pointer border border-emerald-200"
+                        onClick={() => handleViewAppointment(appt)}
+                        className="px-3 py-1 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white font-bold text-xs transition cursor-pointer border border-teal-200"
                       >
                         Details &rarr;
                       </button>
@@ -1117,10 +1354,10 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
                   </tr>
                 );
               })}
-              {patientsList.length === 0 && (
+              {appointmentsList.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="py-8 text-center text-xs text-slate-400">
-                    No patients registered in this branch yet.
+                  <td colSpan="7" className="py-8 text-center text-xs text-slate-400">
+                    No booked appointments found for this hospital yet.
                   </td>
                 </tr>
               )}
@@ -1128,14 +1365,14 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
           </table>
         </div>
 
-        {patientVisibleCount < patientsList.length && (
+        {patientVisibleCount < appointmentsList.length && (
           <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50">
             <button
               type="button"
               onClick={() => setPatientVisibleCount((prev) => prev + 10)}
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
+              className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition duration-150 cursor-pointer"
             >
-              Show More ({patientsList.length - patientVisibleCount} remaining)
+              Show More ({appointmentsList.length - patientVisibleCount} remaining)
             </button>
           </div>
         )}

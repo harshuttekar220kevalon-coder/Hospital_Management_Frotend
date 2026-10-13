@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
+const formatApptId = (raw) => {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  if (s.toUpperCase().startsWith('APT-')) return s.toUpperCase();
+  if (/^\d+$/.test(s)) return `APT-${s}`;
+  return s;
+};
+
 const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospital, setSelectedHospital: propSetSelectedHospital, setCurrentPage }) => {
   const [activeTab, setActiveTab] = useState('details');
   const [loading, setLoading] = useState(true);
@@ -14,10 +22,14 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
   const [nursesList, setNursesList] = useState([]);
   const [receptionistsList, setReceptionistsList] = useState([]);
   const [patientsList, setPatientsList] = useState([]);
+  const [appointmentsList, setAppointmentsList] = useState([]);
   const [departmentsList, setDepartmentsList] = useState([]);
 
   const [wards, setWards] = useState([]);
   const [rooms, setRooms] = useState([]);
+  const [bedsList, setBedsList] = useState([]);
+  const [selectedFloor, setSelectedFloor] = useState('ALL');
+  const [bedPage, setBedPage] = useState(1);
 
   const [deptSearch, setDeptSearch] = useState('');
   const [deptCategoryFilter, setDeptCategoryFilter] = useState('ALL');
@@ -35,6 +47,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
   const [selectedBedToUpdate, setSelectedBedToUpdate] = useState(null);
 
   const [detailsFormData, setDetailsFormData] = useState({
+    id: '',
     Name: '',
     Branch_Code: '',
     city: '',
@@ -43,13 +56,16 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
     contact: '',
     emergency_contact: '',
     email: '',
+    established_year: '',
     total_beds: 0,
     icu_beds: 0,
     nicu_beds: 0,
     operation_theatres: 0,
     ambulances_count: 0,
     restroom_for_relatives: 0,
-    is_active: true
+    departments: '',
+    is_active: true,
+    created_at: ''
   });
 
   const [deptFormData, setDeptFormData] = useState({
@@ -82,6 +98,8 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
   const [bedStatusFormData, setBedStatusFormData] = useState({
     status: 'Available',
     patient_name: '',
+    appointment_id: '',
+    selected_appointment_pk: '',
     patient_id: '',
     doctor: '',
     admission_date: '',
@@ -131,25 +149,12 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
       if (!assignedHospitalId) {
         try {
-          const allHospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`);
-          if (allHospRes.ok) {
-            const allHosp = await allHospRes.json();
-            if (Array.isArray(allHosp) && allHosp.length > 0) {
-              const target = allHosp[0];
-              assignedHospitalId = target.id;
-              setHospitalData(target);
-              if (propSetSelectedHospital && (!propSelectedHospital || propSelectedHospital.id !== target.id)) {
-                propSetSelectedHospital(target);
-              }
-              localStorage.setItem('selectedHospital', JSON.stringify(target));
-              await setupHospitalAndRelatedData(target, target.id);
-              setLoading(false);
-              return;
-            }
+          const rawUser = localStorage.getItem('currentUser');
+          if (rawUser) {
+            const u = JSON.parse(rawUser);
+            if (u.hospital) assignedHospitalId = Number(typeof u.hospital === 'object' ? u.hospital.id : u.hospital);
           }
-        } catch (e) {
-          console.error('Fallback hospitals fetch error:', e);
-        }
+        } catch {}
       }
 
       if (!assignedHospitalId) {
@@ -174,7 +179,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
           const allHospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`);
           if (allHospRes && allHospRes.ok) {
             const allHosp = await allHospRes.json();
-            targetHosp = allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) || allHosp[0] || null;
+            targetHosp = allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) || null;
           }
         } catch (e) {
           console.error('Hospital list fallback error:', e);
@@ -205,11 +210,12 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
   const setupHospitalAndRelatedData = async (hosp, hospitalId) => {
     try {
-      const [docRes, nurRes, recRes, patRes] = await Promise.allSettled([
+      const [docRes, nurRes, recRes, patRes, apptRes] = await Promise.allSettled([
         fetch(`${API_BASE_URL}/super-admin/Doctors/`),
         fetch(`${API_BASE_URL}/super-admin/Nurses/`),
         fetch(`${API_BASE_URL}/super-admin/Receptionists/`),
-        fetch(`${API_BASE_URL}/super-admin/Patients/`)
+        fetch(`${API_BASE_URL}/super-admin/Patients/`),
+        fetch(`${API_BASE_URL}/super-admin/appointments/`)
       ]);
 
       let branchDocs = [];
@@ -241,6 +247,32 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         const allPats = await patRes.value.json().catch(() => []);
         branchPats = allPats.filter(p => Number(p.hospital) === Number(hospitalId));
         setPatientsList(branchPats);
+      }
+
+      let branchAppts = [];
+      if (apptRes.status === 'fulfilled' && apptRes.value.ok) {
+        const rawAppts = await apptRes.value.json().catch(() => []);
+        const allAppts = Array.isArray(rawAppts) ? rawAppts : (rawAppts?.results || rawAppts?.data || []);
+        const branchDocIds = new Set(branchDocs.map(d => Number(d.id)));
+
+        branchAppts = allAppts.filter(item => {
+          if (!item) return false;
+          const apptHospId = typeof item.hospital === 'object' && item.hospital !== null ? item.hospital?.id : item.hospital;
+          const apptHospName = item.hospital_name || (typeof item.hospital === 'object' ? (item.hospital?.Name || item.hospital?.name) : (typeof item.hospital === 'string' && isNaN(Number(item.hospital)) ? item.hospital : ''));
+          const currentHospName = hosp?.Name || hosp?.name || '';
+
+          if (apptHospId !== null && apptHospId !== undefined && apptHospId !== '' && !isNaN(Number(apptHospId))) {
+            return Number(apptHospId) === Number(hospitalId);
+          }
+          if (apptHospName && currentHospName && apptHospName.toLowerCase().trim() === currentHospName.toLowerCase().trim()) {
+            return true;
+          }
+          if (item.doctor && branchDocIds.has(Number(typeof item.doctor === 'object' ? item.doctor?.id : item.doctor))) {
+            return true;
+          }
+          return false;
+        });
+        setAppointmentsList(branchAppts);
       }
 
       const rawDepts = hosp.departments || hosp.department || '';
@@ -353,77 +385,133 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         });
       }
 
-      setWards(generatedWards);
+      const generatedBeds = [];
 
-      const generatedRooms = [];
-      if (totalBedsNum > 0) {
-        const bedsPerRoom = 4;
-        const numRooms = Math.ceil(totalBedsNum / bedsPerRoom);
-        let globalBedNumber = 1;
+      // Collect all active appointments for this hospital branch
+      const activeAppts = branchAppts.filter(a => {
+        if (!a) return false;
+        const st = (a.status || '').toLowerCase();
+        return !st.includes('discharge') && !st.includes('cancel');
+      });
 
-        for (let r = 0; r < numRooms; r++) {
-          const roomNum = `Room ${101 + r}`;
-          const roomBedsCount = Math.min(bedsPerRoom, totalBedsNum - (r * bedsPerRoom));
-          const roomBeds = [];
+      // Map beds explicitly assigned via bed_number on appointments
+      const bedToApptMap = new Map();
+      const unassignedAdmittedAppts = [];
 
-          for (let b = 0; b < roomBedsCount; b++) {
-            const bedNumberText = `Bed ${globalBedNumber}`;
-            const bedId = `bed-${globalBedNumber}`;
-            const patientIndex = globalBedNumber - 1;
-            const currentPatient = branchPats[patientIndex] || null;
+      activeAppts.forEach(a => {
+        const rawBed = a.bed_number !== null && a.bed_number !== undefined && a.bed_number !== '' ? Number(a.bed_number) : null;
+        if (rawBed && !isNaN(rawBed) && rawBed > 0) {
+          bedToApptMap.set(rawBed, a);
+        } else if ((a.status || '').toLowerCase().includes('admit')) {
+          unassignedAdmittedAppts.push(a);
+        }
+      });
 
-            if (currentPatient) {
-              roomBeds.push({
-                id: bedId,
-                bed_number: bedNumberText,
-                bed_index: globalBedNumber,
-                status: 'Occupied',
-                patient_name: currentPatient.name || currentPatient.patient_name || `Patient #${globalBedNumber}`,
-                patient_id: currentPatient.patient_id ? `PID-${currentPatient.patient_id}` : (currentPatient.id ? `PID-${currentPatient.id}` : `PID-${100 + globalBedNumber}`),
-                patient_phone: currentPatient.phone || currentPatient.contact || '',
-                patient_gender: currentPatient.gender || '',
-                patient_age: currentPatient.age || '',
-                doctor: currentPatient.doctor_name || currentPatient.doctor || (branchDocs[0]?.name || '-'),
-                admission_date: currentPatient.admission_date || currentPatient.admit_date || currentPatient.created_at || new Date().toISOString().split('T')[0]
-              });
-            } else {
-              roomBeds.push({
-                id: bedId,
-                bed_number: bedNumberText,
-                bed_index: globalBedNumber,
-                status: 'Available',
-                patient_name: '',
-                patient_id: '',
-                patient_phone: '',
-                patient_gender: '',
-                patient_age: '',
-                doctor: '',
-                admission_date: ''
-              });
-            }
+      // Also check branch patients assigned to beds
+      const activePats = branchPats.filter(p => {
+        if (!p) return false;
+        const st = (p.status || '').toLowerCase();
+        return !st.includes('discharge') && !st.includes('cancel');
+      });
 
-            globalBedNumber++;
-          }
+      const bedToPatMap = new Map();
+      const unassignedAdmittedPats = [];
 
-          const isIcuRoom = (r * bedsPerRoom) >= genBedsNum && (r * bedsPerRoom) < (genBedsNum + icuBedsNum);
-          const isNicuRoom = (r * bedsPerRoom) >= (genBedsNum + icuBedsNum);
+      activePats.forEach(p => {
+        const rawBed = p.bed_number !== null && p.bed_number !== undefined && p.bed_number !== '' ? Number(p.bed_number) : null;
+        if (rawBed && !isNaN(rawBed) && rawBed > 0) {
+          bedToPatMap.set(rawBed, p);
+        } else if ((p.status || '').toLowerCase().includes('admit') || (p.patient_type || '').toLowerCase().includes('ipd')) {
+          unassignedAdmittedPats.push(p);
+        }
+      });
 
-          generatedRooms.push({
-            id: r + 1,
-            room_number: roomNum,
-            floor: `Floor ${Math.floor(r / 3) + 1}`,
-            wing: `Wing ${String.fromCharCode(65 + (r % 3))}`,
-            room_type: isIcuRoom ? 'ICU Suite' : isNicuRoom ? 'NICU Suite' : 'General Ward Room',
-            tariff_per_day: isIcuRoom ? 10000 : isNicuRoom ? 8000 : 1500,
-            ward: isIcuRoom ? 'Intensive Care Unit (ICU)' : isNicuRoom ? 'Neonatal ICU (NICU / PICU)' : 'General Medical Ward',
-            amenities: isIcuRoom ? ['Oxygen Supply', 'Cardiac Monitor', 'Ventilator'] : ['Central Oxygen', 'Nurse Call Switch'],
-            beds: roomBeds
+      let unassignedApptIdx = 0;
+      let unassignedPatIdx = 0;
+
+      for (let i = 1; i <= totalBedsNum; i++) {
+        const floorNumber = Math.floor((i - 1) / 100) + 1;
+
+        // 1. Check if an appointment is explicitly assigned to bed i
+        let currentAppt = bedToApptMap.get(i) || null;
+        // 2. Check if a patient is explicitly assigned to bed i
+        let currentPat = !currentAppt ? (bedToPatMap.get(i) || null) : null;
+
+        // 3. Unassigned admitted appointment fallback
+        if (!currentAppt && !currentPat && unassignedApptIdx < unassignedAdmittedAppts.length) {
+          currentAppt = unassignedAdmittedAppts[unassignedApptIdx++];
+        }
+
+        // 4. Unassigned admitted patient fallback
+        if (!currentAppt && !currentPat && unassignedPatIdx < unassignedAdmittedPats.length) {
+          currentPat = unassignedAdmittedPats[unassignedPatIdx++];
+        }
+
+        if (currentAppt) {
+          const apptRawId = currentAppt.Appoment_id || currentAppt.appoment_id || currentAppt.appointment_id || currentAppt.id;
+          const patName = currentAppt.patient_name || currentAppt.patient_Name || currentAppt.name || 'Admitted Patient';
+          const formattedApptId = formatApptId(apptRawId);
+
+          generatedBeds.push({
+            id: `bed-${i}`,
+            bed_number: i,
+            bed_label: `Bed ${i}`,
+            floor: `Floor ${floorNumber}`,
+            floor_number: floorNumber,
+            status: 'Occupied',
+            patient_name: patName,
+            appointment_id: formattedApptId,
+            appointment_pk: currentAppt.id || null,
+            patient_id: currentAppt.patient_id ? `PID-${currentAppt.patient_id}` : `PID-${i}`,
+            patient_phone: currentAppt.contact || currentAppt.phone || '',
+            doctor: currentAppt.doctor_name || (branchDocs[0]?.name || '-'),
+            admission_date: currentAppt.appointment_date || currentAppt.visit_date || new Date().toISOString().split('T')[0]
+          });
+        } else if (currentPat) {
+          const patName = currentPat.name || currentPat.patient_name || 'Admitted Patient';
+          const matchingAppt = branchAppts.find(a => {
+            const aName = (a.patient_name || a.patient_Name || a.name || '').toLowerCase().trim();
+            const pName = patName.toLowerCase().trim();
+            return aName && pName && aName === pName;
+          });
+          const apptRawId = currentPat.appointment_id || currentPat.Appoment_id || currentPat.appoment_id || matchingAppt?.Appoment_id || matchingAppt?.appoment_id || matchingAppt?.appointment_id || matchingAppt?.id || currentPat.id;
+          const formattedApptId = formatApptId(apptRawId);
+
+          generatedBeds.push({
+            id: `bed-${i}`,
+            bed_number: i,
+            bed_label: `Bed ${i}`,
+            floor: `Floor ${floorNumber}`,
+            floor_number: floorNumber,
+            status: 'Occupied',
+            patient_name: patName,
+            appointment_id: formattedApptId,
+            appointment_pk: matchingAppt?.id || null,
+            patient_id: currentPat.patient_id ? `PID-${currentPat.patient_id}` : (currentPat.id ? `PID-${currentPat.id}` : `PID-${i}`),
+            patient_phone: currentPat.phone || currentPat.contact || '',
+            doctor: currentPat.doctor_name || currentPat.doctor || (branchDocs[0]?.name || '-'),
+            admission_date: currentPat.admission_date || currentPat.admit_date || new Date().toISOString().split('T')[0]
+          });
+        } else {
+          generatedBeds.push({
+            id: `bed-${i}`,
+            bed_number: i,
+            bed_label: `Bed ${i}`,
+            floor: `Floor ${floorNumber}`,
+            floor_number: floorNumber,
+            status: 'Available',
+            patient_name: '',
+            appointment_id: '',
+            appointment_pk: null,
+            patient_id: '',
+            patient_phone: '',
+            doctor: '',
+            admission_date: ''
           });
         }
       }
 
-      setRooms(generatedRooms);
-
+      setBedsList(generatedBeds);
     } catch (err) {
       console.error('Setup error:', err);
     }
@@ -435,59 +523,125 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
   const handleOpenEditDetails = () => {
     if (!hospitalData) return;
+    const rawDepts = hospitalData.departments !== undefined && hospitalData.departments !== null
+      ? (typeof hospitalData.departments === 'string' ? hospitalData.departments : (Array.isArray(hospitalData.departments) ? hospitalData.departments.map(d => typeof d === 'object' ? d.name : d).join(', ') : ''))
+      : (departmentsList.length > 0 ? departmentsList.map(d => d.name).join(', ') : '');
+
     setDetailsFormData({
-      Name: hospitalData.Name || '',
-      Branch_Code: hospitalData.Branch_Code || '',
+      id: hospitalData.id || '',
+      Name: hospitalData.Name || hospitalData.name || '',
+      Branch_Code: hospitalData.Branch_Code || hospitalData.branch_code || '',
       city: hospitalData.city || '',
       area: hospitalData.area || '',
       address: hospitalData.address || '',
       contact: hospitalData.contact || '',
-      emergency_contact: hospitalData.emergency_contact || hospitalData.contact || '',
+      emergency_contact: hospitalData.emergency_contact || '',
       email: hospitalData.email || '',
-      total_beds: Number(hospitalData.total_beds) || 0,
-      icu_beds: Number(hospitalData.icu_beds) || 0,
-      nicu_beds: Number(hospitalData.nicu_beds) || 0,
-      operation_theatres: Number(hospitalData.operation_theatres) || 0,
-      ambulances_count: Number(hospitalData.ambulances_count) || 0,
-      restroom_for_relatives: Number(hospitalData.restroom_for_relatives) || 0,
-      is_active: hospitalData.is_active !== false
+      established_year: hospitalData.established_year || '',
+      total_beds: hospitalData.total_beds !== undefined ? Number(hospitalData.total_beds) : 0,
+      icu_beds: hospitalData.icu_beds !== undefined ? Number(hospitalData.icu_beds) : 0,
+      nicu_beds: hospitalData.nicu_beds !== undefined ? Number(hospitalData.nicu_beds) : 0,
+      operation_theatres: hospitalData.operation_theatres !== undefined ? Number(hospitalData.operation_theatres) : 0,
+      ambulances_count: hospitalData.ambulances_count !== undefined ? Number(hospitalData.ambulances_count) : 0,
+      restroom_for_relatives: hospitalData.restroom_for_relatives !== undefined ? Number(hospitalData.restroom_for_relatives) : 0,
+      departments: rawDepts || '',
+      is_active: hospitalData.is_active !== false,
+      created_at: hospitalData.created_at || ''
     });
     setIsEditDetailsModalOpen(true);
   };
 
+  const handleNumberChange = (field, rawVal) => {
+    if (rawVal === '') {
+      setDetailsFormData(prev => {
+        const updated = { ...prev, [field]: '' };
+        if (field === 'total_beds') {
+          updated.nicu_beds = 0;
+        } else if (field === 'icu_beds') {
+          const total = Number(prev.total_beds) || 0;
+          updated.nicu_beds = Math.max(0, total);
+        }
+        return updated;
+      });
+      return;
+    }
+
+    // Strip leading zeroes if user types over 0 (e.g. '05' -> '5')
+    const cleaned = String(rawVal).replace(/^0+(?=\d)/, '');
+    const num = Number(cleaned);
+    if (isNaN(num) || num < 0) return;
+
+    setDetailsFormData(prev => {
+      const updated = { ...prev, [field]: cleaned };
+      if (field === 'total_beds') {
+        const icu = Number(prev.icu_beds) || 0;
+        updated.nicu_beds = Math.max(0, Number(cleaned) - icu);
+      } else if (field === 'icu_beds') {
+        const total = Number(prev.total_beds) || 0;
+        updated.nicu_beds = Math.max(0, total - Number(cleaned));
+      }
+      return updated;
+    });
+  };
+
+  const handleNumberFocus = (e) => {
+    if (e.target.value === '0' || Number(e.target.value) === 0) {
+      e.target.select();
+    }
+  };
+
+  const handleNumberBlur = (field) => {
+    setDetailsFormData(prev => {
+      if (prev[field] === '' || prev[field] === undefined || prev[field] === null) {
+        return { ...prev, [field]: 0 };
+      }
+      return prev;
+    });
+  };
+
   const handleSaveDetails = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!hospitalData || !hospitalData.id) return;
     setSaveLoading(true);
 
     try {
       const payload = {
-        Name: detailsFormData.Name,
-        Branch_Code: detailsFormData.Branch_Code,
-        city: detailsFormData.city,
-        area: detailsFormData.area,
-        address: detailsFormData.address,
-        contact: detailsFormData.contact,
-        email: detailsFormData.email,
+        Name: (detailsFormData.Name || '').trim(),
+        Branch_Code: (detailsFormData.Branch_Code || '').trim(),
+        city: (detailsFormData.city || '').trim(),
+        area: (detailsFormData.area || '').trim(),
+        address: (detailsFormData.address || '').trim(),
+        contact: (detailsFormData.contact || '').trim(),
+        emergency_contact: (detailsFormData.emergency_contact || '').trim(),
+        email: (detailsFormData.email || '').trim(),
+        established_year: (detailsFormData.established_year || '').trim(),
         total_beds: Number(detailsFormData.total_beds) || 0,
         icu_beds: Number(detailsFormData.icu_beds) || 0,
         nicu_beds: Number(detailsFormData.nicu_beds) || 0,
         operation_theatres: Number(detailsFormData.operation_theatres) || 0,
         ambulances_count: Number(detailsFormData.ambulances_count) || 0,
         restroom_for_relatives: Number(detailsFormData.restroom_for_relatives) || 0,
-        departments: departmentsList.map(d => d.name).join(', '),
-        is_active: detailsFormData.is_active
+        departments: (detailsFormData.departments || '').trim(),
+        is_active: Boolean(detailsFormData.is_active)
       };
 
-      const response = await fetch(`${API_BASE_URL}/super-admin/Hospital/${hospitalData.id}/`, {
+      let response = await fetch(`${API_BASE_URL}/super-admin/Hospital/${hospitalData.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      const updatedData = await response.json();
+      if (!response.ok) {
+        response = await fetch(`${API_BASE_URL}/super-admin/Hospital/${hospitalData.id}/`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      }
 
-      if (response.ok) {
+      const updatedData = await response.json().catch(() => null);
+
+      if (response.ok && updatedData) {
         alert('Hospital details updated successfully!');
         setHospitalData(updatedData);
         if (propSetSelectedHospital) propSetSelectedHospital(updatedData);
@@ -495,7 +649,8 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         await setupHospitalAndRelatedData(updatedData, updatedData.id);
         setIsEditDetailsModalOpen(false);
       } else {
-        alert('Error: ' + JSON.stringify(updatedData));
+        const errorMsg = updatedData ? (typeof updatedData === 'object' ? JSON.stringify(updatedData) : String(updatedData)) : 'Update failed';
+        alert('Error: ' + errorMsg);
       }
     } catch (err) {
       console.error('Update error:', err);
@@ -509,11 +664,41 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
     if (!hospitalData || !hospitalData.id) return;
     try {
       const deptNamesString = newDeptList.map(d => d.name).join(', ');
-      await fetch(`${API_BASE_URL}/super-admin/Hospital/${hospitalData.id}/`, {
+      let res = await fetch(`${API_BASE_URL}/super-admin/Hospital/${hospitalData.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ departments: deptNamesString })
       });
+      if (!res.ok) {
+        const fullPayload = {
+          Name: hospitalData.Name || hospitalData.name || '',
+          Branch_Code: hospitalData.Branch_Code || hospitalData.branch_code || '',
+          city: hospitalData.city || '',
+          area: hospitalData.area || '',
+          address: hospitalData.address || '',
+          contact: hospitalData.contact || '',
+          emergency_contact: hospitalData.emergency_contact || '',
+          email: hospitalData.email || '',
+          established_year: hospitalData.established_year || '',
+          total_beds: Number(hospitalData.total_beds) || 0,
+          icu_beds: Number(hospitalData.icu_beds) || 0,
+          nicu_beds: Number(hospitalData.nicu_beds) || 0,
+          operation_theatres: Number(hospitalData.operation_theatres) || 0,
+          ambulances_count: Number(hospitalData.ambulances_count) || 0,
+          restroom_for_relatives: Number(hospitalData.restroom_for_relatives) || 0,
+          departments: deptNamesString,
+          is_active: hospitalData.is_active !== false
+        };
+        res = await fetch(`${API_BASE_URL}/super-admin/Hospital/${hospitalData.id}/`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fullPayload)
+        });
+      }
+      setHospitalData(prev => ({ ...prev, departments: deptNamesString }));
+      const updatedSaved = { ...(hospitalData || {}), departments: deptNamesString };
+      localStorage.setItem('selectedHospital', JSON.stringify(updatedSaved));
+      if (propSetSelectedHospital) propSetSelectedHospital(updatedSaved);
     } catch (err) {
       console.error('Department sync error:', err);
     }
@@ -525,9 +710,9 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
       name: '',
       code: `DEPT-${Math.floor(100 + Math.random() * 900)}`,
       category: 'Clinical',
-      hod: doctorsList[0]?.name || '',
-      hod_phone: doctorsList[0]?.contact || doctorsList[0]?.phone || '',
-      location: '1st Floor - Wing A',
+      hod: '',
+      hod_phone: '',
+      location: '',
       doctors_count: 0,
       nurses_count: 0,
       beds_allocated: 0,
@@ -557,24 +742,26 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
   const handleSaveDept = async (e) => {
     e.preventDefault();
-    const statusColor = deptFormData.status === 'High Alert'
-      ? 'bg-rose-50 text-rose-700 border-rose-200'
-      : deptFormData.status === 'Occupied'
-        ? 'bg-amber-50 text-amber-700 border-amber-200'
-        : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (!deptFormData.name || !deptFormData.name.trim()) return;
+
+    const newDeptName = deptFormData.name.trim();
+    if (!editingDept && departmentsList.some(d => d.name.toLowerCase() === newDeptName.toLowerCase())) {
+      alert('Department already exists!');
+      return;
+    }
 
     let updatedList = [];
     if (editingDept) {
       updatedList = departmentsList.map(d => d.id === editingDept.id ? {
         ...d,
-        ...deptFormData,
-        status_color: statusColor
+        name: newDeptName
       } : d);
     } else {
       const newDept = {
         id: Date.now(),
-        ...deptFormData,
-        status_color: statusColor
+        name: newDeptName,
+        code: `DEPT-${newDeptName.slice(0, 4).toUpperCase()}-${Date.now() % 1000}`,
+        doctors_count: doctorsList.filter(doc => (doc.department || '').toLowerCase().includes(newDeptName.toLowerCase())).length
       };
       updatedList = [...departmentsList, newDept];
     }
@@ -584,7 +771,9 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
   };
 
   const handleDeleteDept = async (id) => {
-    if (window.confirm('Are you sure you want to remove this department?')) {
+    const deptToDelete = departmentsList.find(d => d.id === id);
+    if (!deptToDelete) return;
+    if (window.confirm(`Are you sure you want to remove "${deptToDelete.name}" department?`)) {
       const updatedList = departmentsList.filter(d => d.id !== id);
       setDepartmentsList(updatedList);
       await syncDepartments(updatedList);
@@ -659,63 +848,90 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
     }
   };
 
-  const handleOpenBedStatusModal = (room, bed) => {
-    setSelectedBedToUpdate({ roomId: room.id, bed });
+  const handleOpenBedStatusModal = (roomOrBed, maybeBed) => {
+    const targetBed = maybeBed || roomOrBed;
+    setSelectedBedToUpdate(targetBed);
     setBedStatusFormData({
-      status: bed.status || 'Available',
-      patient_name: bed.patient_name || '',
-      patient_id: bed.patient_id || '',
-      doctor: bed.doctor || (doctorsList[0]?.name || ''),
-      admission_date: bed.admission_date || new Date().toISOString().split('T')[0],
+      status: targetBed.status || 'Available',
+      patient_name: targetBed.patient_name || '',
+      appointment_id: targetBed.appointment_id || '',
+      selected_appointment_pk: targetBed.appointment_pk || '',
+      patient_id: targetBed.patient_id || '',
+      doctor: targetBed.doctor || (doctorsList[0]?.name || ''),
+      admission_date: targetBed.admission_date || new Date().toISOString().split('T')[0],
       notes: ''
     });
     setIsBedStatusModalOpen(true);
   };
 
-  const handleSaveBedStatus = (e) => {
+  const handleSaveBedStatus = async (e) => {
     e.preventDefault();
     if (!selectedBedToUpdate) return;
 
-    const { roomId, bed } = selectedBedToUpdate;
     const isOccupied = bedStatusFormData.status === 'Occupied';
+    const apptId = isOccupied ? formatApptId(bedStatusFormData.appointment_id) : '';
+    const patName = isOccupied ? (bedStatusFormData.patient_name || '').trim() : '';
 
-    setRooms(prev => prev.map(r => {
-      if (r.id === roomId) {
+    setBedsList(prev => prev.map(b => {
+      if (b.id === selectedBedToUpdate.id || b.bed_number === selectedBedToUpdate.bed_number) {
         return {
-          ...r,
-          beds: r.beds.map(b => {
-            if (b.id === bed.id) {
-              return {
-                ...b,
-                status: isOccupied ? 'Occupied' : 'Available',
-                patient_name: isOccupied ? (bedStatusFormData.patient_name || 'Admitted Patient') : '',
-                patient_id: isOccupied ? (bedStatusFormData.patient_id || `PID-${b.bed_index || 100}`) : '',
-                doctor: isOccupied ? (bedStatusFormData.doctor || (doctorsList[0]?.name || '-')) : '',
-                admission_date: isOccupied ? (bedStatusFormData.admission_date || new Date().toISOString().split('T')[0]) : ''
-              };
-            }
-            return b;
-          })
+          ...b,
+          status: isOccupied ? 'Occupied' : 'Available',
+          patient_name: isOccupied ? patName : '',
+          appointment_id: isOccupied ? apptId : '',
+          appointment_pk: isOccupied ? (bedStatusFormData.selected_appointment_pk || null) : null
         };
       }
-      return r;
+      return b;
     }));
+
+    // If an appointment was selected, sync bed_number and status to backend
+    if (bedStatusFormData.selected_appointment_pk) {
+      try {
+        await fetch(`${API_BASE_URL}/super-admin/appointments/${bedStatusFormData.selected_appointment_pk}/`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bed_number: isOccupied ? selectedBedToUpdate.bed_number : null,
+            status: isOccupied ? 'Admitted' : 'Completed'
+          })
+        }).catch(() => null);
+      } catch (err) {
+        console.error('Failed to sync appointment bed to backend:', err);
+      }
+    }
 
     setIsBedStatusModalOpen(false);
   };
 
-  const allBeds = rooms.flatMap(r => r.beds.map(b => ({ ...b, room_number: r.room_number, room_type: r.room_type, floor: r.floor })));
-  const totalBedsCount = allBeds.length > 0 ? allBeds.length : (Number(hospitalData?.total_beds) || 0);
-  const occupiedBedsCount = allBeds.filter(b => b.status === 'Occupied').length;
+  const allBeds = bedsList;
+  const totalBedsCount = Number(hospitalData?.total_beds) || bedsList.length || 0;
+  const occupiedBedsCount = bedsList.filter(b => b.status === 'Occupied').length;
   const availableBedsCount = Math.max(0, totalBedsCount - occupiedBedsCount);
   const bedOccupancyRate = totalBedsCount > 0 ? Math.round((occupiedBedsCount / totalBedsCount) * 100) : 0;
 
+  const filteredBeds = bedsList.filter(b => {
+    const query = roomSearch.toLowerCase().trim();
+    const matchesSearch = !query ||
+      String(b.bed_number).includes(query) ||
+      b.bed_label.toLowerCase().includes(query) ||
+      (b.patient_name || '').toLowerCase().includes(query) ||
+      (b.appointment_id || '').toLowerCase().includes(query) ||
+      b.floor.toLowerCase().includes(query);
+
+    const matchesStatus = bedStatusFilter === 'ALL' || b.status === bedStatusFilter;
+    const matchesFloor = selectedFloor === 'ALL' || Number(b.floor_number) === Number(selectedFloor);
+
+    return matchesSearch && matchesStatus && matchesFloor;
+  });
+
+  const bedsPerPage = 50;
+  const totalBedPages = Math.ceil(filteredBeds.length / bedsPerPage) || 1;
+  const currentBedPage = Math.min(bedPage, totalBedPages);
+  const displayedBeds = filteredBeds.slice((currentBedPage - 1) * bedsPerPage, currentBedPage * bedsPerPage);
+
   const filteredDepartments = departmentsList.filter(d => {
-    const matchesSearch = (d.name || '').toLowerCase().includes(deptSearch.toLowerCase()) ||
-      (d.code || '').toLowerCase().includes(deptSearch.toLowerCase()) ||
-      (d.hod || '').toLowerCase().includes(deptSearch.toLowerCase());
-    const matchesCategory = deptCategoryFilter === 'ALL' || d.category === deptCategoryFilter;
-    return matchesSearch && matchesCategory;
+    return (d.name || '').toLowerCase().includes(deptSearch.toLowerCase());
   });
 
   const filteredWards = wards.filter(w => {
@@ -781,20 +997,13 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-semibold border border-teal-500/30">
-                <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
-                Hospital Branch
-              </span>
               {curHosp.Branch_Code && (
                 <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-200 text-xs font-bold border border-blue-400/30">
-                  Code: {curHosp.Branch_Code}
+                  Branch Id : {curHosp.Branch_Code}
                 </span>
               )}
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${curHosp.is_active !== false ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border-rose-500/30'}`}>
-                {curHosp.is_active !== false ? 'Operational (Active)' : 'Inactive'}
-              </span>
-              <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-700">
-                Admin: {assignedAdminInfo?.name || currentUser?.name || 'Administrator'}
+                {curHosp.is_active !== false ? 'Active' : 'Inactive'}
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold mt-2 tracking-tight text-slate-100 flex items-center gap-2">
@@ -805,7 +1014,10 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex flex-col items-start md:items-end gap-1.5 shrink-0">
+            <span className="text-xs sm:text-sm font-bold text-slate-200 tracking-wide">
+              {assignedAdminInfo?.name || currentUser?.name || 'Admin'}
+            </span>
             <button
               type="button"
               onClick={handleOpenEditDetails}
@@ -826,20 +1038,22 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
             <p className="text-base sm:text-lg font-bold text-rose-300 mt-0.5">{curHosp.icu_beds || 0} ICU</p>
           </div>
           <div className="bg-slate-800/60 rounded-xl p-2.5 border border-slate-700/50">
-            <p className="text-[11px] font-medium text-slate-400">Doctors on Duty</p>
+            <p className="text-[11px] font-medium text-slate-400">Total Doctors</p>
             <p className="text-base sm:text-lg font-bold text-teal-300 mt-0.5">{doctorsList.length} Doctors</p>
           </div>
           <div className="bg-slate-800/60 rounded-xl p-2.5 border border-slate-700/50">
-            <p className="text-[11px] font-medium text-slate-400">Nurses & Staff</p>
-            <p className="text-base sm:text-lg font-bold text-indigo-300 mt-0.5">{nursesList.length + receptionistsList.length} Staff</p>
+            <p className="text-[11px] font-medium text-slate-400">Nurse & Receptionist</p>
+            <p className="text-base sm:text-lg font-bold text-indigo-300 mt-0.5">{nursesList.length + receptionistsList.length} Total</p>
           </div>
           <div className="bg-slate-800/60 rounded-xl p-2.5 border border-slate-700/50">
-            <p className="text-[11px] font-medium text-slate-400">Admitted Patients</p>
-            <p className="text-base sm:text-lg font-bold text-purple-300 mt-0.5">{patientsList.length} Patients</p>
+            <p className="text-[11px] font-medium text-slate-400">Appointments</p>
+            <p className="text-base sm:text-lg font-bold text-purple-300 mt-0.5">{appointmentsList.length} Appointments</p>
           </div>
           <div className="bg-slate-800/60 rounded-xl p-2.5 border border-slate-700/50">
-            <p className="text-[11px] font-medium text-slate-400">Main Helpline</p>
-            <p className="text-xs sm:text-sm font-bold text-emerald-300 mt-0.5 truncate">{curHosp.contact || curHosp.email || '-'}</p>
+            <p className="text-[11px] font-medium text-slate-400">Receptionist Helpline Number</p>
+            <p className="text-xs sm:text-sm font-bold text-emerald-300 mt-0.5 truncate">
+              {receptionistsList.find(r => r.contact || r.phone)?.contact || receptionistsList.find(r => r.contact || r.phone)?.phone || curHosp.contact || curHosp.email || '-'}
+            </p>
           </div>
         </div>
       </div>
@@ -859,18 +1073,6 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
         <button
           type="button"
-          onClick={() => setActiveTab('profile')}
-          className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer ${
-            activeTab === 'profile'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          Hospital Profile
-        </button>
-
-        <button
-          type="button"
           onClick={() => setActiveTab('departments')}
           className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer ${
             activeTab === 'departments'
@@ -878,26 +1080,9 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
-          Departments
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === 'departments' ? 'bg-blue-800 text-white' : 'bg-slate-100 text-slate-700'}`}>
-            {departmentsList.length}
-          </span>
+          Departments ({departmentsList.length})
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('wards')}
-          className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer ${
-            activeTab === 'wards'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          Wards
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === 'wards' ? 'bg-blue-800 text-white' : 'bg-slate-100 text-slate-700'}`}>
-            {wards.length}
-          </span>
-        </button>
 
         <button
           type="button"
@@ -909,314 +1094,167 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
           }`}
         >
           Rooms & Beds
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === 'rooms_beds' ? 'bg-blue-800 text-white' : 'bg-slate-100 text-slate-700'}`}>
-            {totalBedsCount} Beds
-          </span>
         </button>
       </div>
 
       {activeTab === 'details' && (
         <div className="space-y-5 sm:space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-slate-100 gap-3">
               <div>
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <h3 className="text-sm font-bold text-slate-800">Branch Location & Identity</h3>
-                  <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
-                    Active
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-800">Hospital & Administration Details</h3>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${curHosp.is_active !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                    {curHosp.is_active !== false ? 'Active' : 'Inactive'}
                   </span>
                 </div>
-                <div className="mt-3.5 space-y-2.5 text-xs text-slate-600">
-                  <div>
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Hospital Name</span>
-                    <span className="text-sm font-bold text-slate-800">{curHosp.Name}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <span className="font-semibold text-slate-400 block text-[10px] uppercase">Branch Code</span>
-                      <span className="font-semibold text-slate-800 font-mono">{curHosp.Branch_Code || '-'}</span>
-                    </div>
-                    <div>
-                      <span className="font-semibold text-slate-400 block text-[10px] uppercase">City / Area</span>
-                      <span className="font-semibold text-slate-800">{curHosp.area ? `${curHosp.area}, ` : ''}{curHosp.city || '-'}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Physical Address</span>
-                    <span className="font-medium text-slate-700 leading-relaxed block">{curHosp.address || '-'}</span>
-                  </div>
-                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Hospital branch details and assigned administrator information
+                </p>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <h3 className="text-sm font-bold text-slate-800">Communication Desk</h3>
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
-                    Active
-                  </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-5">
+              {/* Column 1: Hospital Identity & Location */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Hospital Identity</h4>
                 </div>
-                <div className="mt-3.5 space-y-2.5 text-xs text-slate-600">
+
+                <div className="space-y-3 text-xs">
                   <div>
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Main Contact / Reception</span>
-                    <span className="text-sm font-bold text-slate-800">{curHosp.contact || '-'}</span>
+                    <span className="text-slate-400 font-semibold block text-[10px] uppercase">Hospital Name</span>
+                    <span className="text-sm font-bold text-slate-800 mt-0.5 block">{curHosp.Name}</span>
                   </div>
-                  <div>
-                    <span className="font-semibold text-rose-500 block text-[10px] uppercase font-bold">Emergency Helpline</span>
-                    <span className="text-sm font-bold text-rose-700">{curHosp.emergency_contact || curHosp.contact || '-'}</span>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-slate-400 font-semibold block text-[10px] uppercase">Branch Code</span>
+                      <span className="font-semibold text-slate-800 font-mono mt-0.5 block">{curHosp.Branch_Code || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-semibold block text-[10px] uppercase">City / Area</span>
+                      <span className="font-semibold text-slate-800 mt-0.5 block">
+                        {curHosp.area ? `${curHosp.area}, ` : ''}{curHosp.city || '-'}
+                      </span>
+                    </div>
                   </div>
+
                   <div>
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Official Email</span>
+                    <span className="text-slate-400 font-semibold block text-[10px] uppercase">Physical Address</span>
+                    <span className="font-medium text-slate-700 leading-relaxed mt-0.5 block">{curHosp.address || '-'}</span>
+                  </div>
+
+                  {curHosp.established_year && (
+                    <div>
+                      <span className="text-slate-400 font-semibold block text-[10px] uppercase">Established Year</span>
+                      <span className="font-semibold text-slate-800 mt-0.5 block">{curHosp.established_year}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Column 2: Communication Desk */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Communication Desk</h4>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <span className="text-slate-400 font-semibold block text-[10px] uppercase">Reception Contact</span>
+                    <span className="text-sm font-bold text-slate-800 mt-0.5 block">{curHosp.contact || '-'}</span>
+                  </div>
+
+                  <div>
+                    <span className="text-rose-500 font-bold block text-[10px] uppercase">Emergency Helpline</span>
+                    <span className="text-sm font-bold text-rose-700 mt-0.5 block">
+                      {curHosp.emergency_contact || curHosp.contact || '-'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 font-semibold block text-[10px] uppercase">Official Email</span>
                     {curHosp.email ? (
                       <a
                         href={`mailto:${curHosp.email.toLowerCase()}`}
                         title={`Send email to ${curHosp.email}`}
-                        className="font-medium text-blue-700 hover:underline block truncate"
+                        className="text-sm font-medium text-blue-700 hover:underline mt-0.5 block truncate"
                       >
                         {curHosp.email}
                       </a>
                     ) : (
-                      <span className="font-medium text-slate-400">-</span>
+                      <span className="font-medium text-slate-400 mt-0.5 block">-</span>
                     )}
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <h3 className="text-sm font-bold text-slate-800">Administration Details</h3>
-                  <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold">
-                    Super Admin Linked
-                  </span>
+              {/* Column 3: Administration Details */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                  <span className="w-2 h-2 rounded-full bg-purple-600"></span>
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Administrator In-Charge</h4>
                 </div>
-                <div className="mt-3.5 space-y-2.5 text-xs text-slate-600">
+
+                <div className="space-y-3 text-xs">
                   <div>
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Assigned Administrator</span>
-                    <span className="text-sm font-bold text-slate-800">{assignedAdminInfo?.name || currentUser?.name || 'Administrator'}</span>
+                    <span className="text-slate-400 font-semibold block text-[10px] uppercase">Assigned Administrator</span>
+                    <span className="text-sm font-bold text-slate-800 mt-0.5 block">
+                      {assignedAdminInfo?.name || currentUser?.name || 'Administrator'}
+                    </span>
                   </div>
+
                   <div>
-                    <span className="font-semibold text-slate-400 block text-[10px] uppercase">Admin Email</span>
+                    <span className="text-slate-400 font-semibold block text-[10px] uppercase">Admin Email</span>
                     {(assignedAdminInfo?.email || currentUser?.email) ? (
                       <a
                         href={`mailto:${(assignedAdminInfo?.email || currentUser?.email).toLowerCase()}`}
                         title={`Send email to ${assignedAdminInfo?.email || currentUser?.email}`}
-                        className="font-medium text-blue-700 hover:underline block truncate"
+                        className="text-sm font-medium text-blue-700 hover:underline mt-0.5 block truncate"
                       >
                         {assignedAdminInfo?.email || currentUser?.email}
                       </a>
                     ) : (
-                      <span className="font-medium text-slate-400">-</span>
+                      <span className="font-medium text-slate-400 mt-0.5 block">-</span>
                     )}
                   </div>
+
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <span className="font-semibold text-slate-400 block text-[10px] uppercase">Operational Status</span>
-                      <span className="inline-flex items-center gap-1 font-bold text-emerald-700">
+                      <span className="text-slate-400 font-semibold block text-[10px] uppercase">Admin ID</span>
+                      <span className="font-semibold text-purple-700 font-mono mt-0.5 block">
+                        {assignedAdminInfo?.employee_id || (assignedAdminInfo?.id ? `ADM-${assignedAdminInfo.id}` : (currentUser?.employee_id || (currentUser?.id ? `ADM-${currentUser.id}` : `ADM-${curHosp.id}`)))}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-semibold block text-[10px] uppercase">Operational Status</span>
+                      <span className="inline-flex items-center gap-1 font-bold text-emerald-700 mt-0.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                         {curHosp.is_active !== false ? 'Active' : 'Inactive'}
                       </span>
                     </div>
-                    <div>
-                      <span className="font-semibold text-slate-400 block text-[10px] uppercase">Admin ID</span>
-                      <span className="font-semibold text-purple-700 font-mono">
-                        {assignedAdminInfo?.employee_id || (assignedAdminInfo?.id ? `ADM-${assignedAdminInfo.id}` : (currentUser?.employee_id || (currentUser?.id ? `ADM-${currentUser.id}` : `ADM-${curHosp.id}`)))}
-                      </span>
-                    </div>
                   </div>
                 </div>
               </div>
             </div>
-
-          </div>
-
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100">
-              <div>
-                <h3 className="text-sm sm:text-base font-bold text-slate-800">Hospital Capacity & Infrastructure Matrix</h3>
-                <p className="text-xs text-slate-500">Hospital infrastructure and capacity summary</p>
-              </div>
-              <button
-                type="button"
-                onClick={handleOpenEditDetails}
-                className="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer self-start sm:self-auto"
-              >
-                Modify Capacities &rarr;
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-4">
-              <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-100 text-center">
-                <span className="text-xs font-semibold text-slate-400 uppercase block">Total Beds</span>
-                <span className="text-lg sm:text-xl font-bold text-blue-900 mt-1 block">{curHosp.total_beds ?? 0}</span>
-                <span className="text-[11px] font-semibold text-blue-700">Registered Beds</span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-rose-50/70 border border-rose-100 text-center">
-                <span className="text-xs font-semibold text-slate-400 uppercase block">ICU Beds</span>
-                <span className="text-lg sm:text-xl font-bold text-rose-900 mt-1 block">{curHosp.icu_beds ?? 0}</span>
-                <span className="text-[11px] font-semibold text-rose-700">Critical Units</span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-100 text-center">
-                <span className="text-xs font-semibold text-slate-400 uppercase block">NICU Beds</span>
-                <span className="text-lg sm:text-xl font-bold text-purple-900 mt-1 block">{curHosp.nicu_beds ?? 0}</span>
-                <span className="text-[11px] font-semibold text-purple-700">Infant Units</span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-teal-50/70 border border-teal-100 text-center">
-                <span className="text-xs font-semibold text-slate-400 uppercase block">OT Suites</span>
-                <span className="text-lg sm:text-xl font-bold text-teal-900 mt-1 block">{curHosp.operation_theatres ?? 0}</span>
-                <span className="text-[11px] font-semibold text-teal-700">Operating Theatres</span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-100 text-center">
-                <span className="text-xs font-semibold text-slate-400 uppercase block">Fleet</span>
-                <span className="text-lg sm:text-xl font-bold text-amber-900 mt-1 block">{curHosp.ambulances_count ?? 0}</span>
-                <span className="text-[11px] font-semibold text-amber-700">Ambulances</span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-100 text-center">
-                <span className="text-xs font-semibold text-slate-400 uppercase block">Restrooms</span>
-                <span className="text-lg sm:text-xl font-bold text-indigo-900 mt-1 block">{curHosp.restroom_for_relatives ?? 0}</span>
-                <span className="text-[11px] font-semibold text-indigo-700">Relative Lounges</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'profile' && (
-        <div className="space-y-5 sm:space-y-6">
-          <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs">
-            <h3 className="text-base font-bold text-slate-800 pb-3 border-b border-slate-100">Hospital Institutional Profile</h3>
-            
-            <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-5">
-              <div className="lg:col-span-2 space-y-4 text-xs sm:text-sm text-slate-700">
-                <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-100 space-y-2">
-                  <h4 className="font-bold text-slate-500 text-xs uppercase tracking-wider">Facility Overview</h4>
-                  <p className="leading-relaxed text-slate-700 font-medium">
-                    <strong>{curHosp.Name}</strong> is registered under branch code <strong>{curHosp.Branch_Code || 'N/A'}</strong> located in {curHosp.city || 'Central'}.
-                  </p>
-                  <p className="text-xs text-slate-600">
-                    Physical Address: {curHosp.address || `${curHosp.area ? curHosp.area + ', ' : ''}${curHosp.city || '-'}`}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="bg-blue-50/60 p-3.5 rounded-xl border border-blue-100">
-                    <span className="font-bold text-blue-900 text-xs uppercase tracking-wider block mb-1">Contact Details</span>
-                    <p className="text-xs text-slate-700"><strong>Helpline:</strong> {curHosp.contact || '-'}</p>
-                    <p className="text-xs text-slate-700 mt-0.5">
-                      <strong>Email: </strong>
-                      {curHosp.email ? (
-                        <a href={`mailto:${curHosp.email.toLowerCase()}`} title={`Send email to ${curHosp.email}`} className="text-blue-600 hover:underline font-medium">
-                          {curHosp.email}
-                        </a>
-                      ) : (
-                        '-'
-                      )}
-                    </p>
-                    <p className="text-xs text-slate-700 mt-0.5"><strong>Emergency:</strong> {curHosp.emergency_contact || curHosp.contact || '-'}</p>
-                  </div>
-                  <div className="bg-teal-50/60 p-3.5 rounded-xl border border-teal-100">
-                    <span className="font-bold text-teal-900 text-xs uppercase tracking-wider block mb-1">Administrator In-Charge</span>
-                    <p className="text-xs text-slate-700"><strong>Name:</strong> {assignedAdminInfo?.name || currentUser?.name || 'Administrator'}</p>
-                    <p className="text-xs text-slate-700 mt-0.5">
-                      <strong>Email: </strong>
-                      {(assignedAdminInfo?.email || currentUser?.email) ? (
-                        <a href={`mailto:${(assignedAdminInfo?.email || currentUser?.email).toLowerCase()}`} title={`Send email to ${assignedAdminInfo?.email || currentUser?.email}`} className="text-blue-600 hover:underline font-medium">
-                          {assignedAdminInfo?.email || currentUser?.email}
-                        </a>
-                      ) : (
-                        '-'
-                      )}
-                    </p>
-                    <p className="text-xs text-slate-700 mt-0.5"><strong>Status:</strong> {curHosp.is_active !== false ? 'Active Facility' : 'Inactive'}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-br from-slate-900 to-blue-950 text-white p-4 sm:p-5 rounded-xl flex flex-col justify-between">
-                <div>
-                  <span className="text-xs font-semibold text-teal-300 uppercase tracking-wider">Hospital Summary</span>
-                  <h4 className="text-sm font-bold text-white mt-1">Staff & Patient Overview</h4>
-                  
-                  <div className="mt-3 space-y-2 text-xs">
-                    <div className="flex items-center justify-between bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-700">
-                      <span className="text-slate-300">Registered Doctors</span>
-                      <span className="font-bold text-teal-300 text-sm">{doctorsList.length}</span>
-                    </div>
-                    <div className="flex items-center justify-between bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-700">
-                      <span className="text-slate-300">Registered Nurses</span>
-                      <span className="font-bold text-indigo-300 text-sm">{nursesList.length}</span>
-                    </div>
-                    <div className="flex items-center justify-between bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-700">
-                      <span className="text-slate-300">Receptionists</span>
-                      <span className="font-bold text-purple-300 text-sm">{receptionistsList.length}</span>
-                    </div>
-                    <div className="flex items-center justify-between bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-700">
-                      <span className="text-slate-300">Admitted Patients</span>
-                      <span className="font-bold text-emerald-300 text-sm">{patientsList.length}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-[10px] text-slate-400 mt-3 pt-2 border-t border-slate-800">
-                  Hospital ID: <strong className="text-slate-200 font-mono">{curHosp.Branch_Code || `HOSP-${curHosp.id}`}</strong>
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-800">Clinical Departments</h3>
-              </div>
-              <span className="text-[11px] font-semibold text-slate-400">{departmentsList.length} Registered</span>
-            </div>
-            
-            {departmentsList.length > 0 ? (
-              <div className="mt-3.5 flex flex-wrap gap-2">
-                {departmentsList.map((dept, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-800 text-xs font-semibold border border-slate-200 transition"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                    {dept.name}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500 mt-3">No departments registered yet.</p>
-            )}
           </div>
         </div>
       )}
 
       {activeTab === 'departments' && (
         <div className="space-y-4 sm:space-y-5">
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-            <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  placeholder="Search department name or HOD..."
-                  value={deptSearch}
-                  onChange={(e) => setDeptSearch(e.target.value)}
-                  className="w-full pl-4 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <select
-                value={deptCategoryFilter}
-                onChange={(e) => setDeptCategoryFilter(e.target.value)}
-                className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 font-medium"
-              >
-                <option value="ALL">All Categories</option>
-                <option value="Clinical">Clinical</option>
-                <option value="Critical Care">Critical Care</option>
-                <option value="Surgical">Surgical</option>
-              </select>
+          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder="Search department name..."
+                value={deptSearch}
+                onChange={(e) => setDeptSearch(e.target.value)}
+                className="w-full pl-4 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
             <button
               type="button"
@@ -1228,70 +1266,53 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
           </div>
 
           {filteredDepartments.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredDepartments.map((dept) => (
-                <div
-                  key={dept.id}
-                  className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-blue-300 transition flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono text-[10px] font-bold">
-                          {dept.code}
-                        </span>
-                        <h3 className="text-sm sm:text-base font-bold text-slate-800 mt-1">{dept.name}</h3>
-                        <span className="text-xs text-slate-400 font-medium">{dept.category}</span>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${dept.status_color || 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                        {dept.status || 'Active'}
-                      </span>
-                    </div>
+            <div className="space-y-2.5">
+              {filteredDepartments.map((dept) => {
+                const assignedDocs = doctorsList.filter(doc => {
+                  const docDept = (doc.department || doc.specialization || '').toLowerCase();
+                  const curDept = (dept.name || '').toLowerCase();
+                  return docDept.includes(curDept) || (docDept && curDept.includes(docDept));
+                });
+                const doctorNames = assignedDocs.length > 0
+                  ? assignedDocs.map(d => d.name).join(', ')
+                  : (dept.hod && dept.hod !== '-' ? dept.hod : '-');
 
-                    <div className="mt-4 space-y-2 text-xs text-slate-600 pt-3 border-t border-slate-100">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 font-medium">Head / Lead Doctor:</span>
-                        <span className="font-bold text-slate-800">{dept.hod || '-'}</span>
+                return (
+                  <div
+                    key={dept.id}
+                    className="bg-white rounded-xl px-5 py-4 border border-slate-200 shadow-xs hover:border-slate-300 transition flex items-center justify-between gap-4"
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-base shrink-0">
+                        {dept.name?.charAt(0)?.toUpperCase() || 'D'}
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 font-medium">Location:</span>
-                        <span className="font-medium text-slate-700">{dept.location || '-'}</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 pt-2 text-center">
-                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                          <span className="block text-xs font-bold text-blue-700">{dept.doctors_count || 0}</span>
-                          <span className="text-[10px] text-slate-400 font-semibold">Doctors</span>
-                        </div>
-                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                          <span className="block text-xs font-bold text-teal-700">{dept.nurses_count || 0}</span>
-                          <span className="text-[10px] text-slate-400 font-semibold">Nurses</span>
-                        </div>
-                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                          <span className="block text-xs font-bold text-purple-700">{dept.beds_allocated || 0}</span>
-                          <span className="text-[10px] text-slate-400 font-semibold">Beds</span>
+                      <div className="min-w-0">
+                        <h3 className="text-sm sm:text-base font-bold text-slate-800 truncate">
+                          {dept.name}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs font-semibold text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-md border border-teal-200 truncate">
+                            {doctorNames}
+                          </span>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditDept(dept)}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
-                    >
-                      Edit Department &rarr;
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteDept(dept.id)}
-                      className="text-xs font-semibold text-rose-600 hover:text-rose-800 cursor-pointer"
-                    >
-                      Remove
-                    </button>
+                    <div className="shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDept(dept.id)}
+                        className="px-3.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 font-bold text-xs border border-rose-200 transition cursor-pointer flex items-center gap-1.5"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        <span>Remove</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-500">
@@ -1302,443 +1323,586 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         </div>
       )}
 
-      {activeTab === 'wards' && (
-        <div className="space-y-4 sm:space-y-5">
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-            <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  placeholder="Search ward name, code, or supervisor..."
-                  value={wardSearch}
-                  onChange={(e) => setWardSearch(e.target.value)}
-                  className="w-full pl-4 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <select
-                value={wardTypeFilter}
-                onChange={(e) => setWardTypeFilter(e.target.value)}
-                className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 font-medium"
-              >
-                <option value="ALL">All Ward Categories</option>
-                <option value="General">General Wards</option>
-                <option value="Intensive Care">ICU / Intensive Care</option>
-                <option value="Pediatric">Pediatric / NICU</option>
-              </select>
-            </div>
-            <button
-              type="button"
-              onClick={handleOpenAddWard}
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-            >
-              + Add New Ward
-            </button>
-          </div>
 
-          {filteredWards.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredWards.map((ward) => {
-                const totalB = ward.total_beds || 1;
-                const occB = ward.occupied_beds || 0;
-                const occupancyPct = Math.round((occB / totalB) * 100);
-                const barColor = occupancyPct > 85 ? 'bg-rose-500' : occupancyPct > 65 ? 'bg-amber-500' : 'bg-emerald-500';
-
-                return (
-                  <div
-                    key={ward.id}
-                    className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-blue-300 transition flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono text-[10px] font-bold">
-                            {ward.code}
-                          </span>
-                          <h3 className="text-sm sm:text-base font-bold text-slate-800 mt-1">{ward.name}</h3>
-                          <p className="text-xs text-slate-400 font-medium">{ward.floor} • {ward.category}</p>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${ward.sanitization_color || 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                          {ward.sanitization_status}
-                        </span>
-                      </div>
-
-                      <div className="mt-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                        <div className="flex items-center justify-between text-xs mb-1.5">
-                          <span className="font-semibold text-slate-600">Bed Occupancy:</span>
-                          <span className="font-bold text-slate-800">{ward.occupied_beds} / {ward.total_beds} Beds ({occupancyPct}%)</span>
-                        </div>
-                        <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
-                          <div className={`h-full ${barColor} transition-all duration-300`} style={{ width: `${Math.min(100, occupancyPct)}%` }}></div>
-                        </div>
-                        <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
-                          <span className="text-emerald-700 font-bold">{ward.available_beds} Available</span>
-                          <span className="text-rose-700 font-bold">{ward.occupied_beds} Occupied</span>
-                        </div>
-                      </div>
-
-                      <div className="mt-3.5 space-y-1.5 text-xs text-slate-600">
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400 font-medium">Supervisor In-Charge:</span>
-                          <span className="font-bold text-slate-800">{ward.supervisor || '-'}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400 font-medium">Contact / Extension:</span>
-                          <span className="font-semibold text-blue-700">{ward.contact_ext || '-'}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditWard(ward)}
-                        className="text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
-                      >
-                        Configure Ward &rarr;
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteWard(ward.id)}
-                        className="text-xs font-semibold text-rose-600 hover:text-rose-800 cursor-pointer"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-500">
-              <p className="text-sm font-semibold">No wards configured.</p>
-              <p className="text-xs text-slate-400 mt-1">Click "+ Add New Ward" to create a new ward for this hospital branch.</p>
-            </div>
-          )}
-        </div>
-      )}
 
       {activeTab === 'rooms_beds' && (
         <div className="space-y-4 sm:space-y-5">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs text-center">
-              <span className="text-xs font-semibold text-slate-400 uppercase">Total Beds</span>
-              <p className="text-xl sm:text-2xl font-extrabold text-slate-800 mt-1">{totalBedsCount}</p>
-              <span className="text-[11px] text-slate-500">Across {rooms.length} Rooms</span>
-            </div>
-            <div className="bg-emerald-50/80 p-4 rounded-2xl border border-emerald-200 shadow-xs text-center">
-              <span className="text-xs font-semibold text-emerald-700 uppercase">Available</span>
-              <p className="text-xl sm:text-2xl font-extrabold text-emerald-800 mt-1">{availableBedsCount}</p>
-              <span className="text-[11px] text-emerald-600">Ready for Admission</span>
-            </div>
-            <div className="bg-rose-50/80 p-4 rounded-2xl border border-rose-200 shadow-xs text-center">
-              <span className="text-xs font-semibold text-rose-700 uppercase">Occupied</span>
-              <p className="text-xl sm:text-2xl font-extrabold text-rose-800 mt-1">{occupiedBedsCount}</p>
-              <span className="text-[11px] text-rose-600">Admitted Patients</span>
-            </div>
-            <div className="bg-blue-50/80 p-4 rounded-2xl border border-blue-200 shadow-xs text-center">
-              <span className="text-xs font-semibold text-blue-700 uppercase">Occupancy</span>
-              <p className="text-xl sm:text-2xl font-extrabold text-blue-900 mt-1">{bedOccupancyRate}%</p>
-              <span className="text-[11px] text-blue-600">Live Hospital Rate</span>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  placeholder="Search by Room, Bed Number (e.g. Bed 1), or Patient Name..."
-                  value={roomSearch}
-                  onChange={(e) => setRoomSearch(e.target.value)}
-                  className="w-full pl-4 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+          {/* Top 3 Metric Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            {/* Card 1: Total Beds */}
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Total Beds</span>
+                <p className="text-2xl sm:text-3xl font-extrabold text-slate-800 mt-1">{totalBedsCount}</p>
               </div>
-
-              <div className="flex items-center gap-2">
-                <select
-                  value={bedStatusFilter}
-                  onChange={(e) => setBedStatusFilter(e.target.value)}
-                  className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-semibold"
-                >
-                  <option value="ALL">All Bed Status</option>
-                  <option value="Available">Available Only (Green)</option>
-                  <option value="Occupied">Occupied Only (Red)</option>
-                </select>
-              </div>
+              <span className="text-[11px] font-semibold text-slate-500 mt-2 block">
+                Across {Math.ceil(totalBedsCount / 100) || 1} Floors (100 Beds / Floor)
+              </span>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredRooms.map((room) => (
-              <div
-                key={room.id}
-                className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-start justify-between pb-3 border-b border-slate-100">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-base font-extrabold text-slate-800">{room.room_number}</span>
-                        <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-semibold text-[10px]">
-                          {room.floor} • {room.wing}
-                        </span>
-                      </div>
-                      <p className="text-xs font-medium text-slate-500 mt-0.5">{room.room_type} — <span className="text-slate-700 font-semibold">₹{(room.tariff_per_day || 0).toLocaleString()}/day</span></p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">{room.ward}</p>
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
-                      {room.beds.length} Total Beds
+            {/* Card 2: Available & Occupied in ONE box */}
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Beds Status</span>
+                <div className="flex items-center gap-6 mt-1">
+                  <div>
+                    <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600 block">{availableBedsCount}</span>
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 inline-block mt-0.5">
+                      Available
                     </span>
                   </div>
-
-                  <div className="mt-4 space-y-2">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Assigned Beds Matrix</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {room.beds.map((bed) => {
-                        const isOccupied = bed.status === 'Occupied';
-                        const statusBg = isOccupied
-                          ? 'bg-rose-50/90 border-rose-200 text-rose-900 shadow-xs'
-                          : 'bg-emerald-50/90 border-emerald-200 text-emerald-900 shadow-xs';
-
-                        return (
-                          <div
-                            key={bed.id}
-                            onClick={() => handleOpenBedStatusModal(room, bed)}
-                            className={`p-3.5 rounded-xl border ${statusBg} transition cursor-pointer hover:shadow-md`}
-                          >
-                            <div className="flex items-center justify-between pb-2 border-b border-black/5">
-                              <span className="font-extrabold text-xs sm:text-sm text-slate-900">{bed.bed_number}</span>
-                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                                isOccupied ? 'bg-rose-200/90 text-rose-800' : 'bg-emerald-200/90 text-emerald-800'
-                              }`}>
-                                {bed.status}
-                              </span>
-                            </div>
-
-                            {isOccupied ? (
-                              <div className="mt-2.5 space-y-1.5 text-xs">
-                                <div>
-                                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Admitted Patient</span>
-                                  <p className="font-bold text-slate-800 text-xs sm:text-sm truncate">{bed.patient_name || 'Admitted Patient'}</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-1.5 pt-1 text-[11px] text-slate-600">
-                                  <div>
-                                    <span className="text-slate-400 font-semibold block text-[10px]">Patient ID</span>
-                                    <span className="font-semibold text-slate-800">{bed.patient_id || '-'}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-slate-400 font-semibold block text-[10px]">Doctor</span>
-                                    <span className="font-semibold text-slate-800 truncate block">{bed.doctor || '-'}</span>
-                                  </div>
-                                </div>
-                                {bed.admission_date && (
-                                  <div className="pt-1 text-[10px] text-slate-500">
-                                    <span>Admitted on: </span>
-                                    <span className="font-semibold text-slate-700">{bed.admission_date}</span>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="mt-4 text-center py-2">
-                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-lg">
-                                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                  Available for Admission
-                                </span>
-                                <p className="text-[10px] text-emerald-600 mt-1">Click to Allocate Patient &rarr;</p>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                  <div className="h-10 w-px bg-slate-200"></div>
+                  <div>
+                    <span className="text-2xl sm:text-3xl font-extrabold text-rose-600 block">{occupiedBedsCount}</span>
+                    <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-md border border-rose-200 inline-block mt-0.5">
+                      Occupied ({occupiedBedsCount} Admitted)
+                    </span>
                   </div>
                 </div>
               </div>
-            ))}
+              <span className="text-[11px] font-medium text-slate-400 mt-2 block">
+                Live bed availability tracker
+              </span>
+            </div>
+
+            {/* Card 3: Occupancy Rate */}
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Occupancy</span>
+                <p className="text-2xl sm:text-3xl font-extrabold text-blue-700 mt-1">{bedOccupancyRate}%</p>
+              </div>
+              <div className="mt-2">
+                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden mb-1">
+                  <div className="h-full bg-blue-600 rounded-full transition-all duration-300" style={{ width: `${Math.min(100, bedOccupancyRate)}%` }}></div>
+                </div>
+                <span className="text-[11px] font-semibold text-blue-600 block">Live Hospital Rate</span>
+              </div>
+            </div>
           </div>
 
-          {filteredRooms.length === 0 && (
-            <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-500">
-              <p className="text-sm font-semibold">No beds found matching your search.</p>
+          {/* Filter Bar with 3 Status Buttons and Floor Buttons */}
+          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3.5">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              {/* 3 Status Filter Buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setBedStatusFilter('ALL'); setBedPage(1); }}
+                  className={`px-3.5 py-2 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer ${
+                    bedStatusFilter === 'ALL'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  All Beds ({totalBedsCount})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setBedStatusFilter('Available'); setBedPage(1); }}
+                  className={`px-3.5 py-2 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer flex items-center gap-1.5 ${
+                    bedStatusFilter === 'Available'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${bedStatusFilter === 'Available' ? 'bg-white' : 'bg-emerald-500'}`}></span>
+                  Available Beds ({availableBedsCount})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setBedStatusFilter('Occupied'); setBedPage(1); }}
+                  className={`px-3.5 py-2 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer flex items-center gap-1.5 ${
+                    bedStatusFilter === 'Occupied'
+                      ? 'bg-rose-600 text-white shadow-sm'
+                      : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${bedStatusFilter === 'Occupied' ? 'bg-white' : 'bg-rose-500'}`}></span>
+                  Occupied Beds ({occupiedBedsCount})
+                </button>
+              </div>
+
+              {/* Search Box */}
+              <div className="relative w-full lg:w-72">
+                <input
+                  type="text"
+                  placeholder="Search by Bed No, Floor, or Patient..."
+                  value={roomSearch}
+                  onChange={(e) => { setRoomSearch(e.target.value); setBedPage(1); }}
+                  className="w-full pl-4 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
-          )}
+
+            {/* Floor Selection Buttons (Every 100 beds floor changes) */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
+              <span className="text-xs font-bold text-slate-400 mr-1 uppercase tracking-wider text-[10px]">Filter Floor:</span>
+              <button
+                type="button"
+                onClick={() => { setSelectedFloor('ALL'); setBedPage(1); }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  selectedFloor === 'ALL'
+                    ? 'bg-slate-800 text-white font-bold'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                }`}
+              >
+                All Floors
+              </button>
+              {Array.from({ length: Math.ceil(totalBedsCount / 100) || 1 }, (_, idx) => {
+                const flNum = idx + 1;
+                const startBed = (flNum - 1) * 100 + 1;
+                const endBed = Math.min(totalBedsCount, flNum * 100);
+                return (
+                  <button
+                    key={flNum}
+                    type="button"
+                    onClick={() => { setSelectedFloor(flNum); setBedPage(1); }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      selectedFloor === flNum
+                        ? 'bg-blue-600 text-white font-bold'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    Floor {flNum} ({startBed}-{endBed})
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Beds Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            {filteredBeds.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs sm:text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[11px] tracking-wider">
+                    <tr>
+                      <th className="py-3 px-4">Bed Number</th>
+                      <th className="py-3 px-4">Floor</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Admitted Patient</th>
+                      <th className="py-3 px-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {displayedBeds.map((bed) => {
+                      const isOccupied = bed.status === 'Occupied';
+                      return (
+                        <tr key={bed.id} className="hover:bg-slate-50/80 transition">
+                          <td className="py-3 px-4 font-bold text-slate-800 font-mono text-xs sm:text-sm">
+                            Bed {bed.bed_number}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold text-xs border border-blue-200">
+                              {bed.floor}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                              isOccupied
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}>
+                              <span className={`w-2 h-2 rounded-full ${isOccupied ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
+                              {isOccupied ? 'Occupied' : 'Available'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-xs">
+                            {isOccupied && bed.patient_name ? (
+                              <div className="flex flex-col">
+                                <span className="font-bold text-slate-800 text-xs sm:text-sm">
+                                  {bed.patient_name}
+                                </span>
+                                {bed.appointment_id && (
+                                  <span className="text-[11px] font-semibold text-blue-600 font-mono mt-0.5">
+                                    {bed.appointment_id}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 font-medium">-</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenBedStatusModal(bed)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                            >
+                              Update Status
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-slate-500">
+                <p className="text-sm font-semibold">No beds found matching your filters.</p>
+                <p className="text-xs text-slate-400 mt-1">Try resetting the search or status filters.</p>
+              </div>
+            )}
+
+            {/* Pagination footer */}
+            {filteredBeds.length > bedsPerPage && (
+              <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs bg-slate-50/50">
+                <span className="text-slate-500">
+                  Showing <strong>{(currentBedPage - 1) * bedsPerPage + 1}</strong> to <strong>{Math.min(filteredBeds.length, currentBedPage * bedsPerPage)}</strong> of <strong>{filteredBeds.length}</strong> Beds
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={currentBedPage === 1}
+                    onClick={() => setBedPage(prev => Math.max(1, prev - 1))}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
+                  >
+                    &larr; Previous
+                  </button>
+                  <span className="px-3 py-1.5 font-bold text-slate-700">
+                    Page {currentBedPage} of {totalBedPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentBedPage >= totalBedPages}
+                    onClick={() => setBedPage(prev => Math.min(totalBedPages, prev + 1))}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
+                  >
+                    Next &rarr;
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
+
       {isEditDetailsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-auto">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-blue-50/30">
               <div>
                 <h3 className="text-sm sm:text-base font-bold text-slate-800">Edit Hospital Details</h3>
-                <p className="text-[11px] text-slate-500">Update profile information for #{hospitalData?.id}</p>
+                <p className="text-[11px] text-slate-500">Update complete profile and infrastructure configuration for {detailsFormData.Name || 'Hospital'}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsEditDetailsModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center text-xs font-bold cursor-pointer"
+                className="w-7 h-7 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center text-xs font-bold cursor-pointer transition"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveDetails} className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <form onSubmit={handleSaveDetails} className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs">
+              
+              {/* SECTION 1: Branch Code & System Identification */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Hospital Name *</label>
+                  <label className="font-semibold text-slate-700 flex items-center gap-1.5 mb-1">
+                    <span>Branch Code</span>
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                      🔒 Non-Editable
+                    </span>
+                  </label>
                   <input
                     type="text"
-                    required
-                    value={detailsFormData.Name}
-                    onChange={(e) => setDetailsFormData({ ...detailsFormData, Name: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    disabled
+                    readOnly
+                    value={detailsFormData.Branch_Code || ''}
+                    placeholder="e.g. MUM-AND-5421"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-slate-100/90 text-slate-600 font-mono font-bold cursor-not-allowed select-none shadow-inner"
+                    title="Branch Code cannot be changed"
                   />
+                  <p className="text-[10px] text-slate-400 mt-0.5">Permanent unique identifier code. Cannot be modified.</p>
                 </div>
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Branch Code *</label>
+                  <label className="font-semibold text-slate-700 flex items-center gap-1.5 mb-1">
+                    <span>Onboarding Date</span>
+                    <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                      System Field
+                    </span>
+                  </label>
                   <input
                     type="text"
-                    required
-                    value={detailsFormData.Branch_Code}
-                    onChange={(e) => setDetailsFormData({ ...detailsFormData, Branch_Code: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    value={detailsFormData.created_at ? new Date(detailsFormData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'System Auto-Assigned'}
+                    disabled
+                    readOnly
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-slate-100/90 text-slate-600 font-medium cursor-not-allowed select-none shadow-inner"
+                    title="Auto-generated registration date"
                   />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">City *</label>
-                  <input
-                    type="text"
-                    required
-                    value={detailsFormData.city}
-                    onChange={(e) => setDetailsFormData({ ...detailsFormData, city: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Area / Locality</label>
-                  <input
-                    type="text"
-                    value={detailsFormData.area}
-                    onChange={(e) => setDetailsFormData({ ...detailsFormData, area: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
+                  <p className="text-[10px] text-slate-400 mt-0.5">Hospital branch creation timestamp.</p>
                 </div>
               </div>
 
+              {/* SECTION 2: General Information */}
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Full Physical Address</label>
-                <textarea
-                  rows="2"
-                  value={detailsFormData.address}
-                  onChange={(e) => setDetailsFormData({ ...detailsFormData, address: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                ></textarea>
+                <span className="font-bold text-slate-800 text-xs uppercase tracking-wider block mb-2 text-teal-800">
+                  1. Hospital Identity Details
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-1">
+                    <label className="font-semibold text-slate-700 block mb-1">Hospital Name *</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={100}
+                      value={detailsFormData.Name}
+                      onChange={(e) => setDetailsFormData({ ...detailsFormData, Name: e.target.value })}
+                      placeholder="e.g. City General Hospital"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Established Year</label>
+                    <input
+                      type="text"
+                      maxLength={10}
+                      value={detailsFormData.established_year}
+                      onChange={(e) => setDetailsFormData({ ...detailsFormData, established_year: e.target.value })}
+                      placeholder="e.g. 1998"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Operational Status *</label>
+                    <select
+                      value={detailsFormData.is_active ? 'true' : 'false'}
+                      onChange={(e) => setDetailsFormData({ ...detailsFormData, is_active: e.target.value === 'true' })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none bg-white font-medium"
+                    >
+                      <option value="true">Active</option>
+                      <option value="false">Unactive</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Main Reception Contact</label>
-                  <input
-                    type="text"
-                    value={detailsFormData.contact}
-                    onChange={(e) => setDetailsFormData({ ...detailsFormData, contact: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
+              {/* SECTION 3: Location & Address */}
+              <div className="border-t border-slate-200/80 pt-3">
+                <span className="font-bold text-slate-800 text-xs uppercase tracking-wider block mb-2 text-teal-800">
+                  2. Location & Physical Address
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">City *</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={50}
+                      value={detailsFormData.city}
+                      onChange={(e) => setDetailsFormData({ ...detailsFormData, city: e.target.value })}
+                      placeholder="e.g. Mumbai"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Area / Locality *</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={50}
+                      value={detailsFormData.area}
+                      onChange={(e) => setDetailsFormData({ ...detailsFormData, area: e.target.value })}
+                      placeholder="e.g. Andheri West"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    />
+                  </div>
                 </div>
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Official Email</label>
-                  <input
-                    type="email"
-                    value={detailsFormData.email}
-                    onChange={(e) => setDetailsFormData({ ...detailsFormData, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
+                  <label className="font-semibold text-slate-700 block mb-1">Full Physical Address *</label>
+                  <textarea
+                    rows="2"
+                    required
+                    value={detailsFormData.address}
+                    onChange={(e) => setDetailsFormData({ ...detailsFormData, address: e.target.value })}
+                    placeholder="Enter complete building name, street, road, landmark and pin code"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  ></textarea>
                 </div>
               </div>
 
-              <div className="border-t border-slate-200 pt-3">
-                <span className="font-bold text-slate-800 text-xs block mb-2">Capacity Configuration</span>
+              {/* SECTION 4: Contact & Communication */}
+              <div className="border-t border-slate-200/80 pt-3">
+                <span className="font-bold text-slate-800 text-xs uppercase tracking-wider block mb-2 text-teal-800">
+                  3. Contact & Communication Lines
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Reception Contact *</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={20}
+                      value={detailsFormData.contact}
+                      onChange={(e) => setDetailsFormData({ ...detailsFormData, contact: e.target.value })}
+                      placeholder="e.g. +91 22 2345 6789"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Emergency Contact</label>
+                    <input
+                      type="text"
+                      maxLength={20}
+                      value={detailsFormData.emergency_contact}
+                      onChange={(e) => setDetailsFormData({ ...detailsFormData, emergency_contact: e.target.value })}
+                      placeholder="e.g. +91 98765 43210"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Official Email *</label>
+                    <input
+                      type="email"
+                      required
+                      value={detailsFormData.email}
+                      onChange={(e) => setDetailsFormData({ ...detailsFormData, email: e.target.value })}
+                      placeholder="e.g. contact@hospital.org"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 5: Capacity Configuration */}
+              <div className="border-t border-slate-200/80 pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-slate-800 text-xs uppercase tracking-wider block text-teal-800">
+                    4. Capacity & Infrastructure Matrix
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    NICU Beds = Total Beds - ICU Beds (Auto-managed by backend)
+                  </span>
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="font-semibold text-slate-600 block mb-1">Total Beds</label>
+                    <label className="font-semibold text-slate-700 block mb-1">Total Beds *</label>
                     <input
                       type="number"
                       min="0"
-                      value={detailsFormData.total_beds}
-                      onChange={(e) => setDetailsFormData({ ...detailsFormData, total_beds: Number(e.target.value) })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl"
+                      required
+                      value={detailsFormData.total_beds ?? ''}
+                      onFocus={handleNumberFocus}
+                      onBlur={() => handleNumberBlur('total_beds')}
+                      onChange={(e) => handleNumberChange('total_beds', e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="font-semibold text-slate-600 block mb-1">ICU Beds</label>
+                    <label className="font-semibold text-slate-700 block mb-1">ICU Beds *</label>
                     <input
                       type="number"
                       min="0"
-                      value={detailsFormData.icu_beds}
-                      onChange={(e) => setDetailsFormData({ ...detailsFormData, icu_beds: Number(e.target.value) })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl"
+                      required
+                      value={detailsFormData.icu_beds ?? ''}
+                      onFocus={handleNumberFocus}
+                      onBlur={() => handleNumberBlur('icu_beds')}
+                      onChange={(e) => handleNumberChange('icu_beds', e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="font-semibold text-slate-600 block mb-1">NICU Beds</label>
+                    <label className="font-semibold text-slate-700 block mb-1">NICU Beds</label>
                     <input
                       type="number"
                       min="0"
-                      value={detailsFormData.nicu_beds}
-                      onChange={(e) => setDetailsFormData({ ...detailsFormData, nicu_beds: Number(e.target.value) })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl"
+                      value={detailsFormData.nicu_beds ?? ''}
+                      onFocus={handleNumberFocus}
+                      onBlur={() => handleNumberBlur('nicu_beds')}
+                      onChange={(e) => handleNumberChange('nicu_beds', e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="font-semibold text-slate-600 block mb-1">Operation Theatres</label>
+                    <label className="font-semibold text-slate-700 block mb-1">Operation Theatres *</label>
                     <input
                       type="number"
                       min="0"
-                      value={detailsFormData.operation_theatres}
-                      onChange={(e) => setDetailsFormData({ ...detailsFormData, operation_theatres: Number(e.target.value) })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl"
+                      required
+                      value={detailsFormData.operation_theatres ?? ''}
+                      onFocus={handleNumberFocus}
+                      onBlur={() => handleNumberBlur('operation_theatres')}
+                      onChange={(e) => handleNumberChange('operation_theatres', e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="font-semibold text-slate-600 block mb-1">Ambulances</label>
+                    <label className="font-semibold text-slate-700 block mb-1">Ambulances *</label>
                     <input
                       type="number"
                       min="0"
-                      value={detailsFormData.ambulances_count}
-                      onChange={(e) => setDetailsFormData({ ...detailsFormData, ambulances_count: Number(e.target.value) })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl"
+                      required
+                      value={detailsFormData.ambulances_count ?? ''}
+                      onFocus={handleNumberFocus}
+                      onBlur={() => handleNumberBlur('ambulances_count')}
+                      onChange={(e) => handleNumberChange('ambulances_count', e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="font-semibold text-slate-600 block mb-1">Relative Restrooms</label>
+                    <label className="font-semibold text-slate-700 block mb-1">Relative Restrooms</label>
                     <input
                       type="number"
                       min="0"
-                      value={detailsFormData.restroom_for_relatives}
-                      onChange={(e) => setDetailsFormData({ ...detailsFormData, restroom_for_relatives: Number(e.target.value) })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl"
+                      value={detailsFormData.restroom_for_relatives ?? ''}
+                      onFocus={handleNumberFocus}
+                      onBlur={() => handleNumberBlur('restroom_for_relatives')}
+                      onChange={(e) => handleNumberChange('restroom_for_relatives', e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
+              {/* SECTION 6: Departments */}
+              <div className="border-t border-slate-200/80 pt-3">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-800 text-xs uppercase tracking-wider block text-teal-800">
+                    5. Clinical Departments
+                  </label>
+                  <span className="text-[10px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 font-semibold">
+                    Multi Departments Supported
+                  </span>
+                </div>
+                <textarea
+                  rows="2"
+                  value={detailsFormData.departments}
+                  onChange={(e) => setDetailsFormData({ ...detailsFormData, departments: e.target.value })}
+                  placeholder="e.g. Cardiology, Neurology, Emergency Medicine, Pediatrics, Orthopedics, Oncology"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                ></textarea>
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  Enter multiple department names separated by commas. These will automatically configure clinical specialties across this hospital.
+                </p>
+              </div>
+
+              {/* Modal Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setIsEditDetailsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold cursor-pointer transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saveLoading}
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold cursor-pointer disabled:opacity-50 transition shadow-sm flex items-center gap-1.5"
                 >
-                  {saveLoading ? 'Saving...' : 'Save Changes'}
+                  {saveLoading ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                      <span>Updating Backend...</span>
+                    </>
+                  ) : (
+                    <span>Save & Update Details</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -1748,7 +1912,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
       {isDeptModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <h3 className="text-sm sm:text-base font-bold text-slate-800">
                 {editingDept ? 'Edit Department' : 'Add New Department'}
@@ -1762,84 +1926,21 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               </button>
             </div>
 
-            <form onSubmit={handleSaveDept} className="p-4 sm:p-6 overflow-y-auto space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Department Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Cardiology"
-                    value={deptFormData.name}
-                    onChange={(e) => setDeptFormData({ ...deptFormData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Department Code *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. DEPT-CARD-01"
-                    value={deptFormData.code}
-                    onChange={(e) => setDeptFormData({ ...deptFormData, code: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  />
-                </div>
+            <form onSubmit={handleSaveDept} className="p-4 sm:p-6 space-y-4 text-xs">
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Department Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Cardiology, Neurology, Pediatrics, Orthopedics"
+                  value={deptFormData.name}
+                  onChange={(e) => setDeptFormData({ ...deptFormData, name: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Category</label>
-                  <select
-                    value={deptFormData.category}
-                    onChange={(e) => setDeptFormData({ ...deptFormData, category: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  >
-                    <option value="Clinical">Clinical</option>
-                    <option value="Critical Care">Critical Care</option>
-                    <option value="Surgical">Surgical</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Operational Status</label>
-                  <select
-                    value={deptFormData.status}
-                    onChange={(e) => setDeptFormData({ ...deptFormData, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Normal">Normal</option>
-                    <option value="High Alert">High Alert</option>
-                    <option value="Occupied">Occupied</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Head of Department (HOD)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Dr. Name"
-                    value={deptFormData.hod}
-                    onChange={(e) => setDeptFormData({ ...deptFormData, hod: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Location (Floor & Wing)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 1st Floor - Wing B"
-                    value={deptFormData.location}
-                    onChange={(e) => setDeptFormData({ ...deptFormData, location: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsDeptModalOpen(false)}
@@ -1859,110 +1960,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         </div>
       )}
 
-      {isWardModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <h3 className="text-sm sm:text-base font-bold text-slate-800">
-                {editingWard ? 'Edit Ward Details' : 'Add New Ward'}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsWardModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center text-xs font-bold cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
 
-            <form onSubmit={handleSaveWard} className="p-4 sm:p-6 overflow-y-auto space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Ward Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={wardFormData.name}
-                    onChange={(e) => setWardFormData({ ...wardFormData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Ward Code *</label>
-                  <input
-                    type="text"
-                    required
-                    value={wardFormData.code}
-                    onChange={(e) => setWardFormData({ ...wardFormData, code: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Total Bed Capacity</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={wardFormData.total_beds}
-                    onChange={(e) => setWardFormData({ ...wardFormData, total_beds: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Currently Occupied</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max={wardFormData.total_beds}
-                    value={wardFormData.occupied_beds}
-                    onChange={(e) => setWardFormData({ ...wardFormData, occupied_beds: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Nurse Supervisor In-Charge</label>
-                  <input
-                    type="text"
-                    value={wardFormData.supervisor}
-                    onChange={(e) => setWardFormData({ ...wardFormData, supervisor: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Extension / Contact</label>
-                  <input
-                    type="text"
-                    value={wardFormData.contact_ext}
-                    onChange={(e) => setWardFormData({ ...wardFormData, contact_ext: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsWardModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer"
-                >
-                  {editingWard ? 'Update Ward' : 'Create Ward'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {isBedStatusModalOpen && selectedBedToUpdate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
@@ -1970,7 +1968,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div>
                 <h3 className="text-sm sm:text-base font-bold text-slate-800">
-                  Update Bed: {selectedBedToUpdate.bed.bed_number}
+                  Update Bed: Bed {selectedBedToUpdate.bed_number || selectedBedToUpdate.bed?.bed_number || selectedBedToUpdate.id}
                 </h3>
                 <p className="text-[11px] text-slate-500">
                   Bed status & patient admission
@@ -2019,6 +2017,47 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
 
               {bedStatusFormData.status === 'Occupied' && (
                 <>
+                  {appointmentsList.length > 0 && (
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">Select Hospital Appointment (Optional)</label>
+                      <select
+                        value={bedStatusFormData.selected_appointment_pk || ''}
+                        onChange={(e) => {
+                          const pk = e.target.value;
+                          const matched = appointmentsList.find(a => String(a.id) === String(pk));
+                          if (matched) {
+                            const apptRawId = matched.Appoment_id || matched.appoment_id || matched.appointment_id || matched.id;
+                            const pName = matched.patient_name || matched.patient_Name || matched.name || '';
+                            setBedStatusFormData({
+                              ...bedStatusFormData,
+                              selected_appointment_pk: pk,
+                              patient_name: pName,
+                              appointment_id: formatApptId(apptRawId),
+                              doctor: matched.doctor_name || bedStatusFormData.doctor
+                            });
+                          } else {
+                            setBedStatusFormData({
+                              ...bedStatusFormData,
+                              selected_appointment_pk: ''
+                            });
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-slate-50 focus:bg-white"
+                      >
+                        <option value="">-- Choose from existing appointments --</option>
+                        {appointmentsList.map((a) => {
+                          const rawId = a.Appoment_id || a.appoment_id || a.appointment_id || a.id;
+                          const pName = a.patient_name || a.patient_Name || a.name || 'Patient';
+                          return (
+                            <option key={a.id} value={a.id}>
+                              {formatApptId(rawId)} - {pName}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  )}
+
                   <div>
                     <label className="font-semibold text-slate-700 block mb-1">Patient Name *</label>
                     <input
@@ -2031,38 +2070,13 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="font-semibold text-slate-700 block mb-1">Patient ID</label>
-                      <input
-                        type="text"
-                        placeholder="PID-101"
-                        value={bedStatusFormData.patient_id}
-                        onChange={(e) => setBedStatusFormData({ ...bedStatusFormData, patient_id: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="font-semibold text-slate-700 block mb-1">Treating Doctor</label>
-                      <select
-                        value={bedStatusFormData.doctor}
-                        onChange={(e) => setBedStatusFormData({ ...bedStatusFormData, doctor: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl"
-                      >
-                        {doctorsList.map(doc => (
-                          <option key={doc.id} value={doc.name}>{doc.name}</option>
-                        ))}
-                        {doctorsList.length === 0 && <option value="Dr. Duty Medical Officer">Dr. Duty Medical Officer</option>}
-                      </select>
-                    </div>
-                  </div>
-
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Admission Date</label>
+                    <label className="font-semibold text-slate-700 block mb-1">Appointment ID</label>
                     <input
-                      type="date"
-                      value={bedStatusFormData.admission_date}
-                      onChange={(e) => setBedStatusFormData({ ...bedStatusFormData, admission_date: e.target.value })}
+                      type="text"
+                      placeholder="e.g. APT-101"
+                      value={bedStatusFormData.appointment_id}
+                      onChange={(e) => setBedStatusFormData({ ...bedStatusFormData, appointment_id: e.target.value })}
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />
                   </div>

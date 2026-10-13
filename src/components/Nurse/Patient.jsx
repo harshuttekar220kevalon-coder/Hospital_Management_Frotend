@@ -10,6 +10,88 @@ const getFloorDisplay = (floorOrBed) => {
   return `Floor ${floorNum}`;
 };
 
+const getNurseFloorNumber = (nurse, user) => {
+  const n = nurse || user;
+  if (!n) return 1;
+
+  // 1. Check assigned_floor (e.g. from Nurse profile/settings)
+  const rawAssigned = n.assigned_floor ?? user?.assigned_floor;
+  if (rawAssigned !== undefined && rawAssigned !== null && String(rawAssigned).trim() !== '') {
+    const parsed = parseInt(String(rawAssigned).replace(/\D/g, ''), 10);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+
+  // 2. Check floor property
+  const rawFloor = n.floor ?? user?.floor;
+  if (rawFloor !== undefined && rawFloor !== null && String(rawFloor).trim() !== '') {
+    const parsed = parseInt(String(rawFloor).replace(/\D/g, ''), 10);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+
+  // 3. Check ward property (e.g. "Floor 1 Ward" or "Floor 2")
+  const rawWard = n.ward ?? user?.ward;
+  if (rawWard) {
+    const match = String(rawWard).match(/floor\s*(\d+)/i) || String(rawWard).match(/(\d+)/);
+    if (match) {
+      const parsed = parseInt(match[1], 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+  }
+
+  return 1;
+};
+
+const getPatientBedFloorNumber = (p) => {
+  if (!p) return null;
+  // Patient must have a bed number assigned
+  const rawBed = p.bed_number;
+  if (rawBed === undefined || rawBed === null || String(rawBed).trim() === '' || String(rawBed).trim() === '0') {
+    return null;
+  }
+  const bedNum = parseInt(String(rawBed).replace(/\D/g, ''), 10);
+  if (!isNaN(bedNum) && bedNum > 0) {
+    return Math.floor((bedNum - 1) / 100) + 1;
+  }
+  return null;
+};
+
+const isPatientAssignedToNurse = (p, nurseObj, userObj) => {
+  if (!p) return false;
+  const nurse = nurseObj || userObj;
+  if (!nurse) return false;
+
+  const targetNurseId = nurse?.id ? Number(nurse.id) : (userObj?.id ? Number(userObj.id) : null);
+  const targetNurseName = (nurse?.name || userObj?.name || '').toLowerCase().trim();
+  const targetNurseEmail = (nurse?.email || userObj?.email || '').toLowerCase().trim();
+
+  const pNurse = p.nurse;
+  const rawPNurseId = typeof pNurse === 'object' && pNurse !== null ? pNurse.id : pNurse;
+  const pNurseId = rawPNurseId && !isNaN(Number(rawPNurseId)) ? Number(rawPNurseId) : null;
+  const pNurseName = (p.nurse_name || (typeof pNurse === 'object' && pNurse !== null ? (pNurse.name || pNurse.Name) : '') || '').toLowerCase().trim();
+  const pNurseEmail = (p.nurse_email || (typeof pNurse === 'object' && pNurse !== null ? pNurse.email : '') || '').toLowerCase().trim();
+
+  // If no nurse is assigned on the appointment record, it is NOT assigned
+  if (!pNurseId && !pNurseName && !pNurseEmail) return false;
+
+  // Strict matching
+  if (targetNurseId && pNurseId && targetNurseId === pNurseId) return true;
+  if (targetNurseName && pNurseName && targetNurseName === pNurseName) return true;
+  if (targetNurseEmail && pNurseEmail && targetNurseEmail === pNurseEmail) return true;
+
+  return false;
+};
+
+const formatAppointmentId = (item) => {
+  if (!item) return 'APT-0';
+  const rawId = item.appointment_id || item.Appoment_id || item.appoment_id || item.tracking_id ||
+    (typeof item.patient_id === 'string' && item.patient_id.trim().toUpperCase().startsWith('APT-') ? item.patient_id : null) ||
+    item.id;
+  if (!rawId) return 'APT-0';
+  const strId = String(rawId).trim();
+  if (strId.toUpperCase().startsWith('APT-')) return strId.toUpperCase();
+  return `APT-${strId}`;
+};
+
 const isAppointmentInHospital = (item, targetHospId, targetHospName = '', hospList = []) => {
   if (!item) return false;
 
@@ -223,8 +305,22 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
         const filtered = targetHospId || targetHospName
           ? allPats.filter(p => isAppointmentInHospital(p, targetHospId, targetHospName, hospitals))
           : [];
+
+        const enriched = filtered.map(p => {
+          const apptId = p.id;
+          const stored = localStorage.getItem(`nurse_checkup_${apptId}`) ||
+            (p.Appoment_id ? localStorage.getItem(`nurse_checkup_${p.Appoment_id}`) : null) ||
+            (p.appointment_id ? localStorage.getItem(`nurse_checkup_${p.appointment_id}`) : null);
+          if (stored === 'Done') {
+            return { ...p, status: 'Completed', checkup_status: 'Done' };
+          } else if (stored === 'Not Done' && (p.status === 'Completed' || p.checkup_status === 'Done')) {
+            return { ...p, status: 'Admitted', checkup_status: 'Pending' };
+          }
+          return p;
+        });
+
         if (isMounted) {
-          setPatients(filtered);
+          setPatients(enriched);
         }
       } catch (err) {
         console.error('Error loading nurse patients data:', err);
@@ -266,20 +362,27 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
   const wardName = activeNurse?.ward || currentUser?.ward || 'General Care Ward';
   const hospitalName = hospitalInfo?.Name || hospitalInfo?.name || activeNurse?.hospital_name || currentUser?.hospital_name || (typeof activeNurse?.hospital === 'object' ? activeNurse.hospital?.Name : null) || 'Not Provided';
   const nurseIdTag = activeNurse?.nurse_id || currentUser?.nurse_id || `NUR-${currentUser?.id || '01'}`;
-  const nurseFloor = activeNurse?.floor || 'Floor 1';
+
+  // Nurse's designated floor number & label
+  const nurseFloorNum = getNurseFloorNumber(activeNurse, currentUser);
+  const nurseFloor = `Floor ${nurseFloorNum}`;
   const targetHospId = typeof activeNurse?.hospital === 'object' ? activeNurse?.hospital?.id : (activeNurse?.hospital || currentUser?.hospital);
 
-  const nurseNameLower = (nurseName || '').toLowerCase().trim();
-  const nurseIdNum = activeNurse?.id ? Number(activeNurse.id) : null;
+  // STRICT REQUIREMENT:
+  // Patient is ONLY displayed if:
+  // 1. Patient is assigned to this nurse
+  // AND
+  // 2. Patient's bed count / bed number matches this nurse's assigned floor
+  const displayedPatients = patients.filter(p => {
+    // Check 1: Must be assigned to this nurse
+    if (!isPatientAssignedToNurse(p, activeNurse, currentUser)) return false;
 
-  const myAssignedPatients = patients.filter(p => {
-    const pNurseId = typeof p.nurse === 'object' ? p.nurse?.id : p.nurse;
-    if (nurseIdNum && Number(pNurseId) === nurseIdNum) return true;
-    if (p.nurse_name && p.nurse_name.toLowerCase().trim() === nurseNameLower) return true;
-    return false;
+    // Check 2: Bed number must be allocated and must match the nurse's floor
+    const patBedFloor = getPatientBedFloorNumber(p);
+    if (!patBedFloor || patBedFloor !== nurseFloorNum) return false;
+
+    return true;
   });
-
-  const displayedPatients = myAssignedPatients.length > 0 ? myAssignedPatients : patients;
 
   // Vitals helper
   const getPatientSavedVitals = (patientId) => {
@@ -479,12 +582,16 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
   const isPatientCheckupDone = (patient) => {
     if (!patient) return false;
     const s = (patient.status || '').toLowerCase().trim();
-    if (s === 'completed' || s === 'discharged' || s === 'checkup done' || s.includes('checkup done') || s.includes('done')) return true;
+    const cs = (patient.checkup_status || '').toLowerCase().trim();
+    const apptId = patient.id;
     try {
-      const stored = localStorage.getItem(`nurse_checkup_${patient.id}`);
+      const stored = localStorage.getItem(`nurse_checkup_${apptId}`) ||
+        (patient.Appoment_id ? localStorage.getItem(`nurse_checkup_${patient.Appoment_id}`) : null) ||
+        (patient.appointment_id ? localStorage.getItem(`nurse_checkup_${patient.appointment_id}`) : null);
       if (stored === 'Done') return true;
       if (stored === 'Not Done') return false;
     } catch {}
+    if (s === 'completed' || s === 'discharged' || s === 'checkup done' || s.includes('checkup done') || s.includes('done') || cs === 'done' || cs === 'completed') return true;
     return false;
   };
 
@@ -493,21 +600,58 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
     setUpdatingPatientId(patient.id);
     const isDone = newCheckupValue === 'Checkup Done';
     const backendStatus = isDone ? 'Completed' : 'Admitted';
+    const checkupStatusVal = isDone ? 'Done' : 'Pending';
 
     try {
       localStorage.setItem(`nurse_checkup_${patient.id}`, isDone ? 'Done' : 'Not Done');
+      if (patient.Appoment_id) {
+        localStorage.setItem(`nurse_checkup_${patient.Appoment_id}`, isDone ? 'Done' : 'Not Done');
+      }
+      if (patient.appointment_id) {
+        localStorage.setItem(`nurse_checkup_${patient.appointment_id}`, isDone ? 'Done' : 'Not Done');
+      }
 
-      await fetch(`${API_BASE_URL}/super-admin/Patients/${patient.id}/`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: backendStatus })
-      }).catch(() => null);
+      const candidateIds = [
+        patient.appointment_pk,
+        patient.appointment_id,
+        patient.Appoment_id,
+        patient.appoment_id,
+        patient.id,
+        typeof patient.id === 'string' && patient.id.startsWith('APT-') ? patient.id.replace('APT-', '') : null,
+        typeof patient.id === 'string' ? patient.id.replace(/\D/g, '') : null
+      ].filter(Boolean);
 
-      setPatients(prev => prev.map(p => p.id === patient.id ? { ...p, status: backendStatus } : p));
+      for (const targetId of Array.from(new Set(candidateIds))) {
+        try {
+          const res = await fetch(`${API_BASE_URL}/super-admin/appointments/${targetId}/`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: backendStatus, checkup_status: checkupStatusVal })
+          });
+          if (res && res.ok) break;
+        } catch (e) {}
+      }
+
+      try {
+        await fetch(`${API_BASE_URL}/super-admin/Patients/${patient.id}/`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: backendStatus })
+        }).catch(() => null);
+      } catch (e) {}
+
+      setPatients(prev => prev.map(p => {
+        if (p.id === patient.id || (patient.Appoment_id && p.Appoment_id === patient.Appoment_id)) {
+          return { ...p, status: backendStatus, checkup_status: checkupStatusVal };
+        }
+        return p;
+      }));
+
+      const pName = patient.patient_name || patient.patient_Name || patient.name || 'Patient';
       setActionSuccessMsg(
         isDone
-          ? `Checkup Done marked for Patient #${patient.id} (${patient.name || 'Patient'})!`
-          : `Checkup Not Done marked for Patient #${patient.id} (${patient.name || 'Patient'}).`
+          ? `Checkup Done marked for ${pName} • Added to "Checkup Done" list!`
+          : `Checkup Not Done marked for ${pName} • Moved to "Active Inpatients".`
       );
       setTimeout(() => setActionSuccessMsg(''), 4000);
     } catch (err) {
@@ -528,22 +672,24 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
     const cond = getPatientCondition(p).toLowerCase();
     const status = (p.status || '').toLowerCase();
     const name = (p.name || '').toLowerCase();
+    const patFormName = (p.patient_name || p.patient_Name || '').toLowerCase();
     const pid = (p.patient_id || p.uhid || `pat-${p.id}`).toLowerCase();
+    const apptId = formatAppointmentId(p).toLowerCase();
     const doc = (p.doctor_name || '').toLowerCase();
     const disease = (p.symptoms_diagnosis || p.symptoms || p.reason || '').toLowerCase();
     const bed = p.bed_number ? String(p.bed_number) : '';
     const floor = (p.floor || getFloorDisplay(p.bed_number)).toLowerCase();
 
-    const matchesSearch = !q || name.includes(q) || pid.includes(q) || doc.includes(q) || disease.includes(q) || bed.includes(q) || floor.includes(q);
+    const matchesSearch = !q || name.includes(q) || patFormName.includes(q) || pid.includes(q) || apptId.includes(q) || doc.includes(q) || disease.includes(q) || bed.includes(q) || floor.includes(q);
 
     // Status filter
     let matchesStatus = true;
     if (statusFilter === 'Critical') {
       matchesStatus = cond.includes('crit') || cond.includes('urg') || cond.includes('emerg');
     } else if (statusFilter === 'Admitted') {
-      matchesStatus = status.includes('admit') || status.includes('inpatient') || status.includes('care');
+      matchesStatus = !isPatientCheckupDone(p);
     } else if (statusFilter === 'Completed') {
-      matchesStatus = status.includes('complet') || status.includes('discharg');
+      matchesStatus = isPatientCheckupDone(p);
     }
 
     return matchesSearch && matchesStatus;
@@ -555,13 +701,11 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
   }).length;
 
   const admittedCount = displayedPatients.filter(p => {
-    const s = (p.status || '').toLowerCase();
-    return s.includes('admit') || s.includes('inpatient') || s.includes('care') || !s.includes('discharg');
+    return !isPatientCheckupDone(p);
   }).length;
 
   const dischargedCount = displayedPatients.filter(p => {
-    const s = (p.status || '').toLowerCase();
-    return s.includes('discharg') || s.includes('complet');
+    return isPatientCheckupDone(p);
   }).length;
 
   return (
@@ -673,7 +817,7 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
             <div className="relative flex-1 sm:w-64">
               <input
                 type="text"
-                placeholder="Search name, UHID, bed, doctor..."
+                placeholder="Search name, appointment ID, bed, doctor..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-3 pr-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
@@ -699,7 +843,7 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
             <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
               <tr>
                 <th className="py-3 px-3 text-center">Bed & Floor</th>
-                <th className="py-3 px-3 text-center">Patient & UHID</th>
+                <th className="py-3 px-3 text-center">Patient & Appointment ID</th>
                 <th className="py-3 px-3 text-center">Age / Gender</th>
                 <th className="py-3 px-3 text-center">Condition & Triage</th>
                 <th className="py-3 px-3 text-center">Care Status</th>
@@ -713,9 +857,11 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
                 </tr>
               ) : filteredPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-10 text-center text-slate-400">
-                    <p className="font-semibold text-slate-600">No patients matching current filter.</p>
-                    <p className="text-xs text-slate-400 mt-1">Try switching filters or search keyword.</p>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <p className="font-bold text-sm text-slate-700">No assigned patients found for your floor.</p>
+                    <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                      Patients will appear in this table only when assigned to you with a bed allocated on {nurseFloor}.
+                    </p>
                   </td>
                 </tr>
               ) : (
@@ -741,10 +887,20 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
                         </div>
                       </td>
 
-                      {/* PATIENT NAME & UHID */}
+                      {/* PATIENT NAME & APPOINTMENT ID */}
                       <td className="py-3 px-3">
-                        <div className="font-bold text-slate-800 text-sm">{patient.name}</div>
-                        <div className="font-mono text-[10px] text-teal-700 font-bold">{patient.patient_id || patient.uhid || `PAT-${patient.id}`}</div>
+                        <div className="font-bold text-slate-800 text-sm">
+                          {patient.patient_name || patient.patient_Name || patient.name || 'Patient'}
+                        </div>
+                        {patient.name && (patient.patient_name || patient.patient_Name) &&
+                         patient.name.toLowerCase().trim() !== (patient.patient_name || patient.patient_Name).toLowerCase().trim() && (
+                          <div className="text-[10px] text-slate-500 font-medium">
+                            ({patient.name})
+                          </div>
+                        )}
+                        <div className="font-mono text-[10px] text-teal-700 font-bold">
+                          {formatAppointmentId(patient)}
+                        </div>
                       </td>
 
                       {/* AGE / GENDER */}
@@ -831,7 +987,7 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
                 <h3 className="font-bold text-base text-slate-800">Assign / Change Inpatient Bed</h3>
-                <p className="text-xs text-slate-500">{selectedPatientModal.name} • {selectedPatientModal.patient_id || `PAT-${selectedPatientModal.id}`}</p>
+                <p className="text-xs text-slate-500">{selectedPatientModal.patient_name || selectedPatientModal.patient_Name || selectedPatientModal.name || 'Patient'} • {formatAppointmentId(selectedPatientModal)}</p>
               </div>
               <button
                 type="button"
@@ -900,7 +1056,7 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
               <div>
                 <h3 className="font-bold text-base">Record Patient Vitals</h3>
                 <p className="text-xs text-emerald-300">
-                  {selectedPatientModal.name} • {selectedPatientModal.patient_id || `PAT-${selectedPatientModal.id}`} • Bed {selectedPatientModal.bed_number ? `#${selectedPatientModal.bed_number}` : 'Unassigned'} ({getFloorDisplay(selectedPatientModal.bed_number)})
+                  {selectedPatientModal.patient_name || selectedPatientModal.patient_Name || selectedPatientModal.name || 'Patient'} • {formatAppointmentId(selectedPatientModal)} • Bed {selectedPatientModal.bed_number ? `#${selectedPatientModal.bed_number}` : 'Unassigned'} ({getFloorDisplay(selectedPatientModal.bed_number)})
                 </p>
               </div>
               <button
@@ -1035,7 +1191,7 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
               <div>
                 <h3 className="font-bold text-base">Medication Administration Record (MAR)</h3>
                 <p className="text-xs text-emerald-300">
-                  {selectedPatientModal.name} • Bed {selectedPatientModal.bed_number ? `#${selectedPatientModal.bed_number}` : 'Unassigned'} ({getFloorDisplay(selectedPatientModal.bed_number)})
+                  {selectedPatientModal.patient_name || selectedPatientModal.patient_Name || selectedPatientModal.name || 'Patient'} • {formatAppointmentId(selectedPatientModal)} • Bed {selectedPatientModal.bed_number ? `#${selectedPatientModal.bed_number}` : 'Unassigned'} ({getFloorDisplay(selectedPatientModal.bed_number)})
                 </p>
               </div>
               <button

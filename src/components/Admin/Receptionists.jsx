@@ -30,7 +30,6 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
   ];
 
   const initialFormState = {
-    hospital: '',
     name: '',
     receptionist_id: '',
     role: '',
@@ -39,7 +38,7 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
     contact: '',
     email: '',
     password: '',
-    status: '',
+    status: 'On_Duty',
     is_active: true
   };
 
@@ -49,16 +48,23 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
     try {
       if (!silent) setLoading(true);
 
-      let assignedHospitalId = currentUser?.hospital || null;
+      let assignedHospitalId = currentUser?.hospital?.id || currentUser?.hospital || currentUser?.hospital_data?.id || null;
+      if (typeof assignedHospitalId === 'object') assignedHospitalId = assignedHospitalId?.id;
+      assignedHospitalId = Number(assignedHospitalId) || null;
 
       try {
         const adminsRes = await fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null);
         if (adminsRes && adminsRes.ok) {
           const adminsList = await adminsRes.json();
           const currentEmail = (currentUser?.email || '').toLowerCase().trim();
-          const matchedAdmin = adminsList.find(a => (a.email || '').toLowerCase().trim() === currentEmail);
+          const currentName = (currentUser?.name || '').toLowerCase().trim();
+          const matchedAdmin = adminsList.find(a =>
+            (a.email || '').toLowerCase().trim() === currentEmail ||
+            (a.name || '').toLowerCase().trim() === currentName ||
+            (currentUser?.id && Number(a.id) === Number(currentUser.id))
+          );
           if (matchedAdmin && matchedAdmin.hospital) {
-            assignedHospitalId = Number(matchedAdmin.hospital);
+            assignedHospitalId = Number(typeof matchedAdmin.hospital === 'object' ? matchedAdmin.hospital.id : matchedAdmin.hospital);
           }
         }
       } catch (e) {
@@ -83,12 +89,11 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
         }
       }
 
-      if (!hosp) {
+      if (!hosp && assignedHospitalId) {
         const allHospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null);
         if (allHospRes && allHospRes.ok) {
           const allHosp = await allHospRes.json();
-          hosp = (assignedHospitalId ? allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) : null) || allHosp[0] || null;
-          if (hosp) assignedHospitalId = hosp.id;
+          hosp = allHosp.find(h => Number(h.id) === Number(assignedHospitalId)) || null;
         }
       }
 
@@ -101,10 +106,13 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
       if (recRes && recRes.ok) {
         const allRecs = await recRes.json();
         if (assignedHospitalId) {
-          const branchRecs = allRecs.filter(r => Number(typeof r.hospital === 'object' ? r.hospital?.id : r.hospital) === Number(assignedHospitalId));
+          const branchRecs = allRecs.filter(r => {
+            const rHosp = typeof r.hospital === 'object' && r.hospital !== null ? r.hospital.id : r.hospital;
+            return Number(rHosp) === Number(assignedHospitalId);
+          });
           setReceptionists(branchRecs);
         } else {
-          setReceptionists(allRecs);
+          setReceptionists([]);
         }
       }
     } catch (err) {
@@ -159,22 +167,24 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
 
     try {
       const generatedRecId = `REC-${Math.floor(1000 + Math.random() * 9000)}`;
-      const hospId = hospitalData?.id ? Number(hospitalData.id) : (currentUser?.hospital ? Number(currentUser.hospital) : null);
+      const rawHospital = hospitalData?.id || currentUser?.hospital?.id || currentUser?.hospital || currentUser?.hospital_data?.id;
+      const hospId = Number(typeof rawHospital === 'object' ? rawHospital?.id : rawHospital) || null;
+      if (!hospId) {
+        alert('A hospital must be assigned to your admin account before registering a receptionist.');
+        return;
+      }
       const payload = {
         hospital: hospId,
         name: formData.name.trim(),
         receptionist_id: generatedRecId,
-        role: formData.role || formData.designation || 'Front Desk Receptionist',
-        designation: formData.role || formData.designation || 'Front Desk Receptionist',
+        role: formData.role || 'Front Desk Receptionist',
         shift: formData.shift,
-        languages: (formData.languages || 'English, Hindi').trim(),
-        contact: (formData.contact || '').replace(/\D/g, '').slice(0, 15),
+        languages: formData.languages.trim(),
+        contact: (formData.contact || '').replace(/\D/g, '').slice(0, 10),
         email: formData.email.trim(),
-        password: formData.password || '',
-        desk: 'Main Lobby Desk 1',
-        extension: 'Ext. 101',
+        password: formData.password,
         status: formData.status || 'On_Duty',
-        is_active: formData.is_active !== undefined ? formData.is_active : true
+        is_active: Boolean(formData.is_active)
       };
 
       const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`, {
@@ -196,34 +206,6 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
     } catch (error) {
       console.error('Error creating receptionist:', error);
       alert('Network error while registering receptionist.');
-    }
-  };
-
-  const handleToggleStatus = async (rec) => {
-    const currentStatus = rec.status === 'Off_Duty' ? 'Off_Duty' : (rec.status === 'On_Duty' ? 'On_Duty' : 'On_Duty');
-    const newStatusStr = currentStatus === 'On_Duty' ? 'Off_Duty' : 'On_Duty';
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${rec.id}/`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatusStr })
-      });
-
-      if (response.ok) {
-        setReceptionists(prev => prev.map(r => r.id === rec.id ? { ...r, status: newStatusStr } : r));
-      } else {
-        const putRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${rec.id}/`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...rec, status: newStatusStr })
-        });
-        if (putRes.ok) {
-          setReceptionists(prev => prev.map(r => r.id === rec.id ? { ...r, status: newStatusStr } : r));
-        }
-      }
-    } catch (err) {
-      console.error('Error toggling receptionist status:', err);
     }
   };
 
@@ -260,8 +242,8 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
     return matchesSearch && matchesShift && matchesStatus;
   });
 
-  const activeCount = receptionists.filter(r => r.is_active !== false && r.status !== 'On Leave').length;
-  const leaveCount = receptionists.filter(r => r.is_active === false || r.status === 'On Leave').length;
+  const activeCount = receptionists.filter(r => r.is_active !== false).length;
+  const leaveCount = receptionists.filter(r => r.is_active === false).length;
 
   return (
     <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6">
@@ -308,23 +290,23 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active</span>
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
-              On Duty
+              Active Account
             </span>
           </div>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Active on Counters</p>
-          <h3 className="text-lg sm:text-xl font-bold text-emerald-700 mt-0.5">{activeCount} Available</h3>
-          <p className="text-xs text-emerald-600 mt-1">Managing Inflow & Queries</p>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Active Accounts</p>
+          <h3 className="text-lg sm:text-xl font-bold text-emerald-700 mt-0.5">{activeCount} Active</h3>
+          <p className="text-xs text-emerald-600 mt-1">Login access enabled</p>
         </div>
 
         <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-rose-300 transition">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Leave</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Inactive</span>
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-rose-50 text-rose-700 border-rose-200">
-              On Leave
+              Inactive Account
             </span>
           </div>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Inactive / Leave</p>
-          <h3 className="text-lg sm:text-xl font-bold text-rose-700 mt-0.5">{leaveCount} Off Duty</h3>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Inactive Accounts</p>
+          <h3 className="text-lg sm:text-xl font-bold text-rose-700 mt-0.5">{leaveCount} Inactive</h3>
           <p className="text-xs text-rose-600 mt-1">Login disabled while inactive</p>
         </div>
       </div>
@@ -437,18 +419,15 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(rec)}
-                          title="Click to toggle Duty Status (On_Duty / Off_Duty)"
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer ${
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                             rec.status === 'Off_Duty'
-                              ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                           }`}
                         >
                           {rec.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty'}
-                        </button>
+                          </span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
@@ -497,6 +476,10 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
 
             <form onSubmit={handleAddSubmit} className="space-y-3 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div><label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Hospital</label><input readOnly value={hospitalData?.Name || 'Loading assigned hospital...'} className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700" /></div>
+                <div><label className="block font-semibold text-slate-700 uppercase mb-1">Receptionist ID</label><input readOnly value="Auto-generated on registration" className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-500" /></div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Receptionist Full Name *</label>
                   <input
@@ -543,6 +526,7 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
                   <div className="relative">
                     <input
                       type={showAddPassword ? 'text' : 'password'}
+                      maxLength={128}
                       required
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -603,21 +587,14 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Assigned Hospital Branch</label>
-                <input
-                  type="text"
-                  readOnly
-                  tabIndex={-1}
-                  value={hospitalData?.Name || 'Not Provided'}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed select-none focus:outline-none"
-                />
-              </div>
+              <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 font-semibold text-slate-700"><input type="checkbox" checked={formData.is_active} onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })} className="h-4 w-4 rounded text-teal-600" />Account is active and can log in</label>
+              <p className="text-[11px] text-slate-500">Created date is assigned automatically on registration.</p>
 
               {/* DUTY STATUS */}
               <div>
                 <label className="block font-semibold text-slate-700 uppercase mb-1">Duty Status *</label>
                 <select
+                  required
                   value={formData.status || ''}
                   onChange={(e) => setFormData({
                     ...formData,

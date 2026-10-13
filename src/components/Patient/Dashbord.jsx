@@ -61,6 +61,16 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
     return true;
   };
 
+  const isCancelled = (itemOrStatus) => {
+    let s = '';
+    if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
+      s = (itemOrStatus.status || '').toString().toLowerCase().trim();
+    } else {
+      s = (itemOrStatus || '').toString().toLowerCase().trim();
+    }
+    return s.includes('cancel') || s.includes('reject');
+  };
+
   const loadPatientData = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
@@ -178,8 +188,8 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
       fetchedAppointments.sort((a, b) => (Number(b.id || b.Appoment_id) || 0) - (Number(a.id || a.Appoment_id) || 0));
       setAllAppointments(fetchedAppointments);
 
-      // Only set active appointment if it is NOT discharged
-      const activeList = fetchedAppointments.filter(a => !isDischarged(a));
+      // Only set active appointment if it is NOT discharged and NOT cancelled
+      const activeList = fetchedAppointments.filter(a => !isDischarged(a) && !isCancelled(a));
 
       let targetAppt = null;
       if (selectedApptIdRef.current) {
@@ -252,8 +262,9 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
     };
   }, [currentUser]);
 
-  const activeAppointments = allAppointments.filter(a => !isDischarged(a));
+  const activeAppointments = allAppointments.filter(a => !isDischarged(a) && !isCancelled(a));
   const dischargedAppointments = allAppointments.filter(a => isDischarged(a));
+  const cancelledAppointments = allAppointments.filter(a => isCancelled(a));
   const hasActiveAppointment = activeAppointments.length > 0;
 
   // Auto-hide the discharged alert banner after 5 seconds
@@ -269,11 +280,11 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
     }
   }, [dischargedAppointments.length, hasActiveAppointment]);
 
-  // Selected appointment ONLY if it is an active non-discharged appointment
+  // Selected appointment ONLY if it is an active non-discharged and non-cancelled appointment
   const activeAppt = hasActiveAppointment
     ? ((selectedApptId || selectedApptIdRef.current)
-        ? (activeAppointments.find(a => String(a.id || a.Appoment_id || a.appoment_id || a.appointment_id) === String(selectedApptId || selectedApptIdRef.current)) || patientInfo || activeAppointments[0])
-        : (patientInfo && !isDischarged(patientInfo) ? patientInfo : activeAppointments[0]))
+        ? (activeAppointments.find(a => String(a.id || a.Appoment_id || a.appoment_id || a.appointment_id) === String(selectedApptId || selectedApptIdRef.current)) || (patientInfo && !isDischarged(patientInfo) && !isCancelled(patientInfo) ? patientInfo : activeAppointments[0]))
+        : (patientInfo && !isDischarged(patientInfo) && !isCancelled(patientInfo) ? patientInfo : activeAppointments[0]))
     : null;
 
   // Dynamically resolve appointment tracking ID
@@ -379,7 +390,7 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
     { title: 'TOTAL BILL AMOUNT', value: `₹${totalBill.toFixed(2)}`, sub: `Payment: ${activeAppt?.payment_status || 'Pending'} • Paid: ₹${amtPaid.toFixed(2)}`, tag: 'Live Billing', color: totalBill > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-700 border-slate-200' },
   ] : [
     { title: 'PATIENT PROFILE ID', value: trackingId, sub: 'Account Registered', tag: 'Profile', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { title: 'ACTIVE OPD VISITS', value: '0 Active Bookings', sub: dischargedAppointments.length > 0 ? `${dischargedAppointments.length} Past Discharged Visits` : 'No Active Consultation', tag: 'Status', color: 'bg-teal-50 text-teal-700 border-teal-200' },
+    { title: 'ACTIVE OPD VISITS', value: '0 Active Bookings', sub: (dischargedAppointments.length > 0 || cancelledAppointments.length > 0) ? `${dischargedAppointments.length} Past Visits • ${cancelledAppointments.length} Cancelled` : 'No Active Consultation', tag: 'Status', color: 'bg-teal-50 text-teal-700 border-teal-200' },
     { title: 'ATTENDING DOCTOR', value: 'None Assigned', sub: 'Book OPD to consult doctor', tag: 'Ready', color: 'bg-amber-50 text-amber-700 border-amber-200' },
     { title: 'TOTAL BILLING', value: '₹0.00', sub: 'No pending dues', tag: 'Cleared', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   ];
@@ -492,9 +503,9 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
               >
                 <span>📜</span>
                 <span>Medical History</span>
-                {dischargedAppointments.length > 0 && (
+                {(dischargedAppointments.length > 0 || cancelledAppointments.length > 0) && (
                   <span className="px-1.5 py-0.2 bg-emerald-500 text-slate-950 rounded-full text-[10px] font-extrabold">
-                    {dischargedAppointments.length}
+                    {dischargedAppointments.length + cancelledAppointments.length}
                   </span>
                 )}
               </button>
@@ -939,11 +950,13 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                   🏥
                 </div>
                 <h3 className="text-base font-bold text-slate-800">
-                  {dischargedAppointments.length > 0 ? 'All Appointments Completed & Discharged' : 'No Appointments Booked Yet'}
+                  {dischargedAppointments.length > 0 || cancelledAppointments.length > 0
+                    ? 'No Active Appointments Currently'
+                    : 'No Appointments Booked Yet'}
                 </h3>
                 <p className="text-xs text-slate-500 max-w-md">
-                  {dischargedAppointments.length > 0
-                    ? `You have ${dischargedAppointments.length} past discharged appointment records in your Medical History. Click below to view history or book a fresh consultation.`
+                  {dischargedAppointments.length > 0 || cancelledAppointments.length > 0
+                    ? `You have ${dischargedAppointments.length} past discharged visits and ${cancelledAppointments.length} cancelled appointments in your Medical History. Click below to view history or book a fresh consultation.`
                     : 'You have not booked any OPD doctor consultations yet. Click the button below to book an appointment with our specialist doctors.'}
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
@@ -954,13 +967,13 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                   >
                     Book OPD Appointment
                   </button>
-                  {dischargedAppointments.length > 0 && (
+                  {(dischargedAppointments.length > 0 || cancelledAppointments.length > 0) && (
                     <button
                       type="button"
                       onClick={() => setCurrentPage && setCurrentPage('my_hestory')}
                       className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
                     >
-                      View Medical History ({dischargedAppointments.length})
+                      View Medical History ({dischargedAppointments.length + cancelledAppointments.length})
                     </button>
                   )}
                 </div>

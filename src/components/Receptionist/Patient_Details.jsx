@@ -57,11 +57,22 @@ const getFloorNumber = (bed) => {
   return Math.floor((num - 1) / 100) + 1;
 };
 
-const isDoctorOnLeave = (doc) => {
+const isDoctorOnDuty = (doc) => {
   if (!doc) return false;
-  if (doc.is_active === false) return true;
+  if (doc.is_active === false || doc.is_active === 'false') return false;
   const statusStr = String(doc.status || doc.duty_status || doc.availability || '').toLowerCase().trim();
-  return statusStr.includes('off') || statusStr.includes('leave');
+  if (statusStr.includes('off') || statusStr.includes('leave') || statusStr === 'inactive' || statusStr === 'false') return false;
+  return true;
+};
+
+const isDoctorOnLeave = (doc) => !isDoctorOnDuty(doc);
+
+const isNurseOnDuty = (nurse) => {
+  if (!nurse) return false;
+  if (nurse.is_active === false || nurse.is_active === 'false') return false;
+  const st = (nurse.status || '').toString().toLowerCase().trim();
+  if (st.includes('off') || st.includes('leave') || st === 'inactive' || st === 'false') return false;
+  return true;
 };
 
 // Helper: Auto-assign Nurse based on Bed number and hospital
@@ -73,9 +84,10 @@ const getAutoNurseForBed = (bedNumber, nursesList = [], hospitalId = null) => {
   const hospNurses = hospitalId
     ? nursesList.filter(n => Number(typeof n.hospital === 'object' ? n.hospital?.id : n.hospital) === Number(hospitalId))
     : nursesList;
-  const activeNurses = hospNurses.length > 0 ? hospNurses : nursesList;
+  const onDutyNurses = hospNurses.filter(n => isNurseOnDuty(n));
+  const activeNurses = onDutyNurses.length > 0 ? onDutyNurses : [];
 
-  if (activeNurses.length === 0) return { nurseId: null, nurseName: '', reason: 'No nurses registered' };
+  if (activeNurses.length === 0) return { nurseId: null, nurseName: '', reason: 'No on-duty nurses available' };
 
   const floor = getFloorNumber(bedNumber);
 
@@ -707,6 +719,14 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
     const hospId = typeof appt.hospital === 'object' ? appt.hospital?.id : appt.hospital;
     const docId = typeof appt.doctor === 'object' ? appt.doctor?.id : appt.doctor;
     const nurseId = typeof appt.nurse === 'object' ? appt.nurse?.id : appt.nurse;
+
+    // Strict duty validation for existing assignments
+    const existingDoc = docId ? hospitalDoctors.find(d => Number(d.id) === Number(docId)) : null;
+    const isDocActive = existingDoc && isDoctorOnDuty(existingDoc);
+
+    const existingNurse = nurseId ? hospitalNurses.find(n => Number(n.id) === Number(nurseId)) : null;
+    const isNurseActive = existingNurse && isNurseOnDuty(existingNurse);
+
     const autoRes = appt.bed_number ? getAutoNurseForBed(appt.bed_number, hospitalNurses, hospId) : { nurseId: '', nurseName: '' };
 
     if (appt.bed_number && autoRes.nurseName) {
@@ -718,7 +738,7 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
     setEditFormData({
       patient_Name: appt.patient_Name || appt.patient_name || appt.name || patient?.name || '',
       hospital: hospId ? String(hospId) : (patient?.hospital_id ? String(patient.hospital_id) : ''),
-      doctor: docId ? String(docId) : '',
+      doctor: isDocActive ? String(existingDoc.id) : '',
       visit_date: vDate,
       visit_time: vTime,
       age: appt.age || appt.Age || patient?.age || '',
@@ -738,7 +758,7 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
         : ((docId || appt.doctor) ? 'Assigned' : 'Pending'),
       condition: appt.condition || appt.Condation || appt.Condition || appt.symptoms_severity || '',
       bed_number: appt.bed_number ? String(appt.bed_number) : '',
-      nurse: nurseId ? String(nurseId) : (autoRes.nurseId ? String(autoRes.nurseId) : ''),
+      nurse: isNurseActive ? String(existingNurse.id) : (autoRes.nurseId ? String(autoRes.nurseId) : ''),
       attached_document: appt.attached_document || null
     });
 
@@ -763,10 +783,12 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
   };
 
   const handleEditDoctorChange = (docVal) => {
-    const chosenDoc = hospitalDoctors.find(d => Number(d.id) === Number(docVal));
-    if (chosenDoc && isDoctorOnLeave(chosenDoc)) {
-      alert(`${chosenDoc.name || 'This doctor'} is currently On Leave and cannot be assigned.`);
-      return;
+    if (docVal) {
+      const chosenDoc = hospitalDoctors.find(d => Number(d.id) === Number(docVal));
+      if (chosenDoc && !isDoctorOnDuty(chosenDoc)) {
+        alert(`${chosenDoc.name || 'This doctor'} is currently Off Duty / On Leave and cannot be assigned.`);
+        return;
+      }
     }
     setEditFormData(prev => ({
       ...prev,
@@ -935,15 +957,22 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
       const apptId = editingAppt.Appoment_id || editingAppt.appoment_id || editingAppt.appointment_id || editingAppt.id;
       const numericId = editingAppt.id;
       const chosenDoc = hospitalDoctors.find(d => Number(d.id) === Number(editFormData.doctor));
-    if (chosenDoc && isDoctorOnLeave(chosenDoc)) {
-      alert(`Doctor ${chosenDoc.name || ''} is currently On Leave and cannot be assigned.`);
-      return;
-    }
+      if (chosenDoc && !isDoctorOnDuty(chosenDoc)) {
+        alert(`Doctor ${chosenDoc.name || ''} is currently Off Duty / On Leave and cannot be assigned.`);
+        setSavingEdit(false);
+        return;
+      }
       const parsedBed = editFormData.bed_number ? Number(editFormData.bed_number) : null;
       const hospId = Number(typeof editingAppt.hospital === 'object' ? editingAppt.hospital?.id : (editingAppt.hospital || editFormData.hospital || patient?.hospital_id)) || null;
 
       const autoRes = parsedBed ? getAutoNurseForBed(parsedBed, hospitalNurses, hospId) : { nurseId: null, nurseName: '' };
       const chosenNurse = hospitalNurses.find(n => Number(n.id) === Number(editFormData.nurse)) || (autoRes.nurseId ? hospitalNurses.find(n => Number(n.id) === autoRes.nurseId) : null);
+
+      if (chosenNurse && !isNurseOnDuty(chosenNurse)) {
+        alert(`Nurse ${chosenNurse.name || ''} is currently Off Duty and cannot be assigned to this appointment.`);
+        setSavingEdit(false);
+        return;
+      }
 
       let visitIso = editingAppt.visit_date_time || new Date().toISOString();
       if (editFormData.visit_date) {
@@ -1168,14 +1197,19 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
       const bloodVal = formData.blood_group || patient?.blood_group || 'O+';
 
       const chosenDoc = hospitalDoctors.find(d => Number(d.id) === Number(formData.doctor));
-      if (chosenDoc && isDoctorOnLeave(chosenDoc)) {
-        alert(`Doctor ${chosenDoc.name || ''} is currently On Leave and cannot be booked.`);
+      if (chosenDoc && !isDoctorOnDuty(chosenDoc)) {
+        alert(`Doctor ${chosenDoc.name || ''} is currently Off Duty / On Leave and cannot be booked.`);
         setBooking(false);
         return;
       }
       const parsedBed = formData.bed_number ? Number(formData.bed_number) : null;
       const autoRes = parsedBed ? getAutoNurseForBed(parsedBed, hospitalNurses, selectedHospId) : { nurseId: null, nurseName: '' };
       const chosenNurse = hospitalNurses.find(n => Number(n.id) === Number(formData.nurse)) || (autoRes.nurseId ? hospitalNurses.find(n => Number(n.id) === autoRes.nurseId) : null);
+      if (chosenNurse && !isNurseOnDuty(chosenNurse)) {
+        alert(`Nurse ${chosenNurse.name || ''} is currently Off Duty and cannot be assigned.`);
+        setBooking(false);
+        return;
+      }
 
       let visitIso = new Date().toISOString();
       if (formData.visit_date) {
@@ -1858,18 +1892,18 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
                       >
                         <option value="">-- Assign Doctor (Or Awaiting Assignment) --</option>
                         {hospitalDoctors.map(doc => {
-                          const onLeave = isDoctorOnLeave(doc);
+                          const onDuty = isDoctorOnDuty(doc);
                           const docName = doc.name?.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`;
                           const specialty = doc.specialty || doc.specialization || 'General';
                           return (
                             <option
                               key={doc.id}
                               value={doc.id}
-                              disabled={onLeave}
-                              style={onLeave ? { color: '#dc2626', fontWeight: 'bold', backgroundColor: '#fff1f2' } : {}}
-                              className={onLeave ? 'text-rose-600 font-bold bg-rose-50' : ''}
+                              disabled={!onDuty}
+                              style={!onDuty ? { color: '#dc2626', fontWeight: 'bold', backgroundColor: '#fff1f2' } : {}}
+                              className={!onDuty ? 'text-rose-600 font-bold bg-rose-50' : ''}
                             >
-                              {docName} ({specialty}) {onLeave ? '• (On Leave)' : (doc.consultation_fee ? `- ₹${doc.consultation_fee}` : '')}
+                              {docName} ({specialty}){!onDuty ? ' (Off Duty)' : ''}{doc.consultation_fee ? ` - ₹${doc.consultation_fee}` : ''}
                             </option>
                           );
                         })}
@@ -1994,11 +2028,20 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 cursor-pointer shadow-2xs font-medium"
                       >
                         <option value="">-- Auto-assigned from Bed Duty --</option>
-                        {hospitalNurses.map(n => (
-                          <option key={n.id} value={n.id}>
-                            {n.name} ({n.ward || 'Ward Staff'})
-                          </option>
-                        ))}
+                        {hospitalNurses.map(n => {
+                          const onDuty = isNurseOnDuty(n);
+                          return (
+                            <option
+                              key={n.id}
+                              value={n.id}
+                              disabled={!onDuty}
+                              style={!onDuty ? { color: '#dc2626', fontWeight: 'bold', backgroundColor: '#fff1f2' } : {}}
+                              className={!onDuty ? 'text-rose-600 font-bold bg-rose-50' : ''}
+                            >
+                              {n.name} ({n.ward || 'Ward Staff'}){!onDuty ? ' (Off Duty)' : ''}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
                   </div>
@@ -2324,18 +2367,18 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
                     >
                       <option value="">-- Unassigned Doctor --</option>
                       {hospitalDoctors.map(d => {
-                        const onLeave = isDoctorOnLeave(d);
+                        const onDuty = isDoctorOnDuty(d);
                         const docName = d.name?.startsWith('Dr.') ? d.name : `Dr. ${d.name}`;
                         const specialty = d.specialization || d.specialty || 'General';
                         return (
                           <option
                             key={d.id}
                             value={d.id}
-                            disabled={onLeave}
-                            style={onLeave ? { color: '#dc2626', fontWeight: 'bold', backgroundColor: '#fff1f2' } : {}}
-                            className={onLeave ? 'text-rose-600 font-bold bg-rose-50' : ''}
+                            disabled={!onDuty}
+                            style={!onDuty ? { color: '#dc2626', fontWeight: 'bold', backgroundColor: '#fff1f2' } : {}}
+                            className={!onDuty ? 'text-rose-600 font-bold bg-rose-50' : ''}
                           >
-                            {docName} ({specialty}) {onLeave ? '• (On Leave)' : (d.consultation_fee ? `- ₹${d.consultation_fee}` : '')}
+                            {docName} ({specialty}){!onDuty ? ' (Off Duty)' : ''}{d.consultation_fee ? ` - ₹${d.consultation_fee}` : ''}
                           </option>
                         );
                       })}
@@ -2423,13 +2466,32 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Assigned Station Nurse</label>
                     <select
                       value={editFormData.nurse}
-                      onChange={(e) => setEditFormData({ ...editFormData, nurse: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const selNurse = hospitalNurses.find(n => Number(n.id) === Number(val));
+                        if (selNurse && !isNurseOnDuty(selNurse)) {
+                          alert(`Nurse ${selNurse.name} is currently Off Duty and cannot be assigned.`);
+                          return;
+                        }
+                        setEditFormData({ ...editFormData, nurse: val });
+                      }}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white cursor-pointer"
                     >
                       <option value="">-- Auto-assigned from Bed Duty --</option>
-                      {hospitalNurses.map(n => (
-                        <option key={n.id} value={n.id}>{n.name} ({n.ward || 'Ward Staff'})</option>
-                      ))}
+                      {hospitalNurses.map(n => {
+                        const onDuty = isNurseOnDuty(n);
+                        return (
+                          <option 
+                            key={n.id} 
+                            value={n.id}
+                            disabled={!onDuty}
+                            style={!onDuty ? { color: '#dc2626', fontWeight: 'bold', backgroundColor: '#fff1f2' } : {}}
+                            className={!onDuty ? 'text-rose-600 font-bold bg-rose-50' : ''}
+                          >
+                            {n.name} ({n.ward || 'Ward Staff'}){!onDuty ? ' (Off Duty)' : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </div>
