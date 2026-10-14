@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { API_BASE_URL } from './Api/Api';
 
 const Login = ({ setCurrentPage, setIsLoggedIn }) => {
@@ -153,6 +153,7 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
                 (d.name && d.name.toLowerCase().trim() === (userObj.name || '').toLowerCase().trim())
               );
               if (matchedDoc) {
+                userObj.is_approved = matchedDoc.is_approved === true;
                 const docHosp = matchedDoc.hospital || (Array.isArray(matchedDoc.hospitals) ? matchedDoc.hospitals[0] : null);
                 if (docHosp) userHospId = Number(typeof docHosp === 'object' ? docHosp.id : docHosp);
                 if (Array.isArray(matchedDoc.hospitals)) {
@@ -169,7 +170,10 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
                 (n.name && n.name.toLowerCase().trim() === (userObj.name || '').toLowerCase().trim())
               );
               if (matchedNurse && matchedNurse.hospital) {
+                userObj.is_approved = matchedNurse.is_approved === true;
                 userHospId = Number(typeof matchedNurse.hospital === 'object' ? matchedNurse.hospital.id : matchedNurse.hospital);
+              } else if (matchedNurse) {
+                userObj.is_approved = matchedNurse.is_approved === true;
               }
             }
           } else if (mappedRole === 'Receptionist') {
@@ -181,7 +185,20 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
                 (r.name && r.name.toLowerCase().trim() === (userObj.name || '').toLowerCase().trim())
               );
               if (matchedRec && matchedRec.hospital) {
+                userObj.is_approved = matchedRec.is_approved === true;
                 userHospId = Number(typeof matchedRec.hospital === 'object' ? matchedRec.hospital.id : matchedRec.hospital);
+              } else if (matchedRec) {
+                userObj.is_approved = matchedRec.is_approved === true;
+              }
+            }
+          } else if (mappedRole === 'Hospital Admin') {
+            const adminRes = await fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null);
+            if (adminRes?.ok) {
+              const adminList = await adminRes.json().catch(() => []);
+              const matchedAdmin = (Array.isArray(adminList) ? adminList : []).find((admin) => admin.email?.toLowerCase().trim() === inputLower);
+              if (matchedAdmin) {
+                userObj.is_approved = matchedAdmin.is_approved === true;
+                userHospId = typeof matchedAdmin.hospital === 'object' ? matchedAdmin.hospital?.id : matchedAdmin.hospital;
               }
             }
           } else if (mappedRole === 'Patient') {
@@ -263,6 +280,8 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
           hospitals: userHospitals.length > 0 ? userHospitals : (userHospId ? [Number(userHospId)] : []),
           hospital_name: hospitalName,
           is_superuser: mappedRole === 'Super Admin' ? true : isSuperUserFlag,
+          is_approved: mappedRole === 'Super Admin' || mappedRole === 'Patient' ? true : userObj.is_approved === true,
+          notification_token: userObj.notification_token || data.notification_token || '',
           is_active: true
         };
 
@@ -418,6 +437,7 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
           contact: nurseContact,
           phone: nurseContact,
           role: 'Nurse',
+          is_approved: matchNurse.is_approved === true,
           rawRole: matchNurse.role || matchNurse.nurse_role || 'Staff Nurse',
           hospital: nurseHospId,
           hospitals: nurseHospId ? [nurseHospId] : [],
@@ -487,6 +507,7 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
           contact: docContact,
           phone: docContact,
           role: 'Doctor',
+          is_approved: matchDoc.is_approved === true,
           rawRole: 'Doctor',
           specialization: matchDoc.specialization || matchDoc.specialty || 'General Physician',
           hospital: primaryDocHospId,
@@ -546,6 +567,7 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
           contact: recContact,
           phone: recContact,
           role: 'Receptionist',
+          is_approved: matchRec.is_approved === true,
           rawRole: 'Receptionist',
           hospital: recHospId,
           hospitals: recHospId ? [recHospId] : [],
@@ -606,6 +628,7 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
           contact: adminContact,
           phone: adminContact,
           role: isSuperAdminRecord ? 'Super Admin' : 'Hospital Admin',
+          is_approved: isSuperAdminRecord || matchAdmin.is_approved === true,
           rawRole: isSuperAdminRecord ? 'SUPER_ADMIN' : 'Admin',
           hospital: typeof matchAdmin.hospital === 'object' ? matchAdmin.hospital?.id : matchAdmin.hospital,
           is_superuser: isSuperAdminRecord,

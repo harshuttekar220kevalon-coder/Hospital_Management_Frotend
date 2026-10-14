@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
 const roles = ['Front Desk Receptionist', 'Patient Registration Receptionist', 'Appointment Receptionist', 'Admission Receptionist', 'Billing Receptionist', 'Emergency Receptionist'];

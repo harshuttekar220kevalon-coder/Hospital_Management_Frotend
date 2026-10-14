@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
 const getFloorNumber = (bed) => {
@@ -166,6 +166,7 @@ const SuperAdminAppointmentDetails = ({
             if (apptPhone && pContact && pContact === apptPhone) return true;
             return false;
           }) || null;
+          const matchedPat = matchedAccountUser;
 
           // 1. Account Holder Name (The registered account user who owns this email / booked the appointment):
           const resolvedAccountHolder = matchedAccountUser?.name || matchedAccountUser?.patient_Name || matchedAccountUser?.patient_name || freshAppt.account_holder_name || freshAppt.booked_by || currentAppt?.account_holder_name || (apptEmail ? apptEmail.split('@')[0] : 'Account User');

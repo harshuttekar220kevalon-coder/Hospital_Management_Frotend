@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import NotificationBell from './Common/NotificationBell';
 
-const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser }) => {
+const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser, onBackToWebsite }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -325,6 +326,8 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
           {/* Right Side: Profile Dropdown Pill */}
           {isLoggedIn && (
             <div className="hidden xl:flex items-center gap-2 lg:gap-3 shrink-0 relative" ref={dropdownRef}>
+              <NotificationBell currentUser={currentUser} setCurrentPage={handleNavClick} />
+              <button type="button" onClick={onBackToWebsite || (() => handleNavClick('home'))} className="inline-flex items-center rounded-xl border border-teal-500/40 bg-teal-500/10 px-3 py-2 text-xs font-bold text-teal-200 transition hover:bg-teal-500/20">Back to Website</button>
               <div
                 className="relative"
                 onMouseEnter={() => setProfileDropdownOpen(true)}
@@ -426,6 +429,10 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
 
           <div className="flex xl:hidden items-center gap-2">
             {isLoggedIn && (
+              <NotificationBell currentUser={currentUser} setCurrentPage={handleNavClick} />
+            )}
+            {isLoggedIn && <button type="button" onClick={onBackToWebsite || (() => handleNavClick('home'))} className="hidden sm:inline-flex items-center rounded-xl border border-teal-500/40 bg-teal-500/10 px-2.5 py-2 text-[11px] font-bold text-teal-200">Back to Website</button>}
+            {isLoggedIn && (
               <button
                 type="button"
                 onClick={() => handleNavClick(roleInfo.page)}
@@ -460,6 +467,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
 
       {isMobileMenuOpen && isLoggedIn && (
         <div className="xl:hidden border-t border-slate-800 bg-slate-900 px-4 pt-3 pb-4 space-y-2.5 shadow-lg animate-in fade-in slide-in-from-top-2 duration-150">
+          <button type="button" onClick={onBackToWebsite || (() => handleNavClick('home'))} className="w-full rounded-xl border border-teal-500/40 bg-teal-500/10 px-3 py-2.5 text-left text-sm font-bold text-teal-200 hover:bg-teal-500/20 sm:hidden">Back to Website</button>
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/80 border border-slate-700">
             <div
               onClick={() => handleNavClick(roleInfo.page)}
@@ -473,7 +481,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
                 <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${roleInfo.color}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${roleInfo.dot}`}></span>
-                    {displayCode} • {roleInfo.label}
+                    {roleInfo.code} • {roleInfo.label}
                   </span>
                 </div>
               </div>

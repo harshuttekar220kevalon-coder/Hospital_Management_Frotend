@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 import PatientNavbar from './PatientNavbar';
 import PatientFooter from './PatientFooter';

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
 const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, setSelectedAppointment, setCurrentPage }) => {
@@ -742,7 +742,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                   <th className="p-3 text-left">Doctor & Dept</th>
                   <th className="p-3 text-center">Ward / Bed</th>
                   <th className="p-3 text-center">Condition</th>
-                  <th className="p-3 text-center">Billing & Paid</th>
+                  <th className="p-3 text-center">Billing Status</th>
                   <th className="p-3 text-center">Status</th>
                   <th className="p-3 text-left">Diagnosis / Reason</th>
                   <th className="p-3 text-right">Actions</th>
@@ -809,14 +809,7 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                         </span>
                       </td>
 
-                      <td className="p-3 text-center whitespace-nowrap font-mono text-[11px]">
-                        <span className="font-bold text-slate-800 block">
-                          ₹{Number(appt.total_bill || 0).toFixed(2)}
-                        </span>
-                        <span className="text-[10px] text-emerald-600 block">
-                          Paid: ₹{Number(appt.amount_paid || 0).toFixed(2)}
-                        </span>
-                      </td>
+                      <td className="p-3 text-center whitespace-nowrap"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${(appt.payment_status || '').toLowerCase() === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : (appt.payment_status || '').toLowerCase() === 'partial' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>{appt.payment_status || 'Pending'}</span></td>
 
                       <td className="p-3 text-center whitespace-nowrap">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${

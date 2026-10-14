@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
 const extractArray = (resData) => {
@@ -758,23 +758,22 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
                 <th className="py-3 px-3 text-center">Doctor Fee</th>
                 <th className="py-3 px-3 text-center">Hospital Charges</th>
                 <th className="py-3 px-3 text-center">Total Bill</th>
-                <th className="py-3 px-3 text-center">Paid Amount</th>
-                <th className="py-3 px-3 text-center">Due Balance</th>
                 <th className="py-3 px-3 text-center">Billing Status</th>
+                <th className="py-3 px-3 text-center">Due Balance</th>
                 <th className="py-3 px-3 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="py-10 text-center text-slate-400">
+                  <td colSpan={8} className="py-10 text-center text-slate-400">
                     <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                     Loading discharged billing queue...
                   </td>
                 </tr>
               ) : filteredPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-10 text-center text-slate-400">
+                  <td colSpan={8} className="py-10 text-center text-slate-400">
                     <div className="font-semibold text-slate-600">No discharged patients in this queue.</div>
                     <div className="text-xs text-slate-400 mt-0.5">
                       Patients will appear here automatically when the Doctor marks them as Discharged.
@@ -826,9 +825,7 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
                         ₹{bill.total.toFixed(2)}
                       </td>
 
-                      <td className="py-3 px-3 text-center font-mono font-bold text-emerald-700">
-                        ₹{bill.paid.toFixed(2)}
-                      </td>
+                      <td className="py-3 px-3 text-center"><span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${(pat.payment_status || (bill.isPaid ? 'Paid' : bill.paid > 0 ? 'Partial' : 'Pending')) === 'Paid' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : (pat.payment_status || (bill.paid > 0 ? 'Partial' : 'Pending')) === 'Partial' ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-amber-100 text-amber-800 border-amber-300'}`}>{pat.payment_status || (bill.isPaid ? 'Paid' : bill.paid > 0 ? 'Partial' : 'Pending')}</span></td>
 
                       <td className="py-3 px-3 text-center font-mono font-black text-rose-600">
                         {bill.due > 0 ? `₹${bill.due.toFixed(2)}` : '₹0.00'}
@@ -843,42 +840,7 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
                         </span>
                       </td>
 
-                      <td className="py-3 px-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                          {!bill.isPaid ? (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenBillingModal(pat)}
-                              className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1"
-                              title="Settle bill and update hospital charges"
-                            >
-                              <span>💳</span>
-                              <span>Settle Bill</span>
-                            </button>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => setInvoiceModalPatient(pat)}
-                                className="px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1"
-                                title="Print official invoice and gate pass"
-                              >
-                                <span>📄</span>
-                                <span>Gate Pass</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenBillingModal(pat)}
-                                className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1"
-                                title="Edit or update hospital charges / billing"
-                              >
-                                <span>✏️</span>
-                                <span>Edit Bill</span>
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
+                      
                     </tr>
                   );
                 })

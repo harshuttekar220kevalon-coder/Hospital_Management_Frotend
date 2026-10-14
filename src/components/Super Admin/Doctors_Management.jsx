@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
 const extractArray = (resData) => {
@@ -233,7 +233,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
     const docEmail = (doc.email || '').toLowerCase();
     const docContact = (doc.contact || doc.phone || '').toLowerCase();
     const docSpec = (doc.specialization || '').toLowerCase();
-    const docId = String(doc.id || doc.doctor_id || '').toLowerCase();
+    const docId = `${doc.doctor_id || ''} ${doc.id || ''}`.toLowerCase();
 
     const matchesSearch =
       !term ||
@@ -243,8 +243,12 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
       docSpec.includes(term) ||
       docId.includes(term);
 
-    const docHosp = typeof doc.hospital === 'object' && doc.hospital !== null ? doc.hospital.id : doc.hospital;
-    const matchesHosp = hospitalFilter === 'ALL' || String(docHosp) === String(hospitalFilter);
+    const doctorHospitalIds = [
+      ...(Array.isArray(doc.hospitals) ? doc.hospitals.map((hospital) => typeof hospital === 'object' && hospital !== null ? hospital.id : hospital) : []),
+      ...(Array.isArray(doc.hospital_names) ? doc.hospital_names.map((hospital) => hospital?.id) : []),
+      ...(doc.hospital ? [typeof doc.hospital === 'object' ? doc.hospital.id : doc.hospital] : [])
+    ].filter((id) => id !== undefined && id !== null).map(String);
+    const matchesHosp = hospitalFilter === 'ALL' || doctorHospitalIds.includes(String(hospitalFilter));
 
     const dShift = doc.Shifts || doc.shift || '';
     const matchesShift = shiftFilter === 'ALL' || dShift === shiftFilter;
@@ -365,7 +369,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
             <table className="w-full text-left text-xs text-slate-600 min-w-[800px]">
               <thead className="bg-slate-100/80 text-slate-700 uppercase font-semibold text-[11px] tracking-wider rounded-lg">
                 <tr>
-                  <th className="py-3 px-3">Doctor</th>
+                  <th className="py-3 px-3 text-center">DOCTOR NAME &amp; ID</th>
                   <th className="py-3 px-3">Specialization</th>
                   <th className="py-3 px-3">Hospital</th>
                   <th className="py-3 px-3">Shift</th>
@@ -376,36 +380,50 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredDoctors.slice(0, visibleCount).map((doc) => {
-                  const docHosp = typeof doc.hospital === 'object' && doc.hospital !== null ? doc.hospital.id : doc.hospital;
-                  const hospObj = hospitalsList.find((h) => Number(h.id) === Number(docHosp));
-                  const hospName = hospObj?.Name || hospObj?.name || doc.hospital_name || 'Unassigned';
-                  const isOff = String(doc.status || doc.duty_status || '').toLowerCase().includes('off') || String(doc.status || '').toLowerCase().includes('leave');
+                  const doctorStatus = String(doc.status || doc.duty_status || '').replaceAll('_', ' ') || '-';
+                  const doctorStatusKey = doctorStatus.toLowerCase();
+                  const isOff = doctorStatusKey.includes('off') || doctorStatusKey.includes('leave');
+                  const isAvailable = doctorStatusKey.includes('on') || doctorStatusKey === 'active' || doctorStatusKey === 'available';
+                  const doctorHospitalIds = [
+                    ...(Array.isArray(doc.hospitals) ? doc.hospitals.map((hospital) => typeof hospital === 'object' && hospital !== null ? hospital.id : hospital) : []),
+                    ...(Array.isArray(doc.hospital_names) ? doc.hospital_names.map((hospital) => hospital?.id) : []),
+                    ...(doc.hospital ? [typeof doc.hospital === 'object' ? doc.hospital.id : doc.hospital] : [])
+                  ].filter((id) => id !== undefined && id !== null).map(String);
+                  const doctorHospitalNames = Array.isArray(doc.hospital_names)
+                    ? doc.hospital_names.map((hospital) => hospital?.name).filter(Boolean)
+                    : [];
+                  const hospName = doctorHospitalNames.length
+                    ? doctorHospitalNames.join(', ')
+                    : doctorHospitalIds.map((id) => {
+                      const hospital = hospitalsList.find((item) => String(item.id) === id);
+                      return hospital?.Name || hospital?.name;
+                    }).filter(Boolean).join(', ') || '-';
 
                   return (
                     <tr key={doc.id} className="hover:bg-slate-50/70 transition">
-                      <td className="py-3 px-3 font-bold text-slate-800">
-                        <div>
-                          <span>{doc.name}</span>
-                          <span className="text-[10px] text-slate-400 font-mono block">#{doc.id}</span>
+                      <td className="px-3 py-3 text-center font-bold text-slate-800">
+                        <div className="flex flex-col items-center gap-1">
+                          <span>{doc.name || '-'}</span>
+                          <span className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1 font-mono text-[10px] font-semibold text-sky-700">
+                            {doc.doctor_id || `#${doc.id}`}
+                          </span>
                         </div>
                       </td>
                       <td className="py-3 px-3">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
-                          {doc.specialization || 'General'}
+                          {doc.specialization || '-'}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-slate-700">
-                        {hospName}
-                      </td>
+                      <td className="py-3 px-3 text-slate-700">{hospName}</td>
                       <td className="py-3 px-3 text-slate-600">
-                        {doc.Shifts || doc.shift || 'Morning First Shift'}
+                        {doc.Shifts || doc.shift || '-'}
                       </td>
                       <td className="py-3 px-3">
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${
-                          isOff ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          isOff ? 'bg-rose-50 text-rose-700 border-rose-200' : isAvailable ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-200'
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${isOff ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
-                          {isOff ? 'Off Duty' : 'On Duty'}
+                          <span className={`w-1.5 h-1.5 rounded-full ${isOff ? 'bg-rose-500' : isAvailable ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                          {doctorStatus}
                         </span>
                       </td>
                       <td className="py-3 px-3 font-mono text-slate-600">

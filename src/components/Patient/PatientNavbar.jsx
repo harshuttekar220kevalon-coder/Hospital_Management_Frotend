@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import NotificationBell from '../Common/NotificationBell';
 
 const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -143,7 +144,9 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
     setProfileDropdownOpen(false);
   };
 
-  const isPatientLoggedIn = Boolean(isLoggedIn);
+  const currentRole = (currentUser?.role || '').toString().toUpperCase();
+  const isPatientLoggedIn = Boolean(isLoggedIn && currentRole.includes('PATIENT'));
+  const showAppointmentAction = !isLoggedIn || isPatientLoggedIn;
 
   // Clean, focused navigation links without duplicate settings
   const navItems = [
@@ -188,6 +191,13 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
   ];
 
   const resolvedName = livePatient?.name || livePatient?.patient_name || currentUser?.name || currentUser?.patient_name || 'Patient';
+  const resolvedRole = currentUser?.role || 'User';
+  const normalizedRole = resolvedRole.toString().toUpperCase();
+  const staffHomePage = normalizedRole.includes('SUPER') ? 'super_admin_dashboard'
+    : normalizedRole.includes('ADMIN') ? 'admin_dashboard'
+      : normalizedRole.includes('DOCTOR') ? 'doctor_dashboard'
+        : normalizedRole.includes('NURSE') ? 'nurse_dashboard'
+          : normalizedRole.includes('RECEPTION') ? 'receptionist_dashboard' : null;
   const resolvedUhid =
     livePatient?.patient_id ||
     livePatient?.uhid ||
@@ -314,7 +324,14 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
 
           {/* RIGHT ACTION BUTTONS & USER PROFILE */}
           <div className="hidden xl:flex items-center gap-2 lg:gap-3 shrink-0">
-            {/* Book Appointment CTA Button */}
+            {isPatientLoggedIn && <NotificationBell currentUser={currentUser} setCurrentPage={handleNavClick} light />}
+            {isLoggedIn && !isPatientLoggedIn && staffHomePage && (
+              <button type="button" onClick={() => handleNavClick(staffHomePage)} className="px-3 py-2 rounded-xl border border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100 text-xs font-bold whitespace-nowrap transition">
+                Back to My Site
+              </button>
+            )}
+            {/* Appointment booking is available to visitors and patient accounts. */}
+            {showAppointmentAction && (
             <button
               type="button"
               onClick={() => handleNavClick('appointment')}
@@ -329,6 +346,7 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
               </svg>
               <span>Book Appointment</span>
             </button>
+            )}
 
             {isPatientLoggedIn ? (
               <div className="relative pl-2 border-l border-slate-200 shrink-0">
@@ -387,7 +405,6 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
                             currentPage === 'patient_dashboard' ? 'bg-teal-50 text-teal-800 font-bold' : 'text-slate-700 hover:bg-slate-100'
                           }`}
                         >
-                          <span className="w-7 h-7 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center text-xs shrink-0">📊</span>
                           <div>
                             <p className="font-bold text-xs">My Dashboard</p>
                             <p className="text-[10px] text-slate-400 font-normal">Appointments & live clinical status</p>
@@ -402,7 +419,6 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
                             currentPage === 'patient_setting' ? 'bg-teal-50 text-teal-800 font-bold' : 'text-slate-700 hover:bg-slate-100'
                           }`}
                         >
-                          <span className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center text-xs shrink-0">👤</span>
                           <div>
                             <p className="font-bold text-xs">Profile</p>
                             <p className="text-[10px] text-slate-400 font-normal">Personal details & security</p>
@@ -417,13 +433,38 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
                           onClick={() => { handleLogoutClick(); setProfileDropdownOpen(false); }}
                           className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700 transition flex items-center gap-2.5 cursor-pointer"
                         >
-                          <span className="w-7 h-7 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center text-xs shrink-0">🚪</span>
                           <span>Logout Account</span>
                         </button>
                       </div>
                     </div>
                   )}
                 </div>
+              </div>
+            ) : isLoggedIn ? (
+              <div className="relative pl-2 border-l border-slate-200 shrink-0">
+                <button type="button" onClick={() => setProfileDropdownOpen(!profileDropdownOpen)} className="flex items-center gap-2 rounded-2xl px-2 py-1.5 hover:bg-slate-100 transition" aria-expanded={profileDropdownOpen} aria-label="Open user menu">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 via-teal-500 to-blue-600 text-white font-bold flex items-center justify-center text-[11px] shadow-xs shrink-0">
+                    {getInitials(currentUser?.name || currentUser?.username || resolvedRole)}
+                  </div>
+                  <div className="hidden sm:flex flex-col leading-tight max-w-[130px] text-left">
+                    <span className="truncate text-xs font-bold text-slate-800">{currentUser?.name || currentUser?.username || resolvedRole}</span>
+                    <span className="truncate text-[10px] font-semibold text-teal-700">{resolvedRole}</span>
+                  </div>
+                </button>
+                {profileDropdownOpen && (
+                  <div className="absolute right-0 top-full pt-2 w-64 z-50">
+                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-2">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <p className="text-xs font-bold text-slate-900 truncate">{currentUser?.name || currentUser?.username || 'User'}</p>
+                        <p className="text-[10px] text-teal-700 font-semibold mt-1">{resolvedRole}</p>
+                        {currentUser?.email && <p className="text-[10px] text-slate-500 truncate mt-1">{currentUser.email}</p>}
+                      </div>
+                      <button type="button" onClick={handleLogoutClick} className="w-full mt-1 px-3 py-2 rounded-xl text-left text-xs font-bold text-rose-600 hover:bg-rose-50 transition">
+                        Logout Account
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200 shrink-0">
@@ -447,23 +488,50 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
 
           {/* MOBILE RESPONSIVE HAMBURGER & QUICK ACTIONS */}
           <div className="flex xl:hidden items-center gap-1.5 sm:gap-2 shrink-0">
-            <button
+            {isPatientLoggedIn && <NotificationBell currentUser={currentUser} setCurrentPage={handleNavClick} light />}
+            {isLoggedIn && !isPatientLoggedIn && staffHomePage && (
+              <button type="button" onClick={() => handleNavClick(staffHomePage)} className="px-2 py-1.5 rounded-lg border border-teal-200 bg-teal-50 text-teal-800 text-[10px] font-bold whitespace-nowrap" title="Back to My Site">
+                My Site
+              </button>
+            )}
+            {showAppointmentAction && <button
               type="button"
               onClick={() => handleNavClick('appointment')}
               className="px-2 py-1.5 sm:px-2.5 rounded-lg bg-teal-600 text-white font-bold text-xs shadow-xs"
             >
               Book
-            </button>
+            </button>}
 
-            {isPatientLoggedIn ? (
-              <button
-                type="button"
-                onClick={handleLogoutClick}
-                className="px-2 py-1.5 sm:px-2.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold"
-                title="Logout"
-              >
-                Logout
-              </button>
+            {isLoggedIn ? (
+              <>
+                {!isPatientLoggedIn && (
+                  <div className="relative">
+                    <button type="button" onClick={() => setProfileDropdownOpen(!profileDropdownOpen)} className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 via-teal-500 to-blue-600 text-white font-bold flex items-center justify-center text-[11px] shadow-xs" title={`${currentUser?.name || currentUser?.username || resolvedRole} · ${resolvedRole}`} aria-label="Open user menu" aria-expanded={profileDropdownOpen}>
+                      {getInitials(currentUser?.name || currentUser?.username || resolvedRole)}
+                    </button>
+                    {profileDropdownOpen && (
+                      <div className="absolute right-0 top-full pt-2 w-64 z-50">
+                        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-2">
+                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <p className="text-xs font-bold text-slate-900 truncate">{currentUser?.name || currentUser?.username || 'User'}</p>
+                            <p className="text-[10px] text-teal-700 font-semibold mt-1">{resolvedRole}</p>
+                            {currentUser?.email && <p className="text-[10px] text-slate-500 truncate mt-1">{currentUser.email}</p>}
+                          </div>
+                          <button type="button" onClick={handleLogoutClick} className="w-full mt-1 px-3 py-2 rounded-xl text-left text-xs font-bold text-rose-600 hover:bg-rose-50 transition">Logout Account</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={handleLogoutClick}
+                  className="px-2 py-1.5 sm:px-2.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold"
+                  title="Logout"
+                >
+                  Logout
+                </button>
+              </>
             ) : (
               <button
                 type="button"
@@ -545,14 +613,14 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
           })}
 
           <div className="pt-2 border-t border-slate-100 space-y-2">
-            <button
+            {showAppointmentAction && <button
               type="button"
               onClick={() => handleNavClick('appointment')}
               className="w-full py-2.5 rounded-xl bg-teal-600 text-white font-bold text-xs shadow-xs text-center flex items-center justify-center gap-1.5"
             >
               <span>Book Appointment</span>
-            </button>
-            {!isPatientLoggedIn && (
+            </button>}
+            {!isLoggedIn && (
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"

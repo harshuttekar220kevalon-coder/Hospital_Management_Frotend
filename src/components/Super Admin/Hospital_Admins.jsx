@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
 const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSelectedAdminProp }) => {
@@ -360,7 +360,6 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
       if (response.ok || response.status === 204) {
         alert('Hospital Administrator removed successfully.');
         setAdmins(admins.filter(a => a.id !== id));
-        if (detailAdmin && detailAdmin.id === id) setDetailAdmin(null);
         setDeleteAdminTarget(null);
       } else {
         alert('Failed to delete administrator.');

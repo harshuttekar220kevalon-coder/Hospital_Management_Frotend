@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+
+const extractArray = (payload) => (Array.isArray(payload) ? payload : payload?.results || payload?.data || []);
 
 const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
   const [loading, setLoading] = useState(true);

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
 const shifts = ['Morning First Shift', 'Afternoon Second Shift', 'Evening Third Shift'];

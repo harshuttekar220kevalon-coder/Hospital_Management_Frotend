@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { API_BASE_URL } from './Api/Api';
 
 const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
@@ -91,6 +91,14 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
     const hospitalVal = formData.hospital || '';
     const pass = formData.password || '';
     const confirmPass = formData.confirm_password || '';
+
+    if (roleVal !== 'PATIENTS') {
+      const msg = 'Patient accounts can only be created through this signup form.';
+      setErrorMessage(msg);
+      alert(msg);
+      setLoading(false);
+      return;
+    }
 
     if (!first || !last) {
       const msg = 'Please enter both first and last name.';
@@ -608,9 +616,6 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
             >
               <option value="">-- Select User --</option>
               <option value="PATIENTS">Patients</option>
-              <option value="DOCTOR">Doctor</option>
-              <option value="NURSES">Nurses</option>
-              <option value="RECEPTIONISTS">Receptionists</option>
             </select>
           </div>
 
@@ -782,16 +787,25 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
         </form>
 
         {setCurrentPage && (
-          <p className="text-center text-xs text-slate-500 mt-6">
-            Already have an account?{' '}
+          <div className="mt-6 space-y-3 text-center">
+            <p className="text-xs text-slate-500">
+              Already have an account?{' '}
+              <button
+                type="button"
+                onClick={() => setCurrentPage('login')}
+                className="text-teal-700 font-semibold hover:underline cursor-pointer"
+              >
+                Sign In here
+              </button>
+            </p>
             <button
               type="button"
-              onClick={() => setCurrentPage('login')}
-              className="text-teal-700 font-semibold hover:underline cursor-pointer"
+              onClick={() => setCurrentPage('staff_signup')}
+              className="w-full rounded-xl border border-teal-200 bg-teal-50 px-4 py-2.5 text-xs sm:text-sm font-semibold text-teal-800 hover:bg-teal-100 transition cursor-pointer"
             >
-              Sign In here
+              Create your account as staff
             </button>
-          </p>
+          </div>
         )}
       </div>
     </div>

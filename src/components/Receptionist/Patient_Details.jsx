@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
 const BLOOD_GROUP_CHOICES = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
@@ -783,8 +783,8 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
   };
 
   const handleEditDoctorChange = (docVal) => {
-    if (docVal) {
-      const chosenDoc = hospitalDoctors.find(d => Number(d.id) === Number(docVal));
+    const chosenDoc = docVal ? hospitalDoctors.find(d => Number(d.id) === Number(docVal)) : null;
+    if (chosenDoc) {
       if (chosenDoc && !isDoctorOnDuty(chosenDoc)) {
         alert(`${chosenDoc.name || 'This doctor'} is currently Off Duty / On Leave and cannot be assigned.`);
         return;
@@ -1199,7 +1199,6 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
       const chosenDoc = hospitalDoctors.find(d => Number(d.id) === Number(formData.doctor));
       if (chosenDoc && !isDoctorOnDuty(chosenDoc)) {
         alert(`Doctor ${chosenDoc.name || ''} is currently Off Duty / On Leave and cannot be booked.`);
-        setBooking(false);
         return;
       }
       const parsedBed = formData.bed_number ? Number(formData.bed_number) : null;
@@ -1207,7 +1206,6 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
       const chosenNurse = hospitalNurses.find(n => Number(n.id) === Number(formData.nurse)) || (autoRes.nurseId ? hospitalNurses.find(n => Number(n.id) === autoRes.nurseId) : null);
       if (chosenNurse && !isNurseOnDuty(chosenNurse)) {
         alert(`Nurse ${chosenNurse.name || ''} is currently Off Duty and cannot be assigned.`);
-        setBooking(false);
         return;
       }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
 const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurrentPage }) => {

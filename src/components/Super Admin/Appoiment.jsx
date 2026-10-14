@@ -1,12 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
-
-const getFloorNumber = (bed) => {
-  if (!bed) return null;
-  const num = Number(bed);
-  if (isNaN(num) || num <= 0) return null;
-  return Math.floor((num - 1) / 100) + 1;
-};
 
 const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatient, setSelectedAppointment }) => {
   const [appointments, setAppointments] = useState([]);
@@ -680,102 +673,33 @@ const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatien
             <p className="text-xs text-slate-400">Try changing your search keywords or filter settings.</p>
           </div>
         ) : (
-          <div className="w-full">
-            <table className="w-full text-left text-xs table-auto">
+          <div className="hidden w-full overflow-x-auto md:block">
+            <table className="w-full min-w-[760px] text-left text-xs">
               <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
                 <tr>
-                  <th className="py-3 px-3 text-center">Appt ID & Date</th>
-                  <th className="py-3 px-3 text-left">Patient Details</th>
-                  <th className="py-3 px-3 text-left">Hospital & Doctor</th>
-                  <th className="py-3 px-3 text-center">Bed / Ward</th>
+                  <th className="py-3 px-3 text-left">Appt ID</th>
+                  <th className="py-3 px-3 text-left">Hospital</th>
                   <th className="py-3 px-3 text-center">Condition</th>
-                  <th className="py-3 px-3 text-center">Billing & Paid</th>
+                  <th className="py-3 px-3 text-center">Billing Status</th>
                   <th className="py-3 px-3 text-center">Status</th>
                   <th className="py-3 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                 {filteredAppointments.slice(0, visibleCount).map((appt) => {
-                  const isAdmitted = (appt.status === 'Admitted' || appt.status === 'In Consultation') && appt.status !== 'Discharged';
-                  const isDischarged = appt.status === 'Discharged' || appt.status === 'Completed';
-
                   return (
                     <tr key={appt.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-2.5 px-3 text-center">
+                      <td className="py-2.5 px-3 text-left">
                         <span className="font-mono font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block text-[11px]">
                           {appt.appointment_id || `APT-${appt.id}`}
                         </span>
-                        <span className="text-[10px] text-slate-400 block mt-0.5 font-medium">
-                          {appt.visit_date_time ? new Date(appt.visit_date_time).toLocaleDateString() : 'N/A'}
-                        </span>
-                      </td>
-
-                      <td className="py-2.5 px-3 text-left">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <button
-                              type="button"
-                              onClick={() => handleViewAppointmentDetails(appt)}
-                              className="font-bold text-slate-900 hover:text-sky-600 hover:underline text-left text-xs cursor-pointer"
-                            >
-                              {appt.name}
-                            </button>
-                            <span className="text-[9px] font-bold bg-sky-50 text-sky-700 px-1.5 py-0.2 rounded border border-sky-200">
-                              Patient
-                            </span>
-                          </div>
-                          {appt.account_holder_name && (
-                            <div className="text-[10px] text-slate-600 flex items-center gap-1 flex-wrap">
-                              <span className="text-slate-400">Account: </span>
-                              <strong className="text-indigo-800 font-semibold bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100">
-                                {appt.account_holder_name}
-                              </strong>
-                            </div>
-                          )}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {appt.email ? (
-                              <a
-                                href={`mailto:${appt.email.toLowerCase()}`}
-                                onClick={(e) => e.stopPropagation()}
-                                title={`Send email to ${appt.email}`}
-                                className="text-[10px] text-sky-700 hover:text-sky-900 hover:underline block truncate max-w-[130px] transition lowercase font-medium"
-                              >
-                                {appt.email.toLowerCase()}
-                              </a>
-                            ) : (
-                              <span className="text-[10px] text-slate-400 block">No email</span>
-                            )}
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              {appt.contact || appt.phone || '-'}
-                            </span>
-                          </div>
-                        </div>
+                        <button type="button" onClick={() => handleViewAppointmentDetails(appt)} className="mt-1 block font-bold text-slate-800 hover:text-sky-700 hover:underline text-xs text-left">
+                          {appt.name || 'Patient'}
+                        </button>
                       </td>
 
                       <td className="py-2.5 px-3 text-left">
                         <span className="font-bold text-slate-800 block text-xs">{appt.hospital_name}</span>
-                        <span className="text-teal-800 font-semibold block text-[11px]">{appt.doctor_name}</span>
-                        {appt.doctor_specialization ? (
-                          <span className="text-[10px] text-slate-400 block">{appt.doctor_specialization}</span>
-                        ) : null}
-                      </td>
-
-                      <td className="py-2.5 px-3 text-center">
-                        {appt.bed_number ? (
-                          <div className="flex flex-col items-center justify-center gap-0.5">
-                            <span className="font-mono font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-lg border border-teal-200 text-[11px] inline-block">
-                              Bed #{appt.bed_number}
-                            </span>
-                            <span className="text-[10px] text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-100 font-bold block">
-                              Floor {getFloorNumber(appt.bed_number)}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center">
-                            <span className="text-xs text-slate-400 font-medium">Unassigned</span>
-                            <span className="text-[9px] text-slate-400">OPD / No Bed</span>
-                          </div>
-                        )}
                       </td>
 
                       <td className="py-2.5 px-3 text-center">
@@ -792,23 +716,7 @@ const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatien
                         </span>
                       </td>
 
-                      <td className="py-2.5 px-3 text-center">
-                        <div className="font-mono font-bold text-slate-800 text-xs">
-                          ₹{appt.total_bill.toFixed(2)}
-                        </div>
-                        <div className="flex items-center justify-center gap-1 mt-0.5">
-                          <span className="text-[10px] text-emerald-600 font-semibold">
-                            Paid: ₹{appt.amount_paid.toFixed(2)}
-                          </span>
-                          <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold border ${
-                            appt.payment_status === 'Paid'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-amber-50 text-amber-700 border-amber-200'
-                          }`}>
-                            {appt.payment_status || 'Pending'}
-                          </span>
-                        </div>
-                      </td>
+                      <td className="py-2.5 px-3 text-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${appt.payment_status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : appt.payment_status === 'Partial' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>{appt.payment_status || 'Pending'}</span></td>
 
                       <td className="py-2.5 px-3 text-center">
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-block ${
@@ -846,6 +754,45 @@ const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatien
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {!loading && filteredAppointments.length > 0 && (
+          <div className="space-y-3 p-3 md:hidden">
+            {filteredAppointments.slice(0, visibleCount).map((appt) => (
+              <article key={`mobile-${appt.id}`} className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="inline-block rounded-md border border-sky-200 bg-sky-50 px-2 py-1 font-mono text-[11px] font-bold text-sky-800">
+                      {appt.appointment_id || `APT-${appt.id}`}
+                    </span>
+                    <button type="button" onClick={() => handleViewAppointmentDetails(appt)} className="mt-1 block max-w-full truncate text-left text-sm font-bold text-slate-900 hover:text-sky-700">
+                      {appt.name || 'Patient'}
+                    </button>
+                  </div>
+                  <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold ${appt.status === 'Confirmed' || appt.status === 'Admitted' || appt.status === 'Discharged' || appt.status === 'Completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : appt.status === 'Cancelled' || appt.status === 'Rejected' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                    {appt.status || 'Pending'}
+                  </span>
+                </div>
+                <p className="mt-3 truncate text-xs font-semibold text-slate-700">{appt.hospital_name || 'Hospital not provided'}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${appt.condition === 'Critical' ? 'border-rose-300 bg-rose-100 text-rose-800' : appt.condition === 'Emergency' ? 'border-red-300 bg-red-100 text-red-800' : appt.condition === 'Urgent' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                    {appt.condition || 'Normal'}
+                  </span>
+                  <span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${appt.payment_status === 'Paid' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : appt.payment_status === 'Partial' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+                    {appt.payment_status || 'Pending'}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+                  <button type="button" onClick={() => handleOpenStatusModal(appt)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">
+                    Update
+                  </button>
+                  <button type="button" onClick={() => handleViewAppointmentDetails(appt)} className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white hover:bg-sky-700">
+                    Details <span aria-hidden="true">→</span>
+                  </button>
+                </div>
+              </article>
+            ))}
           </div>
         )}
 

@@ -1,74 +1,83 @@
-import React, { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
+import { API_BASE_URL } from '../Api/Api';
 
 // Navbars
-import Navbar from '../Navbar';
-import SuperAdminNavbar from '../Super Admin/Navbar';
-import AdminNavbar from '../Admin/Navbar';
+const Navbar = lazy(() => import('../Navbar'));
+const SuperAdminNavbar = lazy(() => import('../Super Admin/Navbar'));
+const AdminNavbar = lazy(() => import('../Admin/Navbar'));
 
 // Auth Pages
-import Login from '../Login';
-import SignIn from '../SignIn';
-import ResetPassword from '../ResetPassword';
+const Login = lazy(() => import('../Login'));
+const SignIn = lazy(() => import('../SignIn'));
+const Staf_Signin = lazy(() => import('../Staf_Signin'));
+const ResetPassword = lazy(() => import('../ResetPassword'));
 
 // Super Admin Pages
-import SuperAdminDashboard from '../Super Admin/Dashbord';
-import Hospital from '../Super Admin/Hospital';
-import Hospital_Details from '../Super Admin/Hospital_Details';
-import Hospital_Admins from '../Super Admin/Hospital_Admins';
-import Admin_Details from '../Super Admin/Admin_Details';
-import Doctors_Management from '../Super Admin/Doctors_Management';
-import Doctor_Details from '../Super Admin/Doctor_Details';
-import Nurses from '../Super Admin/Nurses';
-import Nurse_Details from '../Super Admin/Nurse_Details';
-import Receptionist_Management from '../Super Admin/Receptionist';
-import Receptionist_Details from '../Super Admin/Receptionist_Details';
-import Patients_Management from '../Super Admin/Patients';
-import Patient_Details from '../Super Admin/Patient_Details';
-import SuperAdminAppointments from '../Super Admin/Appoiment';
-import SuperAdminAppointmentDetails from '../Super Admin/Appoiment_Details';
+const SuperAdminDashboard = lazy(() => import('../Super Admin/Dashbord'));
+const Hospital = lazy(() => import('../Super Admin/Hospital'));
+const Hospital_Details = lazy(() => import('../Super Admin/Hospital_Details'));
+const Hospital_Admins = lazy(() => import('../Super Admin/Hospital_Admins'));
+const Admin_Details = lazy(() => import('../Super Admin/Admin_Details'));
+const Doctors_Management = lazy(() => import('../Super Admin/Doctors_Management'));
+const Doctor_Details = lazy(() => import('../Super Admin/Doctor_Details'));
+const Nurses = lazy(() => import('../Super Admin/Nurses'));
+const Nurse_Details = lazy(() => import('../Super Admin/Nurse_Details'));
+const Receptionist_Management = lazy(() => import('../Super Admin/Receptionist'));
+const Receptionist_Details = lazy(() => import('../Super Admin/Receptionist_Details'));
+const Patients_Management = lazy(() => import('../Super Admin/Patients'));
+const Patient_Details = lazy(() => import('../Super Admin/Patient_Details'));
+const ManageNewUsers = lazy(() => import('../Super Admin/Manage_New_Users'));
+const SuperAdminAppointments = lazy(() => import('../Super Admin/Appoiment'));
+const SuperAdminAppointmentDetails = lazy(() => import('../Super Admin/Appoiment_Details'));
 
 // Admin Pages
-import AdminDashboard from '../Admin/Dashbord';
-import HospitalManagement from '../Admin/Hospital_Management';
-import AdminDoctors from '../Admin/Doctor';
-import AdminDoctorDetails from '../Admin/Doctor_Details';
-import AdminNurses from '../Admin/Nurses';
-import AdminNurseDetails from '../Admin/Nurses_Details';
-import AdminReceptionists from '../Admin/Receptionists';
-import AdminReceptionistDetails from '../Admin/Receptionists_Details';
-import AdminPatients from '../Admin/Patients';
-import AdminPatientDetails from '../Admin/Patients_Details';
-import AdminSettings from '../Admin/setting';
+const AdminDashboard = lazy(() => import('../Admin/Dashbord'));
+const HospitalManagement = lazy(() => import('../Admin/Hospital_Management'));
+const AdminDoctors = lazy(() => import('../Admin/Doctor'));
+const AdminDoctorDetails = lazy(() => import('../Admin/Doctor_Details'));
+const AdminNurses = lazy(() => import('../Admin/Nurses'));
+const AdminNurseDetails = lazy(() => import('../Admin/Nurses_Details'));
+const AdminReceptionists = lazy(() => import('../Admin/Receptionists'));
+const AdminReceptionistDetails = lazy(() => import('../Admin/Receptionists_Details'));
+const AdminPatients = lazy(() => import('../Admin/Patients'));
+const AdminPatientDetails = lazy(() => import('../Admin/Patients_Details'));
+const AdminSettings = lazy(() => import('../Admin/setting'));
 
 // Doctor Pages
-import DoctorDashboard from '../Doctor/Dashbord';
-import DoctorAppointments from '../Doctor/Appointments';
-import DoctorPatients from '../Doctor/Patients';
-import DoctorRegularSchedule from '../Doctor/Regular Schedule';
-import DoctorSettings from '../Doctor/setting';
+const DoctorDashboard = lazy(() => import('../Doctor/Dashbord'));
+const DoctorAppointments = lazy(() => import('../Doctor/Appointments'));
+const DoctorPatients = lazy(() => import('../Doctor/Patients'));
+const DoctorRegularSchedule = lazy(() => import('../Doctor/Regular Schedule'));
+const DoctorSettings = lazy(() => import('../Doctor/setting'));
 
 // Nurse, Receptionist, Patient Pages
-import NurseDashboard from '../Nurse/Dashbord';
-import NursePatients from '../Nurse/Patient';
-import NurseSettings from '../Nurse/Setting';
-import ReceptionistDashboard from '../Receptionist/Dashbord';
-import ReceptionistDoctors from '../Receptionist/Doctors';
-import ReceptionistPatient from '../Receptionist/Patient';
-import ReceptionistPatientDetails from '../Receptionist/Patient_Details';
-import ReceptionistSetting from '../Receptionist/Setting';
-import ReceptionistAnassine from '../Receptionist/Anassine';
-import ReceptionistBilling from '../Receptionist/Billing';
-import ReceptionistAppoiment from '../Receptionist/Appoiment';
-import ReceptionistNurse from '../Receptionist/Nurse';
-import PatientDashboard from '../Patient/Dashbord';
-import PatientSetting from '../Patient/Setting';
-import MyHestory from '../Patient/MyHestory';
+const NurseDashboard = lazy(() => import('../Nurse/Dashbord'));
+const NursePatients = lazy(() => import('../Nurse/Patient'));
+const NurseSettings = lazy(() => import('../Nurse/Setting'));
+const ReceptionistDashboard = lazy(() => import('../Receptionist/Dashbord'));
+const ReceptionistDoctors = lazy(() => import('../Receptionist/Doctors'));
+const ReceptionistPatient = lazy(() => import('../Receptionist/Patient'));
+const ReceptionistPatientDetails = lazy(() => import('../Receptionist/Patient_Details'));
+const ReceptionistSetting = lazy(() => import('../Receptionist/Setting'));
+const ReceptionistAnassine = lazy(() => import('../Receptionist/Anassine'));
+const ReceptionistBilling = lazy(() => import('../Receptionist/Billing'));
+const ReceptionistAppoiment = lazy(() => import('../Receptionist/Appoiment'));
+const ReceptionistNurse = lazy(() => import('../Receptionist/Nurse'));
+const PatientDashboard = lazy(() => import('../Patient/Dashbord'));
+const PatientSetting = lazy(() => import('../Patient/Setting'));
+const MyHestory = lazy(() => import('../Patient/MyHestory'));
 
 // Patient Main Frontend Pages (Static)
-import PatientHome from '../Patient/Home';
-import PatientAbout from '../Patient/About';
-import PatientContact from '../Patient/Contact';
-import PatientAppointment from '../Patient/Appoiement';
+const PatientHome = lazy(() => import('../Patient/Home'));
+const PatientAbout = lazy(() => import('../Patient/About'));
+const PatientContact = lazy(() => import('../Patient/Contact'));
+const PatientAppointment = lazy(() => import('../Patient/Appoiement'));
+const PatientNotifications = lazy(() => import('../Patient/Notification'));
+const DoctorNotifications = lazy(() => import('../Doctor/Notification'));
+const NurseNotifications = lazy(() => import('../Nurse/Notification'));
+const ReceptionistNotifications = lazy(() => import('../Receptionist/Notification'));
+const AdminNotifications = lazy(() => import('../Admin/Notification'));
+const SuperAdminNotifications = lazy(() => import('../Super Admin/Notification'));
 
 // Common Components
 import ScrollToTop from '../Common/ScrollToTop';
@@ -84,6 +93,8 @@ const getDashboardByRole = (role) => {
   if (r.includes('PATIENT')) return 'home';
   return 'login';
 };
+
+const PUBLIC_WEBSITE_PAGES = ['home', 'patient_home', 'about', 'patient_about', 'contact', 'patient_contact', 'appointment', 'appoint', 'patient_appointment'];
 
 const AppRoutes = () => {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -199,6 +210,13 @@ const AppRoutes = () => {
     }
   });
 
+  const [isWebsiteMode, setIsWebsiteMode] = useState(() => PUBLIC_WEBSITE_PAGES.includes(localStorage.getItem('currentPage')));
+
+  const navigateToPage = (page) => {
+    setCurrentPage(page);
+    setIsWebsiteMode(PUBLIC_WEBSITE_PAGES.includes(page));
+  };
+
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     if (currentPage) {
@@ -264,11 +282,20 @@ const AppRoutes = () => {
     }
 
     const isPatientRole = (userData?.role || '').toString().toUpperCase().includes('PATIENT');
+    setIsWebsiteMode(isPatientRole);
     localStorage.removeItem('login_return_page');
 
     if (isPatientRole) {
       setCurrentPage('home');
       localStorage.setItem('currentPage', 'home');
+      return;
+    }
+
+    const role = (userData?.role || '').toString().toUpperCase();
+    const requiresApproval = role.includes('ADMIN') || role.includes('DOCTOR') || role.includes('NURSE') || role.includes('RECEPTION');
+    if (requiresApproval && userData?.is_approved !== true) {
+      setCurrentPage('approval_pending');
+      localStorage.setItem('currentPage', 'approval_pending');
       return;
     }
 
@@ -278,6 +305,7 @@ const AppRoutes = () => {
   };
 
   const handleLogout = () => {
+    setIsWebsiteMode(false);
     setIsLoggedIn(false);
     setCurrentUser(null);
     setSelectedHospital(null);
@@ -301,77 +329,149 @@ const AppRoutes = () => {
   const isSuperAdmin = (currentUser?.role || '').toString().toUpperCase().includes('SUPER');
   const isAdmin = (currentUser?.role || '').toString().toUpperCase().includes('ADMIN') && !isSuperAdmin;
   const isPatient = (currentUser?.role || '').toString().toUpperCase().includes('PATIENT');
+  const currentRole = (currentUser?.role || '').toString().toUpperCase();
+  const approvalEndpoint = currentRole.includes('SUPER') || currentRole.includes('PATIENT') ? ''
+    : currentRole.includes('ADMIN') ? 'Admins'
+      : currentRole.includes('DOCTOR') ? 'Doctors'
+        : currentRole.includes('NURSE') ? 'Nurses'
+          : currentRole.includes('RECEPTION') ? 'Receptionists' : '';
+  const isApprovalPending = Boolean(isLoggedIn && approvalEndpoint && currentUser?.is_approved !== true);
+  const approvalRestrictedPages = [
+    'admin_dashboard', 'doctor_dashboard', 'nurse_dashboard', 'receptionist_dashboard',
+    'admin_settings', 'doctor_settings', 'nurse_settings', 'receptionist_settings', 'setting'
+  ];
+  const isApprovalRestrictedPage = isApprovalPending && approvalRestrictedPages.includes(currentPage);
+
+  useEffect(() => {
+    if (!isLoggedIn || !approvalEndpoint || !currentUser?.email || currentUser?.is_approved === true) return undefined;
+    let active = true;
+    const refreshApproval = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/super-admin/${approvalEndpoint}/`);
+        if (!response.ok) return;
+        const payload = await response.json();
+        const records = Array.isArray(payload) ? payload : payload?.results || payload?.data || [];
+        const account = records.find((record) => String(record.email || '').toLowerCase().trim() === String(currentUser.email).toLowerCase().trim());
+        if (active && typeof account?.is_approved === 'boolean' && account.is_approved !== currentUser.is_approved) {
+          const updatedUser = { ...currentUser, is_approved: account.is_approved };
+          setCurrentUser(updatedUser);
+          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        }
+      } catch (error) {
+        console.warn('Account approval refresh notice:', error);
+      }
+    };
+    refreshApproval();
+    const interval = window.setInterval(refreshApproval, 15000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [isLoggedIn, approvalEndpoint, currentUser]);
+
+  const isPublicWebsitePage = PUBLIC_WEBSITE_PAGES.includes(currentPage);
+  const handleBackToWebsite = () => {
+    navigateToPage('home');
+    localStorage.setItem('currentPage', 'home');
+  };
 
   return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-50"><div className="h-10 w-10 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" role="status" aria-label="Loading page" /></div>}>
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans antialiased w-full overflow-x-hidden">
-      {isLoggedIn && !isPatient && (
+      {isLoggedIn && !isPatient && !isWebsiteMode && !isPublicWebsitePage && (
         isSuperAdmin ? (
           <SuperAdminNavbar
             currentPage={currentPage}
-            setCurrentPage={setCurrentPage}
+            setCurrentPage={navigateToPage}
             isLoggedIn={isLoggedIn}
             onLogout={handleLogout}
             currentUser={currentUser}
+            onBackToWebsite={handleBackToWebsite}
           />
         ) : isAdmin ? (
           <AdminNavbar
             currentPage={currentPage}
-            setCurrentPage={setCurrentPage}
+            setCurrentPage={navigateToPage}
             isLoggedIn={isLoggedIn}
             onLogout={handleLogout}
             currentUser={currentUser}
+            onBackToWebsite={handleBackToWebsite}
           />
         ) : (
           <Navbar
             currentPage={currentPage}
-            setCurrentPage={setCurrentPage}
+            setCurrentPage={navigateToPage}
             isLoggedIn={isLoggedIn}
             onLogout={handleLogout}
             currentUser={currentUser}
+            onBackToWebsite={handleBackToWebsite}
           />
         )
       )}
 
       <main className="flex-1 w-full overflow-x-hidden">
-        {!isLoggedIn ? (
+        {isApprovalRestrictedPage ? (
+          <section className="mx-auto flex min-h-[70vh] w-full max-w-2xl items-center justify-center px-4 py-12">
+            <div className="w-full rounded-3xl border border-amber-200 bg-white p-6 text-center shadow-lg sm:p-10">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+                <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 8v4m0 4h.01M10.3 3.86 1.82 18a2 2 0 0 0 1.72 3h16.92a2 2 0 0 0 1.72-3L13.7 3.86a2 2 0 0 0-3.4 0Z" />
+                </svg>
+              </div>
+              <h1 className="mt-5 text-2xl font-extrabold text-slate-900">Account approval pending</h1>
+              <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-600">
+                You are signed in, but the Super Admin has not approved this account yet. Your dashboard and profile are locked until approval is complete.
+              </p>
+              <p className="mt-4 text-xs font-semibold text-slate-500">This page will update automatically after approval.</p>
+              <button type="button" onClick={handleLogout} className="mt-7 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-slate-700">
+                Log out
+              </button>
+            </div>
+          </section>
+        ) : !isLoggedIn ? (
           currentPage === 'signin' ? (
             <SignIn
-              setCurrentPage={setCurrentPage}
+              setCurrentPage={navigateToPage}
+              setIsLoggedIn={handleLoginSuccess}
+            />
+          ) : currentPage === 'staff_signup' ? (
+            <Staf_Signin
+              setCurrentPage={navigateToPage}
               setIsLoggedIn={handleLoginSuccess}
             />
           ) : currentPage === 'reset_password' ? (
             <ResetPassword
-              setCurrentPage={setCurrentPage}
+              setCurrentPage={navigateToPage}
             />
           ) : currentPage === 'login' ? (
             <Login
-              setCurrentPage={setCurrentPage}
+              setCurrentPage={navigateToPage}
               setIsLoggedIn={handleLoginSuccess}
             />
           ) : currentPage === 'about' || currentPage === 'patient_about' ? (
             <PatientAbout
-              setCurrentPage={setCurrentPage}
+              setCurrentPage={navigateToPage}
               isLoggedIn={isLoggedIn}
               currentUser={currentUser}
               onLogout={handleLogout}
             />
           ) : currentPage === 'contact' || currentPage === 'patient_contact' ? (
             <PatientContact
-              setCurrentPage={setCurrentPage}
+              setCurrentPage={navigateToPage}
               isLoggedIn={isLoggedIn}
               currentUser={currentUser}
               onLogout={handleLogout}
             />
           ) : currentPage === 'appointment' || currentPage === 'appoint' || currentPage === 'patient_appointment' ? (
             <PatientAppointment
-              setCurrentPage={setCurrentPage}
+              setCurrentPage={navigateToPage}
               isLoggedIn={isLoggedIn}
               currentUser={currentUser}
               onLogout={handleLogout}
             />
           ) : (
             <PatientHome
-              setCurrentPage={setCurrentPage}
+              setCurrentPage={navigateToPage}
               isLoggedIn={isLoggedIn}
               currentUser={currentUser}
               onLogout={handleLogout}
@@ -381,7 +481,7 @@ const AppRoutes = () => {
           <>
             {(currentPage === 'home' || currentPage === 'patient_home') && (
               <PatientHome
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 isLoggedIn={isLoggedIn}
                 currentUser={currentUser}
                 onLogout={handleLogout}
@@ -389,7 +489,7 @@ const AppRoutes = () => {
             )}
             {(currentPage === 'about' || currentPage === 'patient_about') && (
               <PatientAbout
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 isLoggedIn={isLoggedIn}
                 currentUser={currentUser}
                 onLogout={handleLogout}
@@ -397,7 +497,7 @@ const AppRoutes = () => {
             )}
             {(currentPage === 'contact' || currentPage === 'patient_contact') && (
               <PatientContact
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 isLoggedIn={isLoggedIn}
                 currentUser={currentUser}
                 onLogout={handleLogout}
@@ -405,7 +505,7 @@ const AppRoutes = () => {
             )}
             {(currentPage === 'appointment' || currentPage === 'appoint' || currentPage === 'patient_appointment') && (
               <PatientAppointment
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 isLoggedIn={isLoggedIn}
                 currentUser={currentUser}
                 onLogout={handleLogout}
@@ -414,7 +514,7 @@ const AppRoutes = () => {
             {currentPage === 'super_admin_dashboard' && (
               <SuperAdminDashboard
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedHospital={setSelectedHospital}
                 setSelectedDoctor={setSelectedDoctor}
                 setSelectedNurse={setSelectedNurse}
@@ -427,14 +527,14 @@ const AppRoutes = () => {
             {currentPage === 'super_admin_hospitals' && (
               <Hospital
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedHospital={setSelectedHospital}
               />
             )}
             {currentPage === 'super_admin_admins' && (
               <Hospital_Admins
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedAdmin={setSelectedAdmin}
               />
             )}
@@ -445,13 +545,13 @@ const AppRoutes = () => {
                 setSelectedAdmin={setSelectedAdmin}
                 setSelectedPatient={setSelectedPatient}
                 setSelectedAppointment={setSelectedAppointment}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {currentPage === 'super_admin_doctors' && (
               <Doctors_Management
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedDoctor={setSelectedDoctor}
               />
             )}
@@ -460,13 +560,13 @@ const AppRoutes = () => {
                 currentUser={currentUser}
                 selectedDoctor={selectedDoctor}
                 setSelectedDoctor={setSelectedDoctor}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {currentPage === 'super_admin_nurses' && (
               <Nurses
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedNurse={setSelectedNurse}
               />
             )}
@@ -475,13 +575,13 @@ const AppRoutes = () => {
                 currentUser={currentUser}
                 selectedNurse={selectedNurse}
                 setSelectedNurse={setSelectedNurse}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {currentPage === 'super_admin_receptionists' && (
               <Receptionist_Management
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedReceptionist={setSelectedReceptionist}
               />
             )}
@@ -490,20 +590,21 @@ const AppRoutes = () => {
                 currentUser={currentUser}
                 selectedReceptionist={selectedReceptionist}
                 setSelectedReceptionist={setSelectedReceptionist}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {currentPage === 'super_admin_patients' && (
               <Patients_Management
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedPatient={setSelectedPatient}
               />
             )}
+            {currentPage === 'super_admin_new_users' && <ManageNewUsers currentUser={currentUser} />}
             {currentPage === 'super_admin_appointments' && (
               <SuperAdminAppointments
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedPatient={setSelectedPatient}
                 setSelectedAppointment={setSelectedAppointment}
               />
@@ -514,7 +615,7 @@ const AppRoutes = () => {
                 selectedAppointment={selectedAppointment}
                 setSelectedAppointment={setSelectedAppointment}
                 setSelectedPatient={setSelectedPatient}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {currentPage === 'patient_details' && (
@@ -523,7 +624,7 @@ const AppRoutes = () => {
                 selectedPatient={selectedPatient}
                 setSelectedPatient={setSelectedPatient}
                 setSelectedAppointment={setSelectedAppointment}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {currentPage === 'hospital_details' && (
@@ -531,13 +632,13 @@ const AppRoutes = () => {
                 currentUser={currentUser}
                 selectedHospital={selectedHospital}
                 setSelectedHospital={setSelectedHospital}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {currentPage === 'admin_dashboard' && (
               <AdminDashboard
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedHospital={setSelectedHospital}
                 setSelectedDoctor={setSelectedDoctor}
                 setSelectedPatient={setSelectedPatient}
@@ -550,13 +651,13 @@ const AppRoutes = () => {
                 currentUser={currentUser}
                 selectedHospital={selectedHospital}
                 setSelectedHospital={setSelectedHospital}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {currentPage === 'admin_doctors' && (
               <AdminDoctors
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedDoctor={setSelectedDoctor}
                 setSelectedHospital={setSelectedHospital}
               />
@@ -566,13 +667,13 @@ const AppRoutes = () => {
                 currentUser={currentUser}
                 selectedDoctor={selectedDoctor}
                 setSelectedDoctor={setSelectedDoctor}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {currentPage === 'admin_nurses' && (
               <AdminNurses
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedNurse={setSelectedNurse}
                 setSelectedHospital={setSelectedHospital}
               />
@@ -582,13 +683,13 @@ const AppRoutes = () => {
                 currentUser={currentUser}
                 selectedNurse={selectedNurse}
                 setSelectedNurse={setSelectedNurse}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {currentPage === 'admin_receptionists' && (
               <AdminReceptionists
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedReceptionist={setSelectedReceptionist}
                 setSelectedHospital={setSelectedHospital}
               />
@@ -598,13 +699,13 @@ const AppRoutes = () => {
                 currentUser={currentUser}
                 selectedReceptionist={selectedReceptionist}
                 setSelectedReceptionist={setSelectedReceptionist}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {currentPage === 'admin_patients' && (
               <AdminPatients
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedPatient={setSelectedPatient}
                 setSelectedHospital={setSelectedHospital}
               />
@@ -614,50 +715,50 @@ const AppRoutes = () => {
                 currentUser={currentUser}
                 selectedPatient={selectedPatient}
                 setSelectedPatient={setSelectedPatient}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {(currentPage === 'admin_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('ADMIN') && !(currentUser?.role || '').toString().toUpperCase().includes('SUPER'))) && (
               <AdminSettings
                 currentUser={currentUser}
                 setCurrentUser={setCurrentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 selectedHospital={selectedHospital}
                 setSelectedHospital={setSelectedHospital}
               />
             )}
             {currentPage === 'doctor_dashboard' && (
-              <DoctorDashboard currentUser={currentUser} setCurrentPage={setCurrentPage} />
+              <DoctorDashboard currentUser={currentUser} setCurrentPage={navigateToPage} />
             )}
             {currentPage === 'doctor_appointments' && (
-              <DoctorAppointments currentUser={currentUser} setCurrentPage={setCurrentPage} />
+              <DoctorAppointments currentUser={currentUser} setCurrentPage={navigateToPage} />
             )}
             {currentPage === 'doctor_patients' && (
-              <DoctorPatients currentUser={currentUser} setCurrentPage={setCurrentPage} />
+              <DoctorPatients currentUser={currentUser} setCurrentPage={navigateToPage} />
             )}
             {currentPage === 'doctor_schedule' && (
-              <DoctorRegularSchedule currentUser={currentUser} setCurrentPage={setCurrentPage} />
+              <DoctorRegularSchedule currentUser={currentUser} setCurrentPage={navigateToPage} />
             )}
             {(currentPage === 'doctor_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('DOCTOR'))) && (
               <DoctorSettings
                 currentUser={currentUser}
                 setCurrentUser={setCurrentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 selectedHospital={selectedHospital}
                 setSelectedHospital={setSelectedHospital}
               />
             )}
             {currentPage === 'nurse_dashboard' && (
-              <NurseDashboard currentUser={currentUser} setCurrentPage={setCurrentPage} />
+              <NurseDashboard currentUser={currentUser} setCurrentPage={navigateToPage} />
             )}
             {currentPage === 'nurse_patients' && (
-              <NursePatients currentUser={currentUser} setCurrentPage={setCurrentPage} />
+              <NursePatients currentUser={currentUser} setCurrentPage={navigateToPage} />
             )}
             {(currentPage === 'nurse_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('NURSE'))) && (
               <NurseSettings
                 currentUser={currentUser}
                 setCurrentUser={setCurrentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 selectedHospital={selectedHospital}
                 setSelectedHospital={setSelectedHospital}
               />
@@ -665,7 +766,7 @@ const AppRoutes = () => {
             {currentPage === 'receptionist_dashboard' && (
               <ReceptionistDashboard
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedPatient={setSelectedPatient}
                 setSelectedDoctorForPatient={setSelectedDoctorForPatient}
               />
@@ -673,27 +774,27 @@ const AppRoutes = () => {
             {(currentPage === 'receptionist_appointments' || currentPage === 'receptionist_appoiment' || currentPage === 'receptionist_appointment') && (
               <ReceptionistAppoiment
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedPatient={setSelectedPatient}
               />
             )}
             {currentPage === 'receptionist_doctors' && (
               <ReceptionistDoctors
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedDoctorForPatient={setSelectedDoctorForPatient}
               />
             )}
             {(currentPage === 'receptionist_nurses' || currentPage === 'receptionist_nurse') && (
               <ReceptionistNurse
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {currentPage === 'receptionist_patients' && (
               <ReceptionistPatient
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedPatient={setSelectedPatient}
                 selectedDoctorForPatient={selectedDoctorForPatient}
               />
@@ -703,13 +804,13 @@ const AppRoutes = () => {
                 currentUser={currentUser}
                 selectedPatient={selectedPatient}
                 setSelectedPatient={setSelectedPatient}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {(currentPage === 'receptionist_anassine' || currentPage === 'receptionist_unassigned' || currentPage === 'anassine') && (
               <ReceptionistAnassine
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedPatient={setSelectedPatient}
                 setSelectedDoctorForPatient={setSelectedDoctorForPatient}
               />
@@ -717,7 +818,7 @@ const AppRoutes = () => {
             {(currentPage === 'receptionist_billing' || currentPage === 'billing') && (
               <ReceptionistBilling
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 setSelectedPatient={setSelectedPatient}
               />
             )}
@@ -725,13 +826,13 @@ const AppRoutes = () => {
               <ReceptionistSetting
                 currentUser={currentUser}
                 setCurrentUser={setCurrentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
               />
             )}
             {currentPage === 'patient_dashboard' && (
               <PatientDashboard
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 isLoggedIn={isLoggedIn}
                 onLogout={handleLogout}
               />
@@ -739,7 +840,7 @@ const AppRoutes = () => {
             {(currentPage === 'my_hestory' || currentPage === 'patient_my_hestory' || currentPage === 'my_history' || currentPage === 'patient_my_history' || currentPage === 'patient_discharge_history' || currentPage === 'discharge_history') && (
               <MyHestory
                 currentUser={currentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 isLoggedIn={isLoggedIn}
                 onLogout={handleLogout}
               />
@@ -748,10 +849,31 @@ const AppRoutes = () => {
               <PatientSetting
                 currentUser={currentUser}
                 setCurrentUser={setCurrentUser}
-                setCurrentPage={setCurrentPage}
+                setCurrentPage={navigateToPage}
                 isLoggedIn={isLoggedIn}
                 onLogout={handleLogout}
               />
+            )}
+            {currentPage === 'notifications' && (
+              isSuperAdmin ? (
+                <SuperAdminNotifications currentUser={currentUser} />
+              ) : isAdmin ? (
+                <AdminNotifications currentUser={currentUser} />
+              ) : isPatient ? (
+                <PatientNotifications
+                  currentUser={currentUser}
+                  currentPage={currentPage}
+                  setCurrentPage={navigateToPage}
+                  isLoggedIn={isLoggedIn}
+                  onLogout={handleLogout}
+                />
+              ) : (currentUser?.role || '').toString().toUpperCase().includes('DOCTOR') ? (
+                <DoctorNotifications currentUser={currentUser} />
+              ) : (currentUser?.role || '').toString().toUpperCase().includes('NURSE') ? (
+                <NurseNotifications currentUser={currentUser} />
+              ) : (currentUser?.role || '').toString().toUpperCase().includes('RECEPTION') ? (
+                <ReceptionistNotifications currentUser={currentUser} />
+              ) : null
             )}
           </>
         )}
@@ -760,6 +882,7 @@ const AppRoutes = () => {
       {/* GLOBAL SCROLL TO TOP BUTTON & AUTO-SCROLL LISTENER */}
       <ScrollToTop currentPage={currentPage} />
     </div>
+    </Suspense>
   );
 };
 

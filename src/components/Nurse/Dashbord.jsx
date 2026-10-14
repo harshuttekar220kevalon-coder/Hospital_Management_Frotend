@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { API_BASE_URL, extractArray } from '../Api/Api';
 
 const formatAppointmentId = (item) => {

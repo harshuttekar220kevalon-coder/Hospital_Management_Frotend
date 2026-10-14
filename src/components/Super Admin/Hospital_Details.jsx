@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { API_BASE_URL } from '../Api/Api';
+import { useState, useEffect } from 'react';
+import { API_BASE_URL, extractArray } from '../Api/Api';
 
 const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, setCurrentPage }) => {
   const [activeTab, setActiveTab] = useState('all');
@@ -57,7 +57,12 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
     const fetchHospitalDetailsAndRelatedData = async (silent = false) => {
       if (selectedHospital && selectedHospital.id) {
         try {
-          if (!silent) setLoading(true);
+          if (!silent) {
+            setLoading(true);
+            setAdminLoading(true);
+            setSubLoading(true);
+          }
+
           // 1. Fetch Specific Hospital Details
           const hospRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${selectedHospital.id}/`).catch(() => null);
           if (hospRes && hospRes.status === 404) {
@@ -74,26 +79,32 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
             setHospitalData(hospData);
           }
 
-          setAdminLoading(true);
-          setSubLoading(true);
-
           // 2. Fetch Assigned Hospital Admin
           const adminRes = await fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null);
           if (adminRes && adminRes.ok) {
-            const adminsList = await adminRes.json();
-            const matchedAdmin = adminsList.find(a => Number(a.hospital) === Number(selectedHospital.id));
+            const rawAdmins = await adminRes.json();
+            const adminsList = extractArray(rawAdmins);
+            const matchedAdmin = adminsList.find(a => {
+              const hospId = typeof a.hospital === 'object' && a.hospital !== null ? a.hospital.id : a.hospital;
+              return Number(hospId) === Number(selectedHospital.id);
+            });
             setHospitalAdminInfo(matchedAdmin || null);
           }
 
           // 3. Fetch Doctors assigned to this hospital
           const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
           if (docRes && docRes.ok) {
-            const allDocs = await docRes.json();
+            const rawDocs = await docRes.json();
+            const allDocs = extractArray(rawDocs);
             const branchDocs = allDocs.filter(d => {
               if (Array.isArray(d.hospitals)) {
-                return d.hospitals.includes(Number(selectedHospital.id));
+                return d.hospitals.some(h => {
+                  const id = typeof h === 'object' && h !== null ? h.id : h;
+                  return Number(id) === Number(selectedHospital.id);
+                });
               }
-              return Number(d.hospital) === Number(selectedHospital.id);
+              const hospId = typeof d.hospital === 'object' && d.hospital !== null ? d.hospital.id : d.hospital;
+              return Number(hospId) === Number(selectedHospital.id);
             });
             setDoctorsList(branchDocs);
           }
@@ -101,20 +112,28 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
           // 4. Fetch Nurses for this Hospital Branch
           const nurRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/`).catch(() => null);
           if (nurRes && nurRes.ok) {
-            const allNurs = await nurRes.json();
-            const branchNurs = allNurs.filter(n => Number(n.hospital) === Number(selectedHospital.id));
+            const rawNurs = await nurRes.json();
+            const allNurs = extractArray(rawNurs);
+            const branchNurs = allNurs.filter(n => {
+              const hospId = typeof n.hospital === 'object' && n.hospital !== null ? n.hospital.id : n.hospital;
+              return Number(hospId) === Number(selectedHospital.id);
+            });
             setNursesList(branchNurs);
           }
 
           // 5. Fetch Receptionists for this Hospital Branch
           const recRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`).catch(() => null);
           if (recRes && recRes.ok) {
-            const allRecs = await recRes.json();
-            const branchRecs = allRecs.filter(r => Number(r.hospital) === Number(selectedHospital.id));
+            const rawRecs = await recRes.json();
+            const allRecs = extractArray(rawRecs);
+            const branchRecs = allRecs.filter(r => {
+              const hospId = typeof r.hospital === 'object' && r.hospital !== null ? r.hospital.id : r.hospital;
+              return Number(hospId) === Number(selectedHospital.id);
+            });
             setReceptionistsList(branchRecs);
           }
 
-// 6. Parse Departments safely (handles string, array, or null)
+          // 6. Parse Departments safely (handles string, array, or null)
           const currentHosp = hospData || selectedHospital;
           if (currentHosp && (currentHosp.departments || currentHosp.department)) {
             const rawDepts = currentHosp.departments || currentHosp.department;
@@ -140,19 +159,21 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
           // 7. Fetch Patients for this Hospital Branch
           const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
           if (patRes && patRes.ok) {
-            const allPats = await patRes.json();
-            const branchPats = allPats.filter(p => Number(p.hospital) === Number(selectedHospital.id));
+            const rawPats = await patRes.json();
+            const allPats = extractArray(rawPats);
+            const branchPats = allPats.filter(p => {
+              const hospId = typeof p.hospital === 'object' && p.hospital !== null ? p.hospital.id : p.hospital;
+              return Number(hospId) === Number(selectedHospital.id);
+            });
             setPatientsList(branchPats);
           }
 
         } catch (error) {
           console.error('Error fetching branch details:', error);
         } finally {
-          if (!silent) {
-            setLoading(false);
-            setAdminLoading(false);
-            setSubLoading(false);
-          }
+          setLoading(false);
+          setAdminLoading(false);
+          setSubLoading(false);
         }
       }
     };
@@ -669,7 +690,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                           {doc.specialization}
                         </span>
                       </td>
-                      <td className="py-3 px-3 font-semibold text-slate-800">{doc.opd_timings || 'Mon-Fri'}</td>
+                      <td className="py-3 px-3 font-semibold text-slate-800">{doc.Shifts || doc.shifts || doc.opd_timings || 'Mon-Fri'}</td>
                       <td className="py-3 px-3">
                         <div className="flex flex-col gap-0.5">
                           <span className="font-bold text-slate-800 text-xs">

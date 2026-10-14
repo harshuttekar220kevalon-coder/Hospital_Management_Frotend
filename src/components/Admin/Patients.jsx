@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
 const getAssignedNurseForPatientBed = (bedNumber, nursesList = [], hospitalId = null) => {
@@ -38,18 +38,12 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
   const [nursesList, setNursesList] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
-  const [doctorFilter, setDoctorFilter] = useState('ALL');
-  const [severityFilter, setSeverityFilter] = useState('ALL');
-  const [floorFilter, setFloorFilter] = useState('ALL');
   const [visibleCount, setVisibleCount] = useState(10);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-', 'Not Known'];
-  const severityLevels = ['Critical', 'Emergency', 'Urgent', 'Normal'];
-  const conditionChoices = ['Critical', 'Emergency', 'Urgent', 'Normal'];
   const statusOptions = ['Pending', 'Assigned', 'Admitted', 'Discharged', 'Cancelled'];
   const paymentStatuses = ['Paid', 'Partial', 'Pending', 'Failed'];
   const paymentMethods = ['Cash', 'UPI', 'Credit Card', 'Net Banking'];
@@ -143,9 +137,12 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
         if (setSelectedHospital) setSelectedHospital(hosp);
       }
 
+      let allHospitalDoctors = [];
       const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
       if (docRes && docRes.ok) {
-        const allDocs = await docRes.json();
+        const doctorsPayload = await docRes.json();
+        allHospitalDoctors = Array.isArray(doctorsPayload) ? doctorsPayload : (doctorsPayload.results || doctorsPayload.data || []);
+        const allDocs = allHospitalDoctors;
         if (assignedHospitalId) {
           const branchDocs = allDocs.filter(d => {
             const hospIds = Array.isArray(d.hospitals)
@@ -189,60 +186,49 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
         }
       } catch (e) {}
 
-      // Process patients and booked appointments strictly for this hospital
-      const seenIds = new Set();
-      const uniquePatients = [];
+      // Admin directory includes registered patients only after they book at this hospital.
+      const patientAccounts = Array.isArray(rawPatients) ? rawPatients : (rawPatients?.results || rawPatients?.data || []);
+      const appointments = Array.isArray(rawAppointments) ? rawAppointments : (rawAppointments?.results || rawAppointments?.data || []);
+      const currentHospName = (hosp?.Name || hosp?.name || '').toLowerCase().trim();
+      const accountByEmail = new Map(patientAccounts.filter(patient => patient?.email).map(patient => [patient.email.toLowerCase().trim(), patient]));
+      const accountByPhone = new Map(patientAccounts.map(patient => {
+        const digits = String(patient?.contact || patient?.phone || '').replace(/\D/g, '');
+        return [digits.length >= 10 ? digits.slice(-10) : digits, patient];
+      }).filter(([phone]) => phone));
 
-      const allRecords = [
-        ...(Array.isArray(rawPatients) ? rawPatients : []),
-        ...(Array.isArray(rawAppointments) ? rawAppointments : [])
-      ];
+      const appointmentsForHospital = appointments.filter((appointment) => {
+        if (!appointment) return false;
+        let appointmentHospital = appointment.hospital ?? appointment.hospital_id;
+        let hospitalId = typeof appointmentHospital === 'object' ? appointmentHospital?.id : appointmentHospital;
+        let hospitalName = appointment.hospital_name || (typeof appointmentHospital === 'object' ? (appointmentHospital?.Name || appointmentHospital?.name) : '');
 
-      for (const item of allRecords) {
-        if (!item) continue;
-        const idKey = String(item.id || item.Appoment_id || item.appointment_id || item.patient_id || item.uhid);
-        if (seenIds.has(idKey)) continue;
-        seenIds.add(idKey);
-
-        const patHospId = typeof item.hospital === 'object' && item.hospital !== null ? item.hospital?.id : item.hospital;
-        const patHospName = item.hospital_name || (typeof item.hospital === 'object' ? (item.hospital?.Name || item.hospital?.name) : (typeof item.hospital === 'string' && isNaN(Number(item.hospital)) ? item.hospital : ''));
-        const currentHospName = hosp?.Name || hosp?.name || '';
-
-        let isMatch = false;
-        if (assignedHospitalId) {
-          if (patHospId && !isNaN(Number(patHospId)) && Number(patHospId) === Number(assignedHospitalId)) {
-            isMatch = true;
-          } else if (patHospName && currentHospName && patHospName.toLowerCase().trim() === currentHospName.toLowerCase().trim()) {
-            isMatch = true;
-          }
+        // Older bookings may omit hospital, so use their assigned doctor's hospital as a fallback.
+        if (!hospitalId && !hospitalName) {
+          const doctorId = typeof appointment.doctor === 'object' ? appointment.doctor?.id : (appointment.doctor || appointment.doctor_id);
+          const doctor = allHospitalDoctors.find(item => Number(item.id) === Number(doctorId));
+          const doctorHospitals = Array.isArray(doctor?.hospitals) ? doctor.hospitals : [];
+          const matchingDoctorHospital = doctorHospitals.find(item => Number(typeof item === 'object' ? item.id : item) === Number(assignedHospitalId));
+          const doctorHospital = matchingDoctorHospital || doctor?.hospital || doctorHospitals[0];
+          hospitalId = typeof doctorHospital === 'object' ? doctorHospital?.id : doctorHospital;
+          hospitalName = doctor?.hospital_name || (typeof doctorHospital === 'object' ? (doctorHospital?.Name || doctorHospital?.name) : '');
         }
 
-        if (isMatch) {
-          const id = item.id || item.appointment_id || item.Appoment_id;
-          const rawApptId = item.Appoment_id || item.appointment_id || item.appoment_id || id;
-          const formattedApptId = rawApptId ? (String(rawApptId).startsWith('APT-') ? String(rawApptId) : `APT-${rawApptId}`) : `APT-${id}`;
-          const rawPatId = item.patient_id || item.uhid || item.patient;
-          const formattedPatId = rawPatId ? (String(rawPatId).startsWith('PAT-') ? String(rawPatId) : `PAT-${rawPatId}`) : (id ? `PAT-${id}` : 'PAT-0');
-          const name = item.patient_name || item.patient_Name || item.name || `Patient #${id}`;
+        if (assignedHospitalId && Number(hospitalId) === Number(assignedHospitalId)) return true;
+        return Boolean(currentHospName && hospitalName && hospitalName.toLowerCase().trim() === currentHospName);
+      });
 
-          uniquePatients.push({
-            ...item,
-            id,
-            patient_id: formattedPatId,
-            uhid: item.uhid || formattedPatId,
-            Appoment_id: formattedApptId,
-            appointment_id: formattedApptId,
-            name,
-            patient_name: name,
-            contact: item.contact || item.phone || '',
-            email: item.email || '',
-            symptoms_diagnosis: item.symptoms_diagnosis || item.reason_for_visit || item.reason || 'General Consultation',
-            status: item.status || 'Active'
-          });
-        }
-      }
-
-      setPatients(uniquePatients);
+      // Appointments only determine eligibility for this hospital's patient directory.
+      // Keep the displayed records as the registered patient profiles themselves.
+      const hospitalPatientIds = new Set();
+      appointmentsForHospital.forEach((appointment) => {
+        const email = String(appointment.email || '').toLowerCase().trim();
+        const phoneDigits = String(appointment.contact || appointment.phone || '').replace(/\D/g, '');
+        const phone = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneDigits;
+        const patientRef = typeof appointment.patient === 'object' ? appointment.patient?.id : appointment.patient;
+        const account = (email && accountByEmail.get(email)) || (phone && accountByPhone.get(phone)) || patientAccounts.find(patient => patient?.id && String(patient.id) === String(patientRef));
+        if (account?.id !== undefined && account?.id !== null) hospitalPatientIds.add(String(account.id));
+      });
+      setPatients(patientAccounts.filter(patient => hospitalPatientIds.has(String(patient.id))));
     } catch (err) {
       console.error('Error loading patients data:', err);
     } finally {
@@ -281,7 +267,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
 
   useEffect(() => {
     setVisibleCount(10);
-  }, [searchTerm, activeTab, doctorFilter, severityFilter, floorFilter]);
+  }, [searchTerm]);
 
   const handleDoctorChange = (e) => {
     const docId = e.target.value;
@@ -294,17 +280,6 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
       ...prev,
       doctor: docId,
       consultation_fee: fee,
-      amount_paid: totalAmount
-    }));
-  };
-
-  const handleConsultationFeeChange = (e) => {
-    const fee = parseFloat(e.target.value) || 0.00;
-    const hospCharge = Number(addFormData.Hospitals_Chargies) || 0.00;
-    const totalAmount = fee + hospCharge;
-    setAddFormData(prev => ({
-      ...prev,
-      consultation_fee: e.target.value,
       amount_paid: totalAmount
     }));
   };
@@ -433,45 +408,6 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
     }
   };
 
-  const [updatingPatientId, setUpdatingPatientId] = useState(null);
-
-  const handleUpdatePatientStatus = async (patient, newStatus) => {
-    if (!newStatus || !patient?.id) return;
-    try {
-      setUpdatingPatientId(patient.id);
-      const isDischarged = newStatus === 'Discharged' || newStatus === 'Cancelled';
-      const updatedBedNumber = isDischarged ? null : patient.bed_number;
-
-      const payload = {
-        status: newStatus,
-        bed_number: updatedBedNumber
-      };
-
-      let res = await fetch(`${API_BASE_URL}/super-admin/Patients/${patient.id}/`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).catch(() => null);
-
-      if (!res || !res.ok) {
-        res = await fetch(`${API_BASE_URL}/super-admin/Patients/${patient.id}/`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...patient, ...payload })
-        }).catch(() => null);
-      }
-
-      setPatients(prev => prev.map(p => p.id === patient.id ? { ...p, status: newStatus, bed_number: updatedBedNumber } : p));
-      if (isDischarged) {
-        alert(`Patient status changed to ${newStatus}. Bed #${patient.bed_number || ''} has been released.`);
-      }
-    } catch (err) {
-      console.error('Error updating patient status:', err);
-    } finally {
-      setUpdatingPatientId(null);
-    }
-  };
-
   const handleViewPatientDetails = (pat) => {
     if (setSelectedPatient) {
       setSelectedPatient(pat);
@@ -482,45 +418,14 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
     }
   };
 
-  const admittedCount = patients.filter(p => (p.status || '').toLowerCase().includes('admit')).length;
-  const opdCount = patients.filter(p => (p.status || '').toLowerCase().includes('pending') || (p.status || '').toLowerCase().includes('assigned')).length;
-  const dischargedCount = patients.filter(p => (p.status || '').toLowerCase().includes('discharg') || (p.status || '').toLowerCase().includes('complet')).length;
-
   const filteredPatients = patients.filter(pat => {
     const term = searchTerm.toLowerCase();
     const fullName = (pat.name || '').toLowerCase();
-    const patientId = (pat.patient_id || pat.uhid || '').toLowerCase();
-    const docName = (pat.doctor_name || '').toLowerCase();
+    const patientId = String(pat.patient_id || pat.id || '').toLowerCase();
     const contact = (pat.contact || pat.phone || '').toLowerCase();
-    const diagnosis = (pat.symptoms_diagnosis || '').toLowerCase();
-
-    const matchesSearch =
-      fullName.includes(term) ||
-      patientId.includes(term) ||
-      docName.includes(term) ||
-      contact.includes(term) ||
-      diagnosis.includes(term);
-
-    const matchesTab =
-      activeTab === 'ALL' ||
-      (activeTab === 'Admitted' && (pat.status || '').toLowerCase().includes('admit')) ||
-      (activeTab === 'OPD' && ((pat.status || '').toLowerCase().includes('pending') || (pat.status || '').toLowerCase().includes('assigned'))) ||
-      (activeTab === 'Discharged' && (pat.status || '').toLowerCase().includes('discharg'));
-
-    const patCondition = pat.Condation || pat.condation || pat.condition || pat.symptoms_severity || 'Normal';
-    const matchesDoctor = doctorFilter === 'ALL' || String(pat.doctor) === String(doctorFilter);
-    const matchesSeverity = severityFilter === 'ALL' || patCondition.toLowerCase() === severityFilter.toLowerCase();
-
-    const patBed = pat.bed_number;
-    const patFloor = getFloorNumber(patBed);
-    const matchesFloor =
-      floorFilter === 'ALL'
-        ? true
-        : floorFilter === 'UNASSIGNED'
-          ? (!patBed || patBed === null)
-          : patFloor === Number(floorFilter);
-
-    return matchesSearch && matchesTab && matchesDoctor && matchesSeverity && matchesFloor;
+    const email = (pat.email || '').toLowerCase();
+    const address = (pat.address || '').toLowerCase();
+    return fullName.includes(term) || patientId.includes(term) || contact.includes(term) || email.includes(term) || address.includes(term);
   });
 
   return (
@@ -536,7 +441,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
               Patients Management
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 mt-1">
-              Live admissions, OPD queues, clinical diagnoses, and billing status for this branch.
+              Registered patient profiles linked to this hospital.
             </p>
           </div>
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
@@ -551,129 +456,15 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-teal-300 transition">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Patients</span>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-teal-50 text-teal-700 border-teal-200">
-              Total Roster
-            </span>
-          </div>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Branch Patients</p>
-          <h3 className="text-lg sm:text-xl font-bold text-slate-800 mt-0.5">{patients.length} Registered</h3>
-          <p className="text-xs text-slate-500 mt-1">Under care at this facility</p>
-        </div>
-
-        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-emerald-300 transition">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Admissions</span>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
-              In-Patients
-            </span>
-          </div>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Admitted in Wards</p>
-          <h3 className="text-lg sm:text-xl font-bold text-emerald-700 mt-0.5">{admittedCount} Admitted</h3>
-          <p className="text-xs text-emerald-600 mt-1">Occupying Hospital Beds</p>
-        </div>
-
-        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-amber-300 transition">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Out-Patients</span>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-amber-50 text-amber-700 border-amber-200">
-              OPD Queue
-            </span>
-          </div>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">OPD / Consultation</p>
-          <h3 className="text-lg sm:text-xl font-bold text-amber-700 mt-0.5">{opdCount} Active OPD</h3>
-          <p className="text-xs text-amber-600 mt-1">Consultation & Triage</p>
-        </div>
-
-        <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border border-slate-200/90 shadow-sm hover:border-blue-300 transition">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Discharged</span>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-blue-50 text-blue-700 border-blue-200">
-              Completed
-            </span>
-          </div>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-3">Discharged Patients</p>
-          <h3 className="text-lg sm:text-xl font-bold text-slate-800 mt-0.5">{dischargedCount} Recovered</h3>
-          <p className="text-xs text-slate-500 mt-1">Successful Treatments</p>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-slate-200">
-          {[
-            { id: 'ALL', label: 'All Patients', count: patients.length },
-            { id: 'Admitted', label: 'Admitted In-Patients', count: admittedCount },
-            { id: 'OPD', label: 'OPD / Consultation', count: opdCount },
-            { id: 'Discharged', label: 'Discharged / History', count: dischargedCount }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`py-2 px-3.5 rounded-xl font-bold text-xs transition cursor-pointer whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'bg-teal-600 text-white shadow-xs'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-              }`}
-            >
-              {tab.label} ({tab.count})
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="w-full sm:w-72">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search patient, ID, doctor, diagnosis..."
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white transition"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-            <select
-              value={floorFilter}
-              onChange={(e) => setFloorFilter(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 font-medium focus:outline-none focus:border-teal-600 cursor-pointer"
-            >
-              <option value="ALL">-- Select Floor (All) --</option>
-              <option value="1">Floor 1 (Beds 1 - 100)</option>
-              <option value="2">Floor 2 (Beds 101 - 200)</option>
-              <option value="3">Floor 3 (Beds 201 - 300)</option>
-              <option value="4">Floor 4 (Beds 301 - 400)</option>
-              <option value="5">Floor 5 (Beds 401 - 500)</option>
-              <option value="UNASSIGNED">Unassigned Beds</option>
-            </select>
-
-            <select
-              value={doctorFilter}
-              onChange={(e) => setDoctorFilter(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 focus:outline-none focus:border-teal-600 cursor-pointer"
-            >
-              <option value="ALL">-- Select Doctor (All) --</option>
-              {doctorsList.map((doc) => (
-                <option key={doc.id} value={doc.id}>{doc.name} ({doc.specialization || 'Doctor'})</option>
-              ))}
-            </select>
-
-            <select
-              value={severityFilter}
-              onChange={(e) => setSeverityFilter(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-700 focus:outline-none focus:border-teal-600 cursor-pointer"
-            >
-              <option value="ALL">-- Select Condition (All) --</option>
-              <option value="Critical">Critical</option>
-              <option value="Emergency">Emergency</option>
-              <option value="Urgent">Urgent</option>
-              <option value="Normal">Normal</option>
-            </select>
-          </div>
-        </div>
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+        <p className="text-sm font-semibold text-slate-700">{patients.length} registered patient profile(s) linked to this hospital</p>
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search patient name, ID, phone, email, address..."
+          className="w-full sm:w-96 px-3.5 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white transition"
+        />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
@@ -695,127 +486,33 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
               </button>
             </div>
           ) : (
-            <table className="w-full text-center text-xs text-slate-600 min-w-[850px]">
+            <table className="w-full text-center text-xs text-slate-600 min-w-[650px]">
               <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                 <tr>
-                  <th className="py-3.5 px-3 text-center">Patient Name & ID</th>
-                  <th className="py-3.5 px-3 text-center">Assigned Doctor</th>
-                  <th className="py-3.5 px-3 text-center">Bed & Floor</th>
-                  <th className="py-3.5 px-3 text-center">Symptoms & Diagnosis</th>
-                  <th className="py-3.5 px-3 text-center">CONTACT & EMAIL</th>
-                  <th className="py-3.5 px-3 text-center">Payment</th>
-                  <th className="py-3.5 px-3 text-center">Status</th>
-                  <th className="py-3.5 px-3 text-center">Actions</th>
+                  <th className="py-3.5 px-3">Patient Name & ID</th>
+                  <th className="py-3.5 px-3">Contact</th>
+                  <th className="py-3.5 px-3">Email</th>
+                  <th className="py-3.5 px-3">Address</th>
+                  <th className="py-3.5 px-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredPatients.slice(0, visibleCount).map((pat) => {
                   const emailLower = (pat.email || '').toLowerCase();
-                  const assignedDoc = doctorsList.find(d => Number(d.id) === Number(pat.doctor));
-                  const severity = pat.Condation || pat.condation || pat.condition || pat.symptoms_severity || 'Normal';
-
-                  const severityBadgeClass =
-                    severity === 'Critical' ? 'bg-rose-100 text-rose-800 border-rose-300 font-bold' :
-                    severity === 'Emergency' ? 'bg-red-100 text-red-800 border-red-300 font-bold' :
-                    severity === 'Urgent' ? 'bg-amber-100 text-amber-800 border-amber-300 font-bold' :
-                    'bg-emerald-50 text-emerald-700 border-emerald-200';
-
                   return (
                     <tr key={pat.id} className="hover:bg-slate-50/70 transition">
-                      <td className="py-3.5 px-3 text-center">
-                        <div className="font-bold text-slate-800 break-words">{pat.name || 'Patient'}</div>
-                        <div className="flex items-center justify-center gap-1.5 mt-0.5">
-                          <span className="font-mono text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                            {pat.patient_id || pat.uhid || `PAT-${pat.id}`}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-semibold">{pat.age ? `${pat.age}Y` : '-'} • {pat.Gender || pat.gender || 'Not Specified'}</span>
-                        </div>
+                      <td className="py-3.5 px-3">
+                        <div className="font-bold text-slate-800">{pat.name || 'Patient'}</div>
+                        <span className="font-mono text-[10px] font-bold text-teal-700">{pat.patient_id || `PAT-${pat.id}`}</span>
                       </td>
-
-                      <td className="py-3.5 px-3 text-center">
-                        <div className="font-semibold text-slate-800">{assignedDoc?.name || pat.doctor_name || 'Dr. Consultant'}</div>
-                        <span className="text-[10px] text-teal-700 block mt-0.5">{assignedDoc?.specialization || 'General'}</span>
-                      </td>
-
-                      <td className="py-3.5 px-3 text-center">
-                        {pat.bed_number ? (
-                          <div className="flex flex-col items-center justify-center gap-0.5">
-                            <span className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                              Bed #{pat.bed_number}
-                            </span>
-                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-100">
-                              {pat.floor || `Floor ${Math.floor((pat.bed_number - 1) / 100) + 1}`}
-                            </span>
-                            {pat.nurse_name && (
-                              <span className="text-[9px] text-emerald-700 font-semibold truncate max-w-[130px]" title={`Assigned Nurse: ${pat.nurse_name}`}>
-                                {pat.nurse_name}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center">
-                            <span className="text-xs text-slate-400 font-medium">Unassigned</span>
-                            <span className="text-[9px] text-slate-400">No Bed</span>
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-center">
-                        <div className="text-slate-700 max-w-[180px] mx-auto truncate font-medium">{pat.symptoms_diagnosis || 'General Consultation'}</div>
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] border inline-block mt-0.5 ${severityBadgeClass}`}>
-                          {severity}
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-4 text-center">
-                        <div className="flex flex-col items-center justify-center gap-0.5">
-                          <span className="font-bold text-slate-800 text-xs">
-                            {pat.contact || pat.phone || '-'}
-                          </span>
-                          {emailLower ? (
-                            <a
-                              href={`mailto:${emailLower}`}
-                              title={`Send email to ${emailLower}`}
-                              className="text-[11px] text-sky-700 hover:text-sky-900 hover:underline block lowercase transition truncate max-w-[180px]"
-                            >
-                              {emailLower}
-                            </a>
-                          ) : (
-                            <span className="text-[11px] text-slate-400">-</span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4 text-center">
-                        <div className="flex flex-col items-center justify-center gap-0.5">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                            pat.payment_status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                            pat.payment_status === 'Partial' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                            'bg-rose-50 text-rose-700 border-rose-200'
-                          }`}>
-                            {pat.payment_status || 'Paid'} • ₹{pat.amount_paid || (Number(pat.consultation_fee || 0) + Number(pat.Hospitals_Chargies || pat.hospital_charges || 0)) || 500}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-medium">
-                            Doc: ₹{pat.consultation_fee ?? 0} | Hosp: ₹{pat.Hospitals_Chargies ?? pat.hospital_charges ?? 0}
-                          </span>
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          (pat.status || '').toLowerCase().includes('admit') ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                          (pat.status || '').toLowerCase().includes('discharg') ? 'bg-slate-100 text-slate-700 border-slate-300' :
-                          'bg-teal-50 text-teal-700 border-teal-200'
-                        }`}>
-                          {pat.status || 'Admitted'}
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3.5 px-4">{pat.contact || pat.phone || '-'}</td>
+                      <td className="py-3.5 px-4">{emailLower ? <a href={`mailto:${emailLower}`} className="text-sky-700 hover:underline">{emailLower}</a> : '-'}</td>
+                      <td className="py-3.5 px-4">{pat.address || '-'}</td>
+                      <td className="py-3.5 px-4">
                         <button
                           type="button"
                           onClick={() => handleViewPatientDetails(pat)}
-                          className="px-3.5 py-1.5 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white font-bold text-xs transition cursor-pointer border border-teal-200 inline-flex items-center justify-center gap-1 shadow-2xs"
+                          className="px-3.5 py-1.5 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white font-bold text-xs transition cursor-pointer border border-teal-200"
                         >
                           Details &rarr;
                         </button>
@@ -847,7 +544,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
                 <h2 className="text-base sm:text-lg font-bold text-slate-800">Register New Patient</h2>
-                <p className="text-xs text-slate-500">Add patient profile, doctor consultation fee, payment details, and branch.</p>
+                <p className="text-xs text-slate-500">Add a patient profile for this hospital.</p>
               </div>
               <button
                 type="button"

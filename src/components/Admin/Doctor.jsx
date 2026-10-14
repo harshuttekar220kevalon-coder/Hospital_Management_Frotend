@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
 const asArray = (value) => Array.isArray(value) ? value : (value?.results || value?.data || []);
