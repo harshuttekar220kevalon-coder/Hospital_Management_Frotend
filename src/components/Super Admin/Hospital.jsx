@@ -30,6 +30,8 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
   const initialFormData = {
     Name: '',
     Branch_Code: '',
+    established_year: '',
+    emergency_contact: '',
     city: '',
     area: '',
     address: '',
@@ -106,9 +108,24 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
 
   const handleCreateHospital = async (e) => {
     e.preventDefault();
+    if (!formData.contact || formData.contact.trim().length !== 10) {
+      alert('Contact phone number must be exactly 10 digits.');
+      return;
+    }
+    const cleanEmergency = (formData.emergency_contact || '').replace(/\D/g, '').slice(0, 12);
+    if (formData.emergency_contact && (cleanEmergency.length < 10 || cleanEmergency.length > 12)) {
+      alert('Emergency contact number must be between 10 and 12 digits.');
+      return;
+    }
+    if (!formData.email || !formData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert('Official email must be a valid @gmail.com address.');
+      return;
+    }
     try {
       const payload = {
         Name: formData.Name.trim(),
+        established_year: (formData.established_year || '').trim(),
+        emergency_contact: cleanEmergency,
         city: formData.city.trim(),
         area: formData.area.trim(),
         address: formData.address.trim(),
@@ -132,22 +149,32 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      let data = null;
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await response.json().catch(() => null);
+      } else {
+        const rawText = await response.text().catch(() => '');
+        console.error('Non-JSON server response:', response.status, rawText);
+        data = { detail: `Server error (${response.status}): Invalid response format.` };
+      }
 
       if (response.ok) {
         alert('Hospital branch added successfully!');
         setIsAddModalOpen(false);
         fetchHospitals();
       } else {
-        alert('Error: ' + JSON.stringify(data));
+        const errDetail = data?.detail || (typeof data === 'object' ? JSON.stringify(data) : String(data || 'Failed to save hospital.'));
+        alert('Error: ' + errDetail);
       }
     } catch (error) {
       console.error('Error creating hospital:', error);
-      alert('Network error while saving hospital.');
+      alert('Error while saving hospital: ' + (error.message || 'Network error.'));
     }
   };
 
@@ -156,6 +183,8 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
     setFormData({
       Name: hosp.Name || '',
       Branch_Code: hosp.Branch_Code || '',
+      established_year: hosp.established_year || '',
+      emergency_contact: hosp.emergency_contact || '',
       city: hosp.city || '',
       area: hosp.area || '',
       address: hosp.address || '',
@@ -180,11 +209,26 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
   const handleUpdateHospital = async (e) => {
     e.preventDefault();
     if (!selectedHospital) return;
+    if (!formData.contact || formData.contact.trim().length !== 10) {
+      alert('Contact phone number must be exactly 10 digits.');
+      return;
+    }
+    const cleanEmergency = (formData.emergency_contact || '').replace(/\D/g, '').slice(0, 12);
+    if (formData.emergency_contact && (cleanEmergency.length < 10 || cleanEmergency.length > 12)) {
+      alert('Emergency contact number must be between 10 and 12 digits.');
+      return;
+    }
+    if (!formData.email || !formData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert('Official email must be a valid @gmail.com address.');
+      return;
+    }
 
     try {
       const payload = {
         Name: formData.Name.trim(),
         Branch_Code: formData.Branch_Code.trim(),
+        established_year: (selectedHospital.established_year || formData.established_year || '').trim(),
+        emergency_contact: cleanEmergency,
         city: formData.city.trim(),
         area: formData.area.trim(),
         address: formData.address.trim(),
@@ -204,11 +248,20 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      let data = null;
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await response.json().catch(() => null);
+      } else {
+        const rawText = await response.text().catch(() => '');
+        console.error('Non-JSON server response:', response.status, rawText);
+        data = { detail: `Server error (${response.status}): Invalid response format.` };
+      }
 
       if (response.ok) {
         alert('Hospital branch updated successfully!');
@@ -218,11 +271,12 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
           setDetailHospital(data);
         }
       } else {
-        alert('Error: ' + JSON.stringify(data));
+        const errDetail = data?.detail || (typeof data === 'object' ? JSON.stringify(data) : String(data || 'Failed to update hospital.'));
+        alert('Error: ' + errDetail);
       }
     } catch (error) {
       console.error('Error updating hospital:', error);
-      alert('Network error while updating hospital.');
+      alert('Error while updating hospital: ' + (error.message || 'Network error.'));
     }
   };
 
@@ -499,16 +553,29 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
 
             <form onSubmit={handleCreateHospital} className="space-y-4 text-xs">
               {/* Branch Identity */}
-              <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.Name}
-                  onChange={(e) => setFormData({ ...formData, Name: e.target.value })}
-                  placeholder="e.g. Apex Multi-Specialty Centre"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.Name}
+                    onChange={(e) => setFormData({ ...formData, Name: e.target.value })}
+                    placeholder="Enter hospital name"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Established Year</label>
+                  <input
+                    type="text"
+                    maxLength={10}
+                    value={formData.established_year}
+                    onChange={(e) => setFormData({ ...formData, established_year: e.target.value })}
+                    placeholder="Enter established year"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
+                  />
+                </div>
               </div>
 
               {/* Location & Contact */}
@@ -520,7 +587,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                     required
                     value={formData.city}
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    placeholder="e.g. Surat"
+                    placeholder="Enter city"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -531,7 +598,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                     required
                     value={formData.area}
                     onChange={(e) => setFormData({ ...formData, area: e.target.value })}
-                    placeholder="e.g. Adajan"
+                    placeholder="Enter area"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -544,12 +611,12 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                   required
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="Complete street address with landmark and PIN code"
+                  placeholder="Enter street address"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
@@ -560,7 +627,20 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                     required
                     value={formData.contact}
                     onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
-                    placeholder="e.g. 9876543210"
+                    placeholder="Enter contact number"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Emergency Contact</label>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]{10,12}"
+                    maxLength={12}
+                    value={formData.emergency_contact}
+                    onChange={(e) => setFormData({ ...formData, emergency_contact: e.target.value.replace(/\D/g, '').slice(0, 12) })}
+                    placeholder="Enter emergency contact"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
@@ -571,7 +651,9 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="branch@hospital.org"
+                    placeholder="Enter email address"
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -590,7 +672,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                       min="0"
                       value={formData.total_beds}
                       onChange={(e) => setFormData({ ...formData, total_beds: e.target.value })}
-                      placeholder="0"
+                      placeholder="Enter total beds"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                     />
                   </div>
@@ -601,7 +683,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                       min="0"
                       value={formData.icu_beds}
                       onChange={(e) => setFormData({ ...formData, icu_beds: e.target.value })}
-                      placeholder="0"
+                      placeholder="Enter ICU beds"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                     />
                   </div>
@@ -612,7 +694,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                       min="0"
                       value={formData.nicu_beds}
                       onChange={(e) => setFormData({ ...formData, nicu_beds: e.target.value })}
-                      placeholder="0"
+                      placeholder="Enter NICU beds"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                     />
                   </div>
@@ -623,7 +705,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                       min="0"
                       value={formData.operation_theatres}
                       onChange={(e) => setFormData({ ...formData, operation_theatres: e.target.value })}
-                      placeholder="0"
+                      placeholder="Enter operation theatres"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                     />
                   </div>
@@ -634,7 +716,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                       min="0"
                       value={formData.restroom_for_relatives}
                       onChange={(e) => setFormData({ ...formData, restroom_for_relatives: e.target.value })}
-                      placeholder="0"
+                      placeholder="Enter restrooms count"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                     />
                   </div>
@@ -645,7 +727,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                       min="0"
                       value={formData.ambulances_count}
                       onChange={(e) => setFormData({ ...formData, ambulances_count: e.target.value })}
-                      placeholder="0"
+                      placeholder="Enter ambulances count"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                     />
                   </div>
@@ -661,7 +743,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                   type="text"
                   value={formData.departments}
                   onChange={(e) => setFormData({ ...formData, departments: e.target.value })}
-                  placeholder="Cardiology, Neurology, Orthopedics, Emergency, Pediatrics, Oncology"
+                  placeholder="Enter clinical departments"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
@@ -721,13 +803,14 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
             <form onSubmit={handleUpdateHospital} className="space-y-4 text-xs">
               {/* Branch Identity */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
+                <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital Name *</label>
                   <input
                     type="text"
                     required
                     value={formData.Name}
                     onChange={(e) => setFormData({ ...formData, Name: e.target.value })}
+                    placeholder="Enter hospital name"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -736,9 +819,21 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                   <input
                     type="text"
                     readOnly
+                    disabled
                     tabIndex={-1}
                     value={formData.Branch_Code || (selectedHospital && selectedHospital.Branch_Code) || `HOSP-${selectedHospital?.id}`}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono text-xs cursor-not-allowed select-none focus:outline-none uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Established Year (Permanent)</label>
+                  <input
+                    type="text"
+                    readOnly
+                    disabled
+                    tabIndex={-1}
+                    value={formData.established_year || selectedHospital?.established_year || 'Not Specified'}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-medium text-xs cursor-not-allowed select-none focus:outline-none"
                   />
                 </div>
               </div>
@@ -752,6 +847,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                     required
                     value={formData.city}
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    placeholder="Enter city"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -762,6 +858,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                     required
                     value={formData.area}
                     onChange={(e) => setFormData({ ...formData, area: e.target.value })}
+                    placeholder="Enter area"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -774,11 +871,12 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                   required
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder="Enter street address"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
@@ -789,7 +887,20 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                     required
                     value={formData.contact}
                     onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
-                    placeholder="e.g. 9876543210"
+                    placeholder="Enter contact number"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Emergency Contact</label>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]{10,12}"
+                    maxLength={12}
+                    value={formData.emergency_contact}
+                    onChange={(e) => setFormData({ ...formData, emergency_contact: e.target.value.replace(/\D/g, '').slice(0, 12) })}
+                    placeholder="Enter emergency contact"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
@@ -800,6 +911,9 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="Enter email address"
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -818,7 +932,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                       min="0"
                       value={formData.total_beds}
                       onChange={(e) => setFormData({ ...formData, total_beds: e.target.value })}
-                      placeholder="0"
+                      placeholder="Enter total beds"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                     />
                   </div>
@@ -829,7 +943,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                       min="0"
                       value={formData.icu_beds}
                       onChange={(e) => setFormData({ ...formData, icu_beds: e.target.value })}
-                      placeholder="0"
+                      placeholder="Enter ICU beds"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                     />
                   </div>
@@ -840,7 +954,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                       min="0"
                       value={formData.nicu_beds}
                       onChange={(e) => setFormData({ ...formData, nicu_beds: e.target.value })}
-                      placeholder="0"
+                      placeholder="Enter NICU beds"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                     />
                   </div>
@@ -851,7 +965,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                       min="0"
                       value={formData.operation_theatres}
                       onChange={(e) => setFormData({ ...formData, operation_theatres: e.target.value })}
-                      placeholder="0"
+                      placeholder="Enter operation theatres"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                     />
                   </div>
@@ -862,7 +976,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                       min="0"
                       value={formData.restroom_for_relatives}
                       onChange={(e) => setFormData({ ...formData, restroom_for_relatives: e.target.value })}
-                      placeholder="0"
+                      placeholder="Enter restrooms count"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                     />
                   </div>
@@ -873,7 +987,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                       min="0"
                       value={formData.ambulances_count}
                       onChange={(e) => setFormData({ ...formData, ambulances_count: e.target.value })}
-                      placeholder="0"
+                      placeholder="Enter ambulances count"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                     />
                   </div>
@@ -889,7 +1003,7 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                   type="text"
                   value={formData.departments}
                   onChange={(e) => setFormData({ ...formData, departments: e.target.value })}
-                  placeholder="Cardiology, Neurology, Orthopedics, Emergency, Pediatrics, Oncology"
+                  placeholder="Enter clinical departments"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
@@ -963,8 +1077,16 @@ const Hospital = ({ currentUser, setCurrentPage, setSelectedHospital: setSelecte
                 <p className="text-sm font-bold text-slate-800 mt-0.5">{detailHospital.city} / {detailHospital.area}</p>
               </div>
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
-                <p className="text-[10px] text-slate-400 uppercase font-semibold">Contact Details</p>
-                <p className="text-sm font-bold text-sky-700 mt-0.5">{detailHospital.contact}</p>
+                <p className="text-[10px] text-slate-400 uppercase font-semibold">Established Year</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{detailHospital.established_year || '-'}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                <p className="text-[10px] text-slate-400 uppercase font-semibold">Reception Contact</p>
+                <p className="text-sm font-bold text-sky-700 mt-0.5">{detailHospital.contact || '-'}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                <p className="text-[10px] text-slate-400 uppercase font-semibold">Emergency Contact</p>
+                <p className="text-sm font-bold text-rose-600 mt-0.5">{detailHospital.emergency_contact || '-'}</p>
               </div>
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 col-span-1 sm:col-span-2">
                 <p className="text-[10px] text-slate-400 uppercase font-semibold">Official Email</p>

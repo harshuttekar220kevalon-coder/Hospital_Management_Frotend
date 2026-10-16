@@ -66,13 +66,13 @@ const Staf_Signin = ({ setCurrentPage }) => {
   };
 
   // Check if hospital selection is strictly required based on role (Optional for Receptionists)
-  const isHospitalRequiredRole = 
+  const isHospitalRequiredRole =
     formData.Select_User === 'ADMIN' ||
-    formData.Select_User === 'DOCTOR' || 
+    formData.Select_User === 'DOCTOR' ||
     formData.Select_User === 'NURSES';
 
-  const showHospitalSelection = 
-    isHospitalRequiredRole || 
+  const showHospitalSelection =
+    isHospitalRequiredRole ||
     formData.Select_User === 'RECEPTIONISTS';
 
   const handleSubmit = async (e) => {
@@ -113,16 +113,16 @@ const Staf_Signin = ({ setCurrentPage }) => {
       return;
     }
 
-    if (!mail) {
-      const msg = 'Please enter a valid email address.';
+    if (!mail || !mail.toLowerCase().endsWith('@gmail.com')) {
+      const msg = 'Email must be a valid @gmail.com address.';
       setErrorMessage(msg);
       alert(msg);
       setLoading(false);
       return;
     }
 
-    if (!contact) {
-      const msg = 'Please enter a valid contact phone number.';
+    if (!contact || contact.length !== 10) {
+      const msg = 'Phone number must be exactly 10 digits.';
       setErrorMessage(msg);
       alert(msg);
       setLoading(false);
@@ -149,14 +149,13 @@ const Staf_Signin = ({ setCurrentPage }) => {
       const selectedHospId = hospitalVal ? Number(hospitalVal) : null;
       const fullName = `${first} ${last}`.trim();
 
-      // Complete Payload supporting all backend serializer field formats for Contact & Hospital
+      // Save strictly only details present in registration form (no static or dummy defaults)
       const staffRegistration = roleVal === 'ADMIN'
         ? {
           endpoint: 'Admins',
           payload: {
             name: fullName,
             hospital: selectedHospId,
-            designation: 'Hospital Administrator',
             contact,
             email: mail,
             password: pass,
@@ -165,57 +164,46 @@ const Staf_Signin = ({ setCurrentPage }) => {
           }
         }
         : roleVal === 'DOCTOR'
-        ? {
-          endpoint: 'Doctors',
-          payload: {
-            name: fullName.startsWith('Dr.') ? fullName : `Dr. ${fullName}`,
-            doctor_id: `DOC-${Math.floor(1000 + Math.random() * 9000)}`,
-            hospitals: selectedHospId ? [selectedHospId] : [],
-            specialization: 'General Medicine',
-            Shifts: 'Morning First Shift',
-            phone: contact,
-            email: mail,
-            password: pass,
-            status: 'Available',
-            is_active: true,
-            is_approved: false
-          }
-        }
-        : roleVal === 'NURSES'
           ? {
-            endpoint: 'Nurses',
+            endpoint: 'Doctors',
             payload: {
-              name: fullName,
-              nurse_id: `NUR-${Math.floor(1000 + Math.random() * 9000)}`,
-              hospital: selectedHospId,
-              role: 'Staff Nurse',
-              ward: 'General Ward',
-              shift: 'Morning First Shift',
-              contact,
+              name: fullName.startsWith('Dr.') ? fullName : `Dr. ${fullName}`,
+              doctor_id: `DOC-${Math.floor(1000 + Math.random() * 9000)}`,
+              hospitals: selectedHospId ? [selectedHospId] : [],
+              phone: contact,
               email: mail,
               password: pass,
-              status: 'On_Duty',
               is_active: true,
               is_approved: false
             }
           }
-          : {
-            endpoint: 'Receptionists',
-            payload: {
-              name: fullName,
-              receptionist_id: `REC-${Math.floor(1000 + Math.random() * 9000)}`,
-              hospital: selectedHospId,
-              role: 'Front Desk Receptionist',
-              shift: 'Morning First Shift',
-              languages: 'English',
-              contact,
-              email: mail,
-              password: pass,
-              status: 'On_Duty',
-              is_active: true,
-              is_approved: false
+          : roleVal === 'NURSES'
+            ? {
+              endpoint: 'Nurses',
+              payload: {
+                name: fullName,
+                nurse_id: `NUR-${Math.floor(1000 + Math.random() * 9000)}`,
+                hospital: selectedHospId,
+                contact,
+                email: mail,
+                password: pass,
+                is_active: true,
+                is_approved: false
+              }
             }
-          };
+            : {
+              endpoint: 'Receptionists',
+              payload: {
+                name: fullName,
+                receptionist_id: `REC-${Math.floor(1000 + Math.random() * 9000)}`,
+                hospital: selectedHospId,
+                contact,
+                email: mail,
+                password: pass,
+                is_active: true,
+                is_approved: false
+              }
+            };
 
       const staffResponse = await fetch(`${API_BASE_URL}/super-admin/${staffRegistration.endpoint}/`, {
         method: 'POST',
@@ -236,7 +224,9 @@ const Staf_Signin = ({ setCurrentPage }) => {
       if (mail && selectedHospId) localStorage.setItem(`user_hospital_${mail.toLowerCase()}`, String(selectedHospId));
       const registeredRole = roleVal === 'ADMIN' ? 'Hospital Admin' : roleVal === 'DOCTOR' ? 'Doctor' : roleVal === 'NURSES' ? 'Nurse' : 'Receptionist';
       localStorage.setItem(`user_role_${mail.toLowerCase()}`, registeredRole);
-      alert('Registration received. You can log in now, but your dashboard and profile will stay locked until Super Admin approval.');
+      alert(roleVal === 'ADMIN'
+        ? 'Registration received. You can log in now, but your dashboard will remain locked until Super Admin approval.'
+        : 'Registration received. You can log in now, but your dashboard will remain locked until your Branch Hospital Admin approval.');
       if (setCurrentPage) setCurrentPage('login');
       return;
     } catch (error) {
@@ -330,7 +320,6 @@ const Staf_Signin = ({ setCurrentPage }) => {
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150 cursor-pointer font-medium"
             >
               <option value="">-- Select User --</option>
-              <option value="ADMIN">Admin</option>
               <option value="DOCTOR">Doctor</option>
               <option value="NURSES">Nurse</option>
               <option value="RECEPTIONISTS">Receptionist</option>
@@ -359,9 +348,9 @@ const Staf_Signin = ({ setCurrentPage }) => {
               </select>
               <p className="text-[11px] text-teal-700 mt-1 font-medium">
                 {formData.Select_User === 'ADMIN' ? 'Select the hospital this administrator account will manage.' :
-                 formData.Select_User === 'DOCTOR' ? 'Select the primary hospital for your clinical OPD & patient consultations.' :
-                 formData.Select_User === 'NURSES' ? 'Select the hospital where you will be assigned ward & floor duty.' :
-                 'Select the hospital desk where you work (optional - you can still access reception dashboard if unassigned).'}
+                  formData.Select_User === 'DOCTOR' ? 'Select the primary hospital for your clinical OPD & patient consultations.' :
+                    formData.Select_User === 'NURSES' ? 'Select the hospital where you will be assigned ward & floor duty.' :
+                      'Select the hospital desk where you work (optional - you can still access reception dashboard if unassigned).'}
               </p>
             </div>
           )}
@@ -380,6 +369,8 @@ const Staf_Signin = ({ setCurrentPage }) => {
                 onChange={handleChange}
                 placeholder="Enter email address"
                 required
+                pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                title="Email must be a valid @gmail.com address"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150"
               />
             </div>
@@ -456,10 +447,10 @@ const Staf_Signin = ({ setCurrentPage }) => {
                   required
                   minLength={6}
                   className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border ${formData.confirm_password && formData.password !== formData.confirm_password
-                      ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20'
-                      : formData.confirm_password && formData.password === formData.confirm_password
-                        ? 'border-emerald-400 focus:border-emerald-500 focus:ring-emerald-500/20'
-                        : 'border-slate-300 focus:border-teal-600 focus:ring-teal-600/20'
+                    ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20'
+                    : formData.confirm_password && formData.password === formData.confirm_password
+                      ? 'border-emerald-400 focus:border-emerald-500 focus:ring-emerald-500/20'
+                      : 'border-slate-300 focus:border-teal-600 focus:ring-teal-600/20'
                     } bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 transition duration-150`}
                 />
                 <button

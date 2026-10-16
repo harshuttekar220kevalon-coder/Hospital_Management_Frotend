@@ -33,8 +33,8 @@ const ResetPassword = ({ setCurrentPage }) => {
     const confirmPass = (formData.confirmPassword || '').trim();
 
     // 1. Basic validation
-    if (!normalizedEmail) {
-      setErrorMsg('Please enter your registered email address.');
+    if (!normalizedEmail || !normalizedEmail.endsWith('@gmail.com')) {
+      setErrorMsg('Please enter a valid registered @gmail.com address.');
       return;
     }
 
@@ -220,8 +220,10 @@ const ResetPassword = ({ setCurrentPage }) => {
               autoComplete="off"
               value={formData.email}
               onChange={handleChange}
-              placeholder="Type your registered email (e.g. user@hospital.com)"
+              placeholder="Enter registered email"
               required
+              pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+              title="Email must be a valid @gmail.com address"
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-600/20 transition duration-150"
             />
             <p className="text-[11px] text-slate-400 mt-1">
@@ -248,7 +250,7 @@ const ResetPassword = ({ setCurrentPage }) => {
               autoComplete="new-password"
               value={formData.newPassword}
               onChange={handleChange}
-              placeholder="Enter new password (min 6 characters)"
+              placeholder="Enter new password"
               required
               minLength={6}
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-600/20 transition duration-150"

@@ -12,15 +12,15 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
   const [editFormData, setEditFormData] = useState({
     name: '',
     nurse_id: '',
-    role: 'Staff Nurse',
-    ward: 'General Ward',
-    shift: 'Morning (08:00 AM - 04:00 PM)',
+    role: '',
+    ward: '',
+    shift: '',
     qualification: '',
     experience: '',
     contact: '',
     email: '',
     password: '',
-    status: 'On_Duty',
+    status: '',
     is_active: true,
     max_patient_capacity: '',
     assigned_floor: '',
@@ -131,21 +131,21 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
         }
       }
 
-      let rawRole = (activeNurse.role && activeNurse.role.trim()) || (activeNurse.nurse_role && activeNurse.nurse_role.trim()) || currentUser?.role || 'Staff Nurse';
-      const resolvedRole = rolesList.includes(rawRole) ? rawRole : (rawRole.toLowerCase().includes('head') ? 'Head Nurse' : 'Staff Nurse');
+      let rawRole = (activeNurse.role && activeNurse.role.trim()) || (activeNurse.nurse_role && activeNurse.nurse_role.trim()) || '';
+      const resolvedRole = rolesList.includes(rawRole) ? rawRole : (rawRole ? (rawRole.toLowerCase().includes('head') ? 'Head Nurse' : 'Staff Nurse') : '');
 
       setEditFormData({
         name: activeNurse.name || currentUser?.name || '',
         nurse_id: activeNurse.nurse_id || (activeNurse.id ? `NUR-${activeNurse.id}` : (currentUser?.nurse_id || '')),
         role: resolvedRole,
-        ward: activeNurse.ward || 'General Ward',
-        shift: activeNurse.shift || 'Morning (08:00 AM - 04:00 PM)',
+        ward: activeNurse.ward || '',
+        shift: activeNurse.shift || '',
         qualification: activeNurse.qualification || '',
         experience: activeNurse.experience || '',
         contact: activeNurse.contact || activeNurse.phone || currentUser?.contact || '',
         email: activeNurse.email || currentUser?.email || '',
         password: activeNurse.password || '',
-        status: activeNurse.status || 'On_Duty',
+        status: activeNurse.status || '',
         is_active: activeNurse.is_active !== undefined ? Boolean(activeNurse.is_active) : true,
         max_patient_capacity: activeNurse.max_patient_capacity !== undefined && activeNurse.max_patient_capacity !== null ? activeNurse.max_patient_capacity : '',
         assigned_floor: activeNurse.assigned_floor !== undefined && activeNurse.assigned_floor !== null ? activeNurse.assigned_floor : '',
@@ -170,9 +170,7 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     let finalValue = type === 'checkbox' ? checked : value;
-    if (name === 'role' && (!finalValue || finalValue.trim() === '')) {
-      finalValue = currentUser?.role || 'Staff Nurse';
-    } else if (name === 'contact' || name === 'phone') {
+    if (name === 'contact' || name === 'phone') {
       finalValue = String(value).replace(/\D/g, '').slice(0, 10);
     }
     setEditFormData(prev => ({
@@ -185,6 +183,15 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
+    const cleanPhone = (editFormData.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      setSaveErrorMsg("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (!editFormData.email || !editFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      setSaveErrorMsg("Email must be a valid @gmail.com address.");
+      return;
+    }
     try {
       setSavingProfile(true);
       setSaveSuccessMsg('');
@@ -199,17 +206,17 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
       const payload = {
         name: editFormData.name.trim(),
         email: editFormData.email.trim(),
-        contact: editFormData.contact.trim(),
-        phone: editFormData.contact.trim(),
-        role: rolesList.includes(editFormData.role) ? editFormData.role : 'Staff Nurse',
-        ward: editFormData.ward,
-        shift: editFormData.shift,
-        qualification: editFormData.qualification.trim(),
-        experience: editFormData.experience.trim(),
-        status: editFormData.status,
+        contact: cleanPhone,
+        phone: cleanPhone,
+        role: editFormData.role ? editFormData.role.trim() : '',
+        ward: editFormData.ward || '',
+        shift: editFormData.shift || '',
+        qualification: (editFormData.qualification || '').trim(),
+        experience: (editFormData.experience || '').trim(),
+        status: editFormData.status || '',
         is_active: Boolean(editFormData.is_active),
-        max_patient_capacity: Number(editFormData.max_patient_capacity) || 50,
-        assigned_floor: Number(editFormData.assigned_floor) || 1,
+        max_patient_capacity: editFormData.max_patient_capacity !== '' && !isNaN(Number(editFormData.max_patient_capacity)) ? Number(editFormData.max_patient_capacity) : null,
+        assigned_floor: editFormData.assigned_floor !== '' && !isNaN(Number(editFormData.assigned_floor)) ? Number(editFormData.assigned_floor) : null,
         hospital: registeredHospitalId ? Number(registeredHospitalId) : null
       };
 
@@ -331,7 +338,7 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
+    <div className="w-full bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
       {/* HEADER BAR */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
         <div className="w-full px-4 sm:px-8 lg:px-12">
@@ -394,7 +401,7 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-6 sm:py-8 space-y-6">
+      <div className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-6 sm:py-8 space-y-6">
         {saveSuccessMsg && (
           <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 shadow-xs">
             <span>✓</span>
@@ -419,7 +426,7 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                 </div>
                 <h3 className="text-base font-bold text-slate-900">{editFormData.name || currentUser?.name || 'Nurse'}</h3>
                 <p className="text-xs text-emerald-700 font-semibold mt-0.5">
-                  {editFormData.role || currentUser?.role || 'Staff Nurse'} • {editFormData.ward || 'General Ward'}
+                  {editFormData.role || 'Role not assigned'}{editFormData.ward ? ` • ${editFormData.ward}` : ''}
                 </p>
 
                 <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2 text-xs">
@@ -432,20 +439,20 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Assigned Floor:</span>
                     <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      {editFormData.assigned_floor !== '' && editFormData.assigned_floor !== undefined ? `Floor ${editFormData.assigned_floor}` : 'Floor 1'}
+                      {editFormData.assigned_floor !== '' && editFormData.assigned_floor !== undefined && editFormData.assigned_floor !== null ? `Floor ${editFormData.assigned_floor}` : 'Not Assigned'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Max Capacity:</span>
                     <span className="font-semibold text-slate-800">
-                      {editFormData.max_patient_capacity !== '' && editFormData.max_patient_capacity !== undefined ? `${editFormData.max_patient_capacity} Patients` : 'Not Provided'}
+                      {editFormData.max_patient_capacity !== '' && editFormData.max_patient_capacity !== undefined && editFormData.max_patient_capacity !== null ? `${editFormData.max_patient_capacity} Patients` : 'Not Provided'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Duty Status:</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${editFormData.status === 'On_Duty' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
                       }`}>
-                      {editFormData.status || 'Not Provided'}
+                      {editFormData.status ? (editFormData.status === 'On_Duty' ? 'On Duty' : 'Off Duty') : 'Not Set'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
@@ -515,10 +522,12 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                       <input
                         type="email"
                         name="email"
+                        pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                        title="Email must be a valid @gmail.com address"
                         value={editFormData.email}
                         onChange={handleInputChange}
                         required
-                        placeholder="nurse@hospital.com"
+                        placeholder="nurse@gmail.com"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition"
                       />
                     </div>
@@ -545,15 +554,15 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                     {/* 5. ROLE */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Role <span className="text-rose-500">*</span>
+                        Role
                       </label>
                       <select
                         name="role"
-                        value={editFormData.role || 'Staff Nurse'}
+                        value={editFormData.role || ''}
                         onChange={handleInputChange}
-                        required
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 font-semibold focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition cursor-pointer"
                       >
+                        <option value="">-- Select Role --</option>
                         {rolesList.map(r => (
                           <option key={r} value={r}>{r}</option>
                         ))}
@@ -563,13 +572,13 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                     {/* 6. WARD */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Ward <span className="text-rose-500">*</span>
+                        Ward
                       </label>
                       <select
                         name="ward"
-                        value={editFormData.ward}
+                        value={editFormData.ward || ''}
                         onChange={handleInputChange}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition cursor-pointer"
                       >
                         <option value="">-- Select Ward --</option>
                         {wardsList.map(w => (
@@ -585,9 +594,9 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                       </label>
                       <select
                         name="shift"
-                        value={editFormData.shift}
+                        value={editFormData.shift || ''}
                         onChange={handleInputChange}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition cursor-pointer"
                       >
                         <option value="">-- Select Shift --</option>
                         {shiftsList.map(s => (
@@ -599,14 +608,15 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                     {/* 8. STATUS (AVAILABILITY) */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Status (Availability) <span className="text-rose-500">*</span>
+                        Status (Availability)
                       </label>
                       <select
                         name="status"
-                        value={editFormData.status === 'Off_Duty' || editFormData.status === 'Off Duty' ? 'Off_Duty' : 'On_Duty'}
+                        value={editFormData.status || ''}
                         onChange={handleInputChange}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition cursor-pointer"
                       >
+                        <option value="">-- Select Status --</option>
                         <option value="On_Duty">On Duty</option>
                         <option value="Off_Duty">Off Duty</option>
                       </select>
@@ -674,14 +684,14 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                       />
                     </div>
 
-                    {/* 13. HOSPITAL (LOCKED TO REGISTERED HOSPITAL ONLY) */}
+                    {/* 13. HOSPITAL (LOCKED) */}
                     <div className="sm:col-span-2">
                       <div className="flex items-center justify-between mb-1.5">
                         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                           Hospital <span className="text-rose-500">*</span>
                         </label>
                         <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-flex items-center gap-1">
-                          🔒 Registered Hospital (Non-editable)
+                          🔒 Locked (Non-editable)
                         </span>
                       </div>
                       <input
@@ -692,7 +702,7 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm font-semibold text-slate-700 cursor-not-allowed select-none"
                       />
                       <p className="text-[11px] text-slate-500 mt-1">
-                        🔒 Hospital registration ke time select kiya gaya tha aur ise change nahi kiya ja sakta.
+                        🔒 Hospital assignment is managed by Hospital Admin and cannot be changed here.
                       </p>
                     </div>
 
@@ -809,7 +819,7 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                     type={showNewPassword ? 'text' : 'password'}
                     value={passwordForm.newPassword}
                     onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
-                    placeholder="Enter new password (max 12 chars)"
+                    placeholder="Enter new password"
                     maxLength="12"
                     required
                     className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 transition"
@@ -867,7 +877,7 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
             </form>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 };

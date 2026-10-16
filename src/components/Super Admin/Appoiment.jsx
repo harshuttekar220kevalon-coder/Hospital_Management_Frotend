@@ -422,6 +422,16 @@ const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatien
       return;
     }
 
+    const cleanPhone = (bookFormData.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (bookFormData.contact && cleanPhone.length !== 10) {
+      alert("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (bookFormData.email && !bookFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert("Email must be a valid @gmail.com address.");
+      return;
+    }
+
     try {
       setIsBooking(true);
       const selectedDoc = doctorsList.find(d => Number(d.id) === Number(bookFormData.doctor));
@@ -433,8 +443,8 @@ const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatien
         patient_name: bookFormData.patient_name.trim(),
         name: bookFormData.patient_name.trim(),
         email: bookFormData.email.trim(),
-        contact: bookFormData.contact.trim(),
-        phone: bookFormData.contact.trim(),
+        contact: cleanPhone,
+        phone: cleanPhone,
         age: bookFormData.age ? Number(bookFormData.age) : null,
         gender: bookFormData.gender || 'Male',
         Gender: bookFormData.gender || 'Male',
@@ -867,6 +877,8 @@ const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatien
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Email Address *</label>
                   <input
                     type="email"
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     required
                     value={bookFormData.email}
                     onChange={(e) => setBookFormData({ ...bookFormData, email: e.target.value })}

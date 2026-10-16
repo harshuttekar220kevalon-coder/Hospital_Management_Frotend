@@ -5,6 +5,9 @@ import { API_BASE_URL } from '../Api/Api';
 const Navbar = lazy(() => import('../Navbar'));
 const SuperAdminNavbar = lazy(() => import('../Super Admin/Navbar'));
 const AdminNavbar = lazy(() => import('../Admin/Navbar'));
+const DoctorNavbar = lazy(() => import('../Doctor/Navbar'));
+const NurseNavbar = lazy(() => import('../Nurse/Navbar'));
+const ReceptionistNavbar = lazy(() => import('../Receptionist/Navbar'));
 
 // Auth Pages
 const Login = lazy(() => import('../Login'));
@@ -41,6 +44,7 @@ const AdminReceptionists = lazy(() => import('../Admin/Receptionists'));
 const AdminReceptionistDetails = lazy(() => import('../Admin/Receptionists_Details'));
 const AdminPatients = lazy(() => import('../Admin/Patients'));
 const AdminPatientDetails = lazy(() => import('../Admin/Patients_Details'));
+const AdminStaffApprove = lazy(() => import('../Admin/Staff_Approve'));
 const AdminSettings = lazy(() => import('../Admin/setting'));
 
 // Doctor Pages
@@ -78,6 +82,12 @@ const NurseNotifications = lazy(() => import('../Nurse/Notification'));
 const ReceptionistNotifications = lazy(() => import('../Receptionist/Notification'));
 const AdminNotifications = lazy(() => import('../Admin/Notification'));
 const SuperAdminNotifications = lazy(() => import('../Super Admin/Notification'));
+
+// Staff Chat Pages
+const AdminChat = lazy(() => import('../Admin/Chat'));
+const DoctorChat = lazy(() => import('../Doctor/Chat'));
+const NurseChat = lazy(() => import('../Nurse/Chat'));
+const ReceptionistChat = lazy(() => import('../Receptionist/Chat'));
 
 // Common Components
 import ScrollToTop from '../Common/ScrollToTop';
@@ -199,7 +209,7 @@ const AppRoutes = () => {
       return 'home';
     }
 
-    if (savedPage && savedPage !== 'login' && savedPage !== 'signin' && savedPage !== 'reset_password') {
+    if (savedPage && savedPage !== 'login' && savedPage !== 'signin' && savedPage !== 'reset_password' && savedPage !== 'approval_pending') {
       return savedPage;
     }
     try {
@@ -291,14 +301,6 @@ const AppRoutes = () => {
       return;
     }
 
-    const role = (userData?.role || '').toString().toUpperCase();
-    const requiresApproval = role.includes('ADMIN') || role.includes('DOCTOR') || role.includes('NURSE') || role.includes('RECEPTION');
-    if (requiresApproval && userData?.is_approved !== true) {
-      setCurrentPage('approval_pending');
-      localStorage.setItem('currentPage', 'approval_pending');
-      return;
-    }
-
     const targetDashboard = getDashboardByRole(userData?.role);
     setCurrentPage(targetDashboard);
     localStorage.setItem('currentPage', targetDashboard);
@@ -328,6 +330,9 @@ const AppRoutes = () => {
 
   const isSuperAdmin = (currentUser?.role || '').toString().toUpperCase().includes('SUPER');
   const isAdmin = (currentUser?.role || '').toString().toUpperCase().includes('ADMIN') && !isSuperAdmin;
+  const isDoctor = (currentUser?.role || '').toString().toUpperCase().includes('DOCTOR');
+  const isNurse = (currentUser?.role || '').toString().toUpperCase().includes('NURSE');
+  const isReceptionist = (currentUser?.role || '').toString().toUpperCase().includes('RECEPTION');
   const isPatient = (currentUser?.role || '').toString().toUpperCase().includes('PATIENT');
   const currentRole = (currentUser?.role || '').toString().toUpperCase();
   const approvalEndpoint = currentRole.includes('SUPER') || currentRole.includes('PATIENT') ? ''
@@ -336,11 +341,8 @@ const AppRoutes = () => {
         : currentRole.includes('NURSE') ? 'Nurses'
           : currentRole.includes('RECEPTION') ? 'Receptionists' : '';
   const isApprovalPending = Boolean(isLoggedIn && approvalEndpoint && currentUser?.is_approved !== true);
-  const approvalRestrictedPages = [
-    'admin_dashboard', 'doctor_dashboard', 'nurse_dashboard', 'receptionist_dashboard',
-    'admin_settings', 'doctor_settings', 'nurse_settings', 'receptionist_settings', 'setting'
-  ];
-  const isApprovalRestrictedPage = isApprovalPending && approvalRestrictedPages.includes(currentPage);
+  const isPublicWebsitePage = PUBLIC_WEBSITE_PAGES.includes(currentPage);
+  const isApprovalRestrictedPage = Boolean(isApprovalPending && !isPublicWebsitePage);
 
   useEffect(() => {
     if (!isLoggedIn || !approvalEndpoint || !currentUser?.email || currentUser?.is_approved === true) return undefined;
@@ -369,8 +371,8 @@ const AppRoutes = () => {
     };
   }, [isLoggedIn, approvalEndpoint, currentUser]);
 
-  const isPublicWebsitePage = PUBLIC_WEBSITE_PAGES.includes(currentPage);
   const handleBackToWebsite = () => {
+    setIsWebsiteMode(true);
     navigateToPage('home');
     localStorage.setItem('currentPage', 'home');
   };
@@ -378,7 +380,7 @@ const AppRoutes = () => {
   return (
     <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-50"><div className="h-10 w-10 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" role="status" aria-label="Loading page" /></div>}>
     <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans antialiased w-full overflow-x-hidden">
-      {isLoggedIn && !isPatient && !isWebsiteMode && !isPublicWebsitePage && (
+      {isLoggedIn && !isApprovalPending && !isPatient && !isWebsiteMode && !isPublicWebsitePage && (
         isSuperAdmin ? (
           <SuperAdminNavbar
             currentPage={currentPage}
@@ -390,6 +392,33 @@ const AppRoutes = () => {
           />
         ) : isAdmin ? (
           <AdminNavbar
+            currentPage={currentPage}
+            setCurrentPage={navigateToPage}
+            isLoggedIn={isLoggedIn}
+            onLogout={handleLogout}
+            currentUser={currentUser}
+            onBackToWebsite={handleBackToWebsite}
+          />
+        ) : isDoctor ? (
+          <DoctorNavbar
+            currentPage={currentPage}
+            setCurrentPage={navigateToPage}
+            isLoggedIn={isLoggedIn}
+            onLogout={handleLogout}
+            currentUser={currentUser}
+            onBackToWebsite={handleBackToWebsite}
+          />
+        ) : isNurse ? (
+          <NurseNavbar
+            currentPage={currentPage}
+            setCurrentPage={navigateToPage}
+            isLoggedIn={isLoggedIn}
+            onLogout={handleLogout}
+            currentUser={currentUser}
+            onBackToWebsite={handleBackToWebsite}
+          />
+        ) : isReceptionist ? (
+          <ReceptionistNavbar
             currentPage={currentPage}
             setCurrentPage={navigateToPage}
             isLoggedIn={isLoggedIn}
@@ -420,12 +449,23 @@ const AppRoutes = () => {
               </div>
               <h1 className="mt-5 text-2xl font-extrabold text-slate-900">Account approval pending</h1>
               <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-600">
-                You are signed in, but the Super Admin has not approved this account yet. Your dashboard and profile are locked until approval is complete.
+                {isAdmin
+                  ? 'You are signed in, but the Super Admin has not approved this administrator account yet. Your dashboard and profile are locked until approval is complete.'
+                  : 'You are signed in, but your Branch Hospital Admin has not approved this staff account yet. Your dashboard and profile are locked until approval is complete.'}
               </p>
               <p className="mt-4 text-xs font-semibold text-slate-500">This page will update automatically after approval.</p>
-              <button type="button" onClick={handleLogout} className="mt-7 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-slate-700">
-                Log out
-              </button>
+              <div className="mt-7 flex flex-col items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleBackToWebsite}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-teal-600/20 transition hover:bg-teal-700 cursor-pointer"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  <span>Back To Website</span>
+                </button>
+              </div>
             </div>
           </section>
         ) : !isLoggedIn ? (
@@ -718,6 +758,12 @@ const AppRoutes = () => {
                 setCurrentPage={navigateToPage}
               />
             )}
+            {currentPage === 'admin_staff_approve' && (
+              <AdminStaffApprove
+                currentUser={currentUser}
+                setCurrentPage={navigateToPage}
+              />
+            )}
             {(currentPage === 'admin_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('ADMIN') && !(currentUser?.role || '').toString().toUpperCase().includes('SUPER'))) && (
               <AdminSettings
                 currentUser={currentUser}
@@ -873,6 +919,17 @@ const AppRoutes = () => {
                 <NurseNotifications currentUser={currentUser} />
               ) : (currentUser?.role || '').toString().toUpperCase().includes('RECEPTION') ? (
                 <ReceptionistNotifications currentUser={currentUser} />
+              ) : null
+            )}
+            {(currentPage === 'chat' || currentPage === 'admin_chat' || currentPage === 'doctor_chat' || currentPage === 'nurse_chat' || currentPage === 'receptionist_chat') && (
+              isAdmin ? (
+                <AdminChat currentUser={currentUser} />
+              ) : (currentUser?.role || '').toString().toUpperCase().includes('DOCTOR') ? (
+                <DoctorChat currentUser={currentUser} />
+              ) : (currentUser?.role || '').toString().toUpperCase().includes('NURSE') ? (
+                <NurseChat currentUser={currentUser} />
+              ) : (currentUser?.role || '').toString().toUpperCase().includes('RECEPTION') ? (
+                <ReceptionistChat currentUser={currentUser} />
               ) : null
             )}
           </>

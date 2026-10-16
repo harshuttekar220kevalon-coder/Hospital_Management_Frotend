@@ -130,7 +130,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
   const displayName = currentUser?.name || currentUser?.patient_name || 'Staff User';
 
   return (
-    <header className="w-full bg-slate-900/95 backdrop-blur-xl border-b border-slate-800 text-slate-100 shadow-lg sticky top-0 z-50 transition-all duration-300 overflow-visible">
+    <header className="w-full bg-slate-900/95 backdrop-blur-xl border-b border-slate-800 text-slate-100 shadow-lg sticky top-0 z-[100] transition-all duration-300 overflow-visible">
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
         <div className="flex items-center justify-between h-18 sm:h-20 w-full gap-3">
           <div
@@ -329,7 +329,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
               <NotificationBell currentUser={currentUser} setCurrentPage={handleNavClick} />
               <button type="button" onClick={onBackToWebsite || (() => handleNavClick('home'))} className="inline-flex items-center rounded-xl border border-teal-500/40 bg-teal-500/10 px-3 py-2 text-xs font-bold text-teal-200 transition hover:bg-teal-500/20">Back to Website</button>
               <div
-                className="relative"
+                className="relative z-[9999]"
                 onMouseEnter={() => setProfileDropdownOpen(true)}
                 onMouseLeave={() => setProfileDropdownOpen(false)}
               >
@@ -357,7 +357,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
 
                 {/* FLOATING PROFILE DROPDOWN */}
                 {profileDropdownOpen && (
-                  <div className="absolute right-0 top-full pt-2 w-64 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="absolute right-0 top-full pt-2 w-64 z-[9999] animate-in fade-in slide-in-from-top-2 duration-150">
                     <div className="bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl p-2 space-y-1.5 text-slate-100 backdrop-blur-xl">
                       {/* User Card Header */}
                       <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700/60">

@@ -281,6 +281,17 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
   const handleSavePatientEdit = async (e) => {
     e.preventDefault();
     if (!activePatient || !activePatient.id) return;
+
+    const cleanPhone = (editFormData.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (editFormData.contact && cleanPhone.length !== 10) {
+      alert("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (editFormData.email && !editFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert("Email must be a valid @gmail.com address.");
+      return;
+    }
+
     try {
       setIsSavingEdit(true);
       const isActiveFlag = editFormData.is_active !== undefined ? Boolean(editFormData.is_active) : true;
@@ -289,8 +300,8 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
         patient_name: editFormData.name.trim(),
         patient_Name: editFormData.name.trim(),
         email: editFormData.email.trim(),
-        contact: editFormData.contact.trim(),
-        phone: editFormData.contact.trim(),
+        contact: cleanPhone,
+        phone: cleanPhone,
         gender: editFormData.gender,
         Gender: editFormData.gender,
         blood_group: editFormData.blood_group,
@@ -889,9 +900,12 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     value={editFormData.contact}
-                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-mono focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -902,6 +916,8 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Email Address</label>
                   <input
                     type="email"
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     value={editFormData.email}
                     onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"

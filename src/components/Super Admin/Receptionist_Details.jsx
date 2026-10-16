@@ -151,7 +151,14 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
 
   const handleSaveReceptionistEdit = async (e) => {
     e.preventDefault();
-    if (!activeReceptionist || !activeReceptionist.id) return;
+    if (!editFormData.contact?.trim() || editFormData.contact.trim().length !== 10) {
+      alert('Phone number must be exactly 10 digits.');
+      return;
+    }
+    if (!editFormData.email?.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert('Email must be a valid @gmail.com address.');
+      return;
+    }
 
     try {
       const recIdToSend = editFormData.receptionist_id || activeReceptionist.receptionist_id || `REC-${activeReceptionist.id}`;
@@ -821,7 +828,9 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                   required
                   value={editFormData.email}
                   onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                  placeholder="receptionist@hospital.com"
+                  placeholder="receptionist@gmail.com"
+                  pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                  title="Email must be a valid @gmail.com address"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>

@@ -129,6 +129,15 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
+    const cleanPhone = (editFormData.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      setSaveErrorMsg("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (!editFormData.email || !editFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      setSaveErrorMsg("Email must be a valid @gmail.com address.");
+      return;
+    }
     try {
       setSavingProfile(true);
       setSaveSuccessMsg('');
@@ -139,8 +148,8 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
       const payload = {
         name: editFormData.name.trim(),
         email: editFormData.email.trim(),
-        contact: editFormData.contact.trim(),
-        phone: editFormData.contact.trim(),
+        contact: cleanPhone,
+        phone: cleanPhone,
         designation: editFormData.designation.trim(),
         hospital: editFormData.hospital ? Number(editFormData.hospital) : null,
         is_active: Boolean(editFormData.is_active)
@@ -274,7 +283,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
+    <div className="w-full bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
       {/* HEADER BAR */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
         <div className="w-full px-4 sm:px-8 lg:px-12">
@@ -337,7 +346,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-6 sm:py-8 space-y-6">
+      <div className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-6 sm:py-8 space-y-6">
         {/* SUCCESS / ERROR ALERTS */}
         {saveSuccessMsg && (
           <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 shadow-xs animate-in fade-in">
@@ -439,10 +448,12 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                       <input
                         type="email"
                         name="email"
+                        pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                        title="Email must be a valid @gmail.com address"
                         value={editFormData.email}
                         onChange={handleInputChange}
                         required
-                        placeholder="admin@hospital.com"
+                        placeholder="admin@gmail.com"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
                       />
                     </div>
@@ -469,37 +480,38 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                     {/* 4. DESIGNATION */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Designation <span className="text-rose-500">*</span>
+                        Designation
                       </label>
                       <input
                         type="text"
                         name="designation"
                         value={editFormData.designation}
                         onChange={handleInputChange}
-                        required
-                        placeholder="Hospital Administrator"
+                        placeholder="Enter designation"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
                       />
                     </div>
 
-                    {/* 5. HOSPITAL */}
+                    {/* 5. HOSPITAL (LOCKED) */}
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Assigned Hospital
-                      </label>
-                      <select
-                        name="hospital"
-                        value={editFormData.hospital}
-                        onChange={handleInputChange}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
-                      >
-                        <option value="">-- Select Hospital --</option>
-                        {hospitalsList.map(h => (
-                          <option key={h.id} value={h.id}>
-                            {h.Name || h.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Assigned Hospital
+                        </label>
+                        <span className="text-[10px] text-teal-800 font-bold bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-flex items-center gap-1">
+                          🔒 Locked (Non-editable)
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={hospitalData?.Name || hospitalData?.name || (editFormData.hospital ? (hospitalsList.find(h => Number(h.id) === Number(editFormData.hospital))?.Name || hospitalsList.find(h => Number(h.id) === Number(editFormData.hospital))?.name) : '') || 'Assigned Hospital'}
+                        disabled
+                        readOnly
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm font-semibold text-slate-700 cursor-not-allowed select-none"
+                      />
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        🔒 Hospital assignment is managed by Super Admin and cannot be changed here.
+                      </p>
                     </div>
 
                     {/* 6. EMPLOYEE ID */}
@@ -629,7 +641,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                     type={showNewPassword ? 'text' : 'password'}
                     value={passwordForm.newPassword}
                     onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
-                    placeholder="Enter new password (min 4 characters)"
+                    placeholder="Enter new password"
                     required
                     className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
                   />
@@ -685,7 +697,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
             </form>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 };

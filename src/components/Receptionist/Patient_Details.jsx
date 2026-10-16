@@ -925,6 +925,17 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
       return;
     }
 
+    const cleanPhone = (editFormData.contact || editingAppt.contact || editingAppt.phone || '').replace(/\D/g, '').slice(0, 10);
+    if (editFormData.contact && cleanPhone.length !== 10) {
+      alert("Phone number must be exactly 10 digits.");
+      return;
+    }
+    const editEmail = (editFormData.email || editingAppt.email || patient?.email || '').trim();
+    if (editEmail && !editEmail.toLowerCase().endsWith('@gmail.com')) {
+      alert("Email must be a valid @gmail.com address.");
+      return;
+    }
+
     if (!editFormData.visit_date) {
       alert('Please select Appointment Date.');
       return;
@@ -1179,6 +1190,17 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
       return;
     }
 
+    const cleanPhone = (formData.contact || patient?.contact || patient?.phone || '').replace(/\D/g, '').slice(0, 10);
+    if ((formData.contact || patient?.contact) && cleanPhone.length !== 10) {
+      alert("Phone number must be exactly 10 digits.");
+      return;
+    }
+    const finalEmail = (formData.email || patient?.email || '').trim().toLowerCase();
+    if (finalEmail && !finalEmail.endsWith('@gmail.com')) {
+      alert("Email must be a valid @gmail.com address.");
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError('');
 
@@ -1188,9 +1210,8 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
       const hospName = chosenHosp?.Name || chosenHosp?.name || patient?.hospital_name || 'Hospital Campus';
 
       const enteredName = formData.patient_name.trim() || patient?.name || 'Patient';
-      const finalEmail = (patient?.email || formData.email || '').trim().toLowerCase();
       const ageVal = formData.age ? String(formData.age).trim() : (patient?.age ? String(patient.age) : '25');
-      const phoneVal = (formData.contact || patient?.contact || patient?.phone || '').trim() || '9876543210';
+      const phoneVal = cleanPhone || '9876543210';
       const addrVal = (formData.address || patient?.address || '').trim() || 'Local Resident';
       const genderVal = formData.gender || patient?.gender || 'Male';
       const conditionVal = formData.condition || 'Normal';
@@ -1724,7 +1745,7 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
                         name="age"
                         min="0"
                         max="150"
-                        placeholder="e.g. 28"
+                        placeholder="Enter your age"
                         value={formData.age}
                         onChange={handleChange}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
@@ -1802,9 +1823,11 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
                       <input
                         type="email"
                         name="email"
+                        pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                        title="Email must be a valid @gmail.com address"
                         required
                         readOnly
-                        placeholder="e.g. patient@example.com"
+                        placeholder="e.g. patient@gmail.com"
                         value={patient.email || formData.email || ''}
                         className="w-full px-3.5 py-2.5 rounded-xl border bg-slate-100 border-slate-300 text-slate-700 cursor-not-allowed font-semibold text-xs sm:text-sm shadow-2xs"
                       />
@@ -2003,7 +2026,7 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
                       </label>
                       <input
                         type="number"
-                        placeholder="e.g. 102 (Floor 1), 205 (Floor 2)"
+                        placeholder="Enter bed number"
                         value={formData.bed_number}
                         onChange={(e) => handleBookBedChange(e.target.value)}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-mono font-medium"
@@ -2244,7 +2267,7 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
                       value={editFormData.patient_Name}
                       onChange={(e) => setEditFormData({ ...editFormData, patient_Name: e.target.value })}
                       required
-                      placeholder="Full Name"
+                      placeholder="Enter your name"
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
                     />
                   </div>
@@ -2255,7 +2278,7 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
                       maxLength={3}
                       value={editFormData.age}
                       onChange={(e) => setEditFormData({ ...editFormData, age: e.target.value })}
-                      placeholder="e.g. 28"
+                      placeholder="Enter your age"
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
                     />
                   </div>
@@ -2291,9 +2314,11 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Email ID</label>
                     <input
                       type="email"
+                      pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                      title="Email must be a valid @gmail.com address"
                       value={editFormData.email}
                       onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                      placeholder="patient@example.com"
+                      placeholder="patient@gmail.com"
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
                     />
                   </div>
@@ -2448,7 +2473,7 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Bed Number (Leave blank for OPD)</label>
                     <input
                       type="number"
-                      placeholder="e.g. 102 (Floor 1), 205 (Floor 2)"
+                      placeholder="Enter bed number"
                       value={editFormData.bed_number}
                       onChange={(e) => handleEditBedChange(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white font-mono"

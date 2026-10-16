@@ -1004,7 +1004,7 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
                 <input
                   type="number"
                   min="1"
-                  placeholder="e.g. 45 (Floor 1) or 150 (Floor 2)"
+                  placeholder="Enter bed number"
                   value={newBedNumber}
                   onChange={(e) => setNewBedNumber(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-mono text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -1145,7 +1145,7 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
                 <label className="block text-slate-700 font-bold mb-1 uppercase text-[10px]">IV Drip / Infusion Details</label>
                 <input
                   type="text"
-                  placeholder="e.g. Normal Saline (500ml) @ 75ml/hr"
+                  placeholder="Enter IV infusion details"
                   value={vitalsForm.ivDrip}
                   onChange={(e) => setVitalsForm({ ...vitalsForm, ivDrip: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"

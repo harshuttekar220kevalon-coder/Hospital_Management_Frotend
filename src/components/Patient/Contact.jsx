@@ -76,8 +76,13 @@ const PatientContact = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) =
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.phone.trim()) {
-      alert('Please enter your full name and phone number.');
+    const cleanPhone = (formData.phone || '').replace(/\D/g, '').slice(0, 10);
+    if (!formData.name.trim() || cleanPhone.length !== 10) {
+      alert('Please enter your full name and a valid 10-digit phone number.');
+      return;
+    }
+    if (formData.email && !formData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert('Email must be a valid @gmail.com address.');
       return;
     }
     setSubmitted(true);
@@ -424,6 +429,8 @@ const PatientContact = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) =
                     </label>
                     <input
                       type="email"
+                      pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                      title="Email must be a valid @gmail.com address"
                       placeholder="yourname@gmail.com"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}

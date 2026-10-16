@@ -620,6 +620,10 @@ const ReceptionistAppoiment = ({
   // Handle Form Change
   const handleFormChange = (e) => {
     const { name, value } = e.target;
+    let finalVal = value;
+    if (name === 'contact' || name === 'phone') {
+      finalVal = String(value).replace(/\D/g, '').slice(0, 10);
+    }
     if (name === 'doctor' && value) {
       const selectedDoc = doctorsList.find(d => Number(d.id) === Number(value));
       if (selectedDoc && !isDoctorOnDuty(selectedDoc)) {
@@ -635,7 +639,7 @@ const ReceptionistAppoiment = ({
       }
     }
     setEditFormData(prev => {
-      const updated = { ...prev, [name]: value };
+      const updated = { ...prev, [name]: finalVal };
       // If doctor is selected, auto-suggest 'Assigned' status if it was Pending
       if (name === 'doctor' && value && (!prev.status || prev.status === 'Pending')) {
         updated.status = 'Assigned';
@@ -648,6 +652,16 @@ const ReceptionistAppoiment = ({
   const handleSaveEditSubmit = async (e) => {
     e.preventDefault();
     if (!editingAppt) return;
+
+    const cleanPhone = (editFormData.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (editFormData.contact && cleanPhone.length !== 10) {
+      alert("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (editFormData.email && !editFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert("Email must be a valid @gmail.com address.");
+      return;
+    }
 
     try {
       setSavingEdit(true);
@@ -1332,6 +1346,8 @@ const ReceptionistAppoiment = ({
                   <input
                     type="tel"
                     name="contact"
+                    inputMode="numeric"
+                    pattern="[0-9]{10}"
                     required
                     maxLength={10}
                     value={editFormData.contact}
@@ -1475,7 +1491,9 @@ const ReceptionistAppoiment = ({
                   <input
                     type="email"
                     name="email"
-                    placeholder="patient@email.com"
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
+                    placeholder="patient@gmail.com"
                     value={editFormData.email}
                     onChange={handleFormChange}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"

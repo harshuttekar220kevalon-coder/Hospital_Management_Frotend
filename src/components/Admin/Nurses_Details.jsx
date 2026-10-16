@@ -76,6 +76,15 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
 
   const submitEdit = async (event) => {
     event.preventDefault();
+    const cleanContact = (form.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (!cleanContact || cleanContact.length !== 10) {
+      alert("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (!form.email || !form.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert("Email must be a valid @gmail.com address.");
+      return;
+    }
     const payload = {
       name: form.name.trim(),
       role: form.role,
@@ -83,7 +92,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
       shift: form.shift,
       qualification: form.qualification.trim() || null,
       experience: form.experience.trim() || null,
-      contact: form.contact,
+      contact: cleanContact,
       email: form.email.trim(),
       is_active: Boolean(form.is_active),
       max_patient_capacity: Number(form.max_patient_capacity) || 50,
@@ -171,7 +180,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
           <label className="font-semibold text-slate-700">Ward *<select required value={form.ward} onChange={(event) => setForm({ ...form, ward: event.target.value })} className={`${inputClass} mt-1`}>{wards.map((ward) => <option key={ward}>{ward}</option>)}</select></label>
           <label className="font-semibold text-slate-700">Shift<select value={form.shift} onChange={(event) => setForm({ ...form, shift: event.target.value })} className={`${inputClass} mt-1`}>{shifts.map((shift) => <option key={shift}>{shift}</option>)}</select></label>
           <label className="font-semibold text-slate-700">Phone *<input required type="tel" inputMode="numeric" pattern="[0-9]{10}" maxLength={10} value={form.contact} onChange={(event) => setForm({ ...form, contact: event.target.value.replace(/\D/g, '').slice(0, 10) })} className={`${inputClass} mt-1`} /></label>
-          <label className="font-semibold text-slate-700">Email *<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className={`${inputClass} mt-1`} /></label>
+          <label className="font-semibold text-slate-700">Email *<input required type="email" pattern="[a-zA-Z0-9._%+-]+@gmail\.com" title="Email must be a valid @gmail.com address" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className={`${inputClass} mt-1`} /></label>
           <label className="font-semibold text-slate-700">Qualification<input value={form.qualification} onChange={(event) => setForm({ ...form, qualification: event.target.value })} className={`${inputClass} mt-1`} /></label>
           <label className="font-semibold text-slate-700">Experience<input value={form.experience} onChange={(event) => setForm({ ...form, experience: event.target.value })} className={`${inputClass} mt-1`} /></label>
           <label className="font-semibold text-slate-700">Maximum Patient Capacity<input required type="number" min="1" value={form.max_patient_capacity} onChange={(event) => setForm({ ...form, max_patient_capacity: event.target.value })} className={`${inputClass} mt-1`} /></label>
@@ -182,7 +191,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
           <label className="sm:col-span-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 font-semibold text-slate-700"><input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} className="h-4 w-4 rounded text-teal-600" />Account is active</label>
           <div className="sm:col-span-2 flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setEditing(false)} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold cursor-pointer">Cancel</button><button type="submit" className="px-5 py-2 rounded-xl bg-teal-600 text-white font-bold cursor-pointer">Save Changes</button></div>
         </form></div></div>}
-      {resetOpen && <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4"><form onSubmit={resetPassword} className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4"><h2 className="font-bold text-slate-800">Reset Nurse Password</h2><input type="password" minLength={6} maxLength={12} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="New password (6–12 characters)" className={inputClass} /><div className="flex justify-end gap-2"><button type="button" onClick={() => setResetOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 cursor-pointer">Cancel</button><button className="px-4 py-2 rounded-xl bg-slate-800 text-white font-bold cursor-pointer">Reset Password</button></div></form></div>}
+      {resetOpen && <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4"><form onSubmit={resetPassword} className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4"><h2 className="font-bold text-slate-800">Reset Nurse Password</h2><input type="password" minLength={6} maxLength={12} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter new password" className={inputClass} /><div className="flex justify-end gap-2"><button type="button" onClick={() => setResetOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 cursor-pointer">Cancel</button><button className="px-4 py-2 rounded-xl bg-slate-800 text-white font-bold cursor-pointer">Reset Password</button></div></form></div>}
       {deleteOpen && <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4"><h2 className="font-bold text-slate-800">Confirm Nurse Removal</h2><p className="text-xs text-slate-500">Remove {nurse.name} from the nurse records?</p><div className="flex justify-end gap-2"><button type="button" onClick={() => setDeleteOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 cursor-pointer">Cancel</button><button type="button" onClick={deleteNurse} className="px-4 py-2 rounded-xl bg-rose-600 text-white font-bold cursor-pointer">Delete Nurse</button></div></div></div>}
     </div>
   );

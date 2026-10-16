@@ -93,6 +93,14 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
 
   const handleAddSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.contact || formData.contact.replace(/\D/g, '').length !== 10) {
+      alert('Contact phone number must be exactly 10 digits.');
+      return;
+    }
+    if (!formData.email || !formData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert('Email must be a valid @gmail.com address.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const payload = {
@@ -137,6 +145,14 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (!selectedDoctorForEdit) return;
+    if (!formData.contact || formData.contact.replace(/\D/g, '').length !== 10) {
+      alert('Contact phone number must be exactly 10 digits.');
+      return;
+    }
+    if (!formData.email || !formData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert('Email must be a valid @gmail.com address.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const payload = {
@@ -562,12 +578,15 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
                 <div className="space-y-1">
                   <label className="text-slate-700 font-semibold">Contact Phone *</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     placeholder="10 digit mobile"
                     value={formData.contact}
-                    onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-500"
+                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-500 font-mono"
                   />
                 </div>
 
@@ -576,9 +595,11 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
                   <input
                     type="email"
                     required
-                    placeholder="doctor@hospital.com"
+                    placeholder="doctor@gmail.com"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-500"
                   />
                 </div>
@@ -716,21 +737,30 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-slate-700 font-semibold">Contact Phone</label>
+                  <label className="text-slate-700 font-semibold">Contact Phone *</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]{10}"
+                    maxLength={10}
+                    required
+                    placeholder="10 digit mobile"
                     value={formData.contact}
-                    onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-500"
+                    onChange={(e) => setFormData({ ...formData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-500 font-mono"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-slate-700 font-semibold">Email Address</label>
+                  <label className="text-slate-700 font-semibold">Email Address *</label>
                   <input
                     type="email"
+                    required
+                    placeholder="doctor@gmail.com"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-500"
                   />
                 </div>

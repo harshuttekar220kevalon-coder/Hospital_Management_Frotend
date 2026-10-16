@@ -34,6 +34,8 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
   const [editHospitalFormData, setEditHospitalFormData] = useState({
     Name: '',
     Branch_Code: '',
+    established_year: '',
+    emergency_contact: '',
     city: '',
     area: '',
     address: '',
@@ -243,6 +245,14 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
 
   const handleSaveAdminCreate = async (e) => {
     e.preventDefault();
+    if (!adminFormData.contact || adminFormData.contact.trim().length !== 10) {
+      alert('Contact phone number must be exactly 10 digits.');
+      return;
+    }
+    if (!adminFormData.email || !adminFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert('Admin email must be a valid @gmail.com address.');
+      return;
+    }
     try {
       const payload = {
         ...adminFormData,
@@ -274,6 +284,8 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
     setEditHospitalFormData({
       Name: activeBranch.Name || '',
       Branch_Code: activeBranch.Branch_Code || '',
+      established_year: activeBranch.established_year || '',
+      emergency_contact: activeBranch.emergency_contact || '',
       city: activeBranch.city || '',
       area: activeBranch.area || '',
       address: activeBranch.address || '',
@@ -298,14 +310,42 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
   const handleSaveEditHospital = async (e) => {
     e.preventDefault();
     if (!activeBranch || !activeBranch.id) return;
+    if (!editHospitalFormData.contact || editHospitalFormData.contact.trim().length !== 10) {
+      alert('Contact phone number must be exactly 10 digits.');
+      return;
+    }
+    const cleanEmergency = (editHospitalFormData.emergency_contact || '').replace(/\D/g, '').slice(0, 12);
+    if (editHospitalFormData.emergency_contact && (cleanEmergency.length < 10 || cleanEmergency.length > 12)) {
+      alert('Emergency contact number must be between 10 and 12 digits.');
+      return;
+    }
+    if (!editHospitalFormData.email || !editHospitalFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert('Official email must be a valid @gmail.com address.');
+      return;
+    }
     try {
       const response = await fetch(`${API_BASE_URL}/super-admin/Hospital/${activeBranch.id}/`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editHospitalFormData)
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          ...editHospitalFormData,
+          established_year: (activeBranch.established_year || editHospitalFormData.established_year || '').trim(),
+          emergency_contact: cleanEmergency,
+        })
       });
 
-      const data = await response.json();
+      let data = null;
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await response.json().catch(() => null);
+      } else {
+        const rawText = await response.text().catch(() => '');
+        console.error('Non-JSON server response:', response.status, rawText);
+        data = { detail: `Server error (${response.status}): Invalid response format.` };
+      }
 
       if (response.ok) {
         alert('Hospital branch updated successfully!');
@@ -314,11 +354,12 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
         localStorage.setItem('selectedHospital', JSON.stringify(data));
         setIsEditHospitalModalOpen(false);
       } else {
-        alert('Error: ' + JSON.stringify(data));
+        const errDetail = data?.detail || (typeof data === 'object' ? JSON.stringify(data) : String(data || 'Failed to update hospital.'));
+        alert('Error: ' + errDetail);
       }
     } catch (error) {
       console.error('Error updating hospital:', error);
-      alert('Network error while updating hospital.');
+      alert('Error while updating hospital: ' + (error.message || 'Network error.'));
     }
   };
 
@@ -460,14 +501,22 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2.5 border-t border-slate-100 text-xs text-slate-600">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2.5 border-t border-slate-100 text-xs text-slate-600">
             <div className="min-w-0">
               <p className="text-[10px] uppercase font-bold text-slate-400">City / Location</p>
               <p className="font-semibold text-slate-800 mt-0.5 break-words">{activeBranch.city || '-'} {activeBranch.area ? `(${activeBranch.area})` : ''}</p>
             </div>
             <div className="min-w-0">
+              <p className="text-[10px] uppercase font-bold text-slate-400">Established Year</p>
+              <p className="font-semibold text-slate-800 mt-0.5">{activeBranch.established_year || '-'}</p>
+            </div>
+            <div className="min-w-0">
               <p className="text-[10px] uppercase font-bold text-slate-400">Contact Number</p>
               <p className="font-semibold text-slate-800 mt-0.5 break-all">{activeBranch.contact || '-'}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase font-bold text-slate-400">Emergency Contact</p>
+              <p className="font-semibold text-rose-600 mt-0.5 break-all">{activeBranch.emergency_contact || '-'}</p>
             </div>
             <div className="min-w-0">
               <p className="text-[10px] uppercase font-bold text-slate-400">Official Email</p>
@@ -1026,7 +1075,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   required
                   value={adminFormData.name}
                   onChange={(e) => setAdminFormData({ ...adminFormData, name: e.target.value })}
-                  placeholder="e.g. Vikram Malhotra"
+                  placeholder="Enter your name"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
@@ -1038,7 +1087,9 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   required
                   value={adminFormData.email}
                   onChange={(e) => setAdminFormData({ ...adminFormData, email: e.target.value })}
-                  placeholder="admin@hospital.com"
+                  placeholder="Enter email address"
+                  pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                  title="Email must be a valid @gmail.com address"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
@@ -1054,7 +1105,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     required
                     value={adminFormData.contact}
                     onChange={(e) => setAdminFormData({ ...adminFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
-                    placeholder="e.g. 9876543210"
+                    placeholder="Enter contact number"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -1142,7 +1193,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
             </div>
 
             <form onSubmit={handleSaveEditHospital} className="space-y-3 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Hospital Name *</label>
                   <input
@@ -1158,9 +1209,21 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   <input
                     type="text"
                     readOnly
+                    disabled
                     tabIndex={-1}
                     value={editHospitalFormData.Branch_Code || (activeBranch && activeBranch.Branch_Code) || `HOSP-${activeBranch?.id}`}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono text-xs cursor-not-allowed select-none focus:outline-none uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Established Year (Permanent)</label>
+                  <input
+                    type="text"
+                    readOnly
+                    disabled
+                    tabIndex={-1}
+                    value={editHospitalFormData.established_year || activeBranch?.established_year || 'Not Specified'}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-medium text-xs cursor-not-allowed select-none focus:outline-none"
                   />
                 </div>
               </div>
@@ -1173,6 +1236,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     required
                     value={editHospitalFormData.city}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, city: e.target.value })}
+                    placeholder="Enter city"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -1183,6 +1247,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     required
                     value={editHospitalFormData.area}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, area: e.target.value })}
+                    placeholder="Enter area"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -1195,11 +1260,12 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   required
                   value={editHospitalFormData.address}
                   onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, address: e.target.value })}
+                  placeholder="Enter street address"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone *</label>
                   <input
@@ -1210,8 +1276,21 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     required
                     value={editHospitalFormData.contact}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
-                    placeholder="e.g. 9876543210"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
+                    placeholder="Enter contact number"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Emergency Contact</label>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]{10,12}"
+                    maxLength={12}
+                    value={editHospitalFormData.emergency_contact}
+                    onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, emergency_contact: e.target.value.replace(/\D/g, '').slice(0, 12) })}
+                    placeholder="Enter emergency contact"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
                   />
                 </div>
                 <div>
@@ -1221,6 +1300,9 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     required
                     value={editHospitalFormData.email}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, email: e.target.value })}
+                    placeholder="Enter email address"
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>
@@ -1233,6 +1315,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     type="number"
                     value={editHospitalFormData.total_beds}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, total_beds: Number(e.target.value) })}
+                    placeholder="Enter total beds"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                   />
                 </div>
@@ -1242,6 +1325,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     type="number"
                     value={editHospitalFormData.icu_beds}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, icu_beds: Number(e.target.value) })}
+                    placeholder="Enter ICU beds"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                   />
                 </div>
@@ -1251,6 +1335,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     type="number"
                     value={editHospitalFormData.nicu_beds}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, nicu_beds: Number(e.target.value) })}
+                    placeholder="Enter NICU beds"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                   />
                 </div>
@@ -1260,6 +1345,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     type="number"
                     value={editHospitalFormData.operation_theatres}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, operation_theatres: Number(e.target.value) })}
+                    placeholder="Enter operation theatres"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                   />
                 </div>
@@ -1269,6 +1355,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     type="number"
                     value={editHospitalFormData.restroom_for_relatives}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, restroom_for_relatives: Number(e.target.value) })}
+                    placeholder="Enter restrooms count"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                   />
                 </div>
@@ -1278,6 +1365,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     type="number"
                     value={editHospitalFormData.ambulances_count}
                     onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, ambulances_count: Number(e.target.value) })}
+                    placeholder="Enter ambulances count"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600"
                   />
                 </div>
@@ -1289,7 +1377,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   type="text"
                   value={editHospitalFormData.departments}
                   onChange={(e) => setEditHospitalFormData({ ...editHospitalFormData, departments: e.target.value })}
-                  placeholder="Cardiology, Neurology, Orthopedics..."
+                  placeholder="Enter clinical departments"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                 />
               </div>

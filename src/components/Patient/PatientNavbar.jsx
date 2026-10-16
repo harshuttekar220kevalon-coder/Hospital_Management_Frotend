@@ -235,7 +235,7 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
   const uhidDisplay = resolvedUhid;
 
   return (
-    <header className="w-full sticky top-0 z-50 bg-white/98 backdrop-blur-md border-b border-slate-200 shadow-2xs select-none">
+    <header className="w-full sticky top-0 z-[100] bg-white/98 backdrop-blur-md border-b border-slate-200 shadow-2xs select-none">
       {/* 1. TOP ANNOUNCEMENT & EMERGENCY TICKER BAR */}
       <div className="w-full bg-slate-900 text-white text-xs py-1.5 px-4 sm:px-8 lg:px-12 border-b border-slate-800">
         <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-1.5 text-[11px]">
@@ -325,11 +325,6 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
           {/* RIGHT ACTION BUTTONS & USER PROFILE */}
           <div className="hidden xl:flex items-center gap-2 lg:gap-3 shrink-0">
             {isPatientLoggedIn && <NotificationBell currentUser={currentUser} setCurrentPage={handleNavClick} light />}
-            {isLoggedIn && !isPatientLoggedIn && staffHomePage && (
-              <button type="button" onClick={() => handleNavClick(staffHomePage)} className="px-3 py-2 rounded-xl border border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100 text-xs font-bold whitespace-nowrap transition">
-                Back to My Site
-              </button>
-            )}
             {/* Appointment booking is available to visitors and patient accounts. */}
             {showAppointmentAction && (
             <button
@@ -351,7 +346,7 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
             {isPatientLoggedIn ? (
               <div className="relative pl-2 border-l border-slate-200 shrink-0">
                 <div
-                  className="relative"
+                  className="relative z-[9999]"
                   onMouseEnter={() => setProfileDropdownOpen(true)}
                   onMouseLeave={() => setProfileDropdownOpen(false)}
                 >
@@ -379,7 +374,7 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
 
                   {/* PROFILE DROPDOWN MENU */}
                   {profileDropdownOpen && (
-                    <div className="absolute right-0 top-full pt-2 w-64 z-50 animate-fadeIn">
+                    <div className="absolute right-0 top-full pt-2 w-64 z-[9999] animate-fadeIn">
                       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-2 space-y-1">
                         {/* User Details Header */}
                         <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
@@ -441,7 +436,7 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
                 </div>
               </div>
             ) : isLoggedIn ? (
-              <div className="relative pl-2 border-l border-slate-200 shrink-0">
+              <div className="relative z-[9999] pl-2 border-l border-slate-200 shrink-0">
                 <button type="button" onClick={() => setProfileDropdownOpen(!profileDropdownOpen)} className="flex items-center gap-2 rounded-2xl px-2 py-1.5 hover:bg-slate-100 transition" aria-expanded={profileDropdownOpen} aria-label="Open user menu">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 via-teal-500 to-blue-600 text-white font-bold flex items-center justify-center text-[11px] shadow-xs shrink-0">
                     {getInitials(currentUser?.name || currentUser?.username || resolvedRole)}
@@ -452,15 +447,36 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
                   </div>
                 </button>
                 {profileDropdownOpen && (
-                  <div className="absolute right-0 top-full pt-2 w-64 z-50">
-                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-2">
+                  <div className="absolute right-0 top-full pt-2 w-64 z-[9999]">
+                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-2 space-y-1">
                       <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                         <p className="text-xs font-bold text-slate-900 truncate">{currentUser?.name || currentUser?.username || 'User'}</p>
                         <p className="text-[10px] text-teal-700 font-semibold mt-1">{resolvedRole}</p>
                         {currentUser?.email && <p className="text-[10px] text-slate-500 truncate mt-1">{currentUser.email}</p>}
                       </div>
-                      <button type="button" onClick={handleLogoutClick} className="w-full mt-1 px-3 py-2 rounded-xl text-left text-xs font-bold text-rose-600 hover:bg-rose-50 transition">
-                        Logout Account
+
+                      {staffHomePage && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleNavClick(staffHomePage);
+                            setProfileDropdownOpen(false);
+                          }}
+                          className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-teal-800 hover:bg-teal-50 transition flex items-center gap-2.5 cursor-pointer"
+                        >
+                          <span className="w-7 h-7 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center text-xs shrink-0">🏥</span>
+                          <div>
+                            <p className="font-bold text-xs">Back to My Site</p>
+                            <p className="text-[10px] text-slate-400 font-normal">Return to your dashboard portal</p>
+                          </div>
+                        </button>
+                      )}
+
+                      <div className="border-t border-slate-100 my-1"></div>
+
+                      <button type="button" onClick={handleLogoutClick} className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-rose-600 hover:bg-rose-50 transition flex items-center gap-2.5 cursor-pointer">
+                        <span className="w-7 h-7 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center text-xs shrink-0">🚪</span>
+                        <span>Logout Account</span>
                       </button>
                     </div>
                   </div>
@@ -489,11 +505,6 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
           {/* MOBILE RESPONSIVE HAMBURGER & QUICK ACTIONS */}
           <div className="flex xl:hidden items-center gap-1.5 sm:gap-2 shrink-0">
             {isPatientLoggedIn && <NotificationBell currentUser={currentUser} setCurrentPage={handleNavClick} light />}
-            {isLoggedIn && !isPatientLoggedIn && staffHomePage && (
-              <button type="button" onClick={() => handleNavClick(staffHomePage)} className="px-2 py-1.5 rounded-lg border border-teal-200 bg-teal-50 text-teal-800 text-[10px] font-bold whitespace-nowrap" title="Back to My Site">
-                My Site
-              </button>
-            )}
             {showAppointmentAction && <button
               type="button"
               onClick={() => handleNavClick('appointment')}
@@ -505,19 +516,42 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
             {isLoggedIn ? (
               <>
                 {!isPatientLoggedIn && (
-                  <div className="relative">
+                  <div className="relative z-[9999]">
                     <button type="button" onClick={() => setProfileDropdownOpen(!profileDropdownOpen)} className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 via-teal-500 to-blue-600 text-white font-bold flex items-center justify-center text-[11px] shadow-xs" title={`${currentUser?.name || currentUser?.username || resolvedRole} · ${resolvedRole}`} aria-label="Open user menu" aria-expanded={profileDropdownOpen}>
                       {getInitials(currentUser?.name || currentUser?.username || resolvedRole)}
                     </button>
                     {profileDropdownOpen && (
-                      <div className="absolute right-0 top-full pt-2 w-64 z-50">
-                        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-2">
+                      <div className="absolute right-0 top-full pt-2 w-64 z-[9999]">
+                        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-2 space-y-1">
                           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                             <p className="text-xs font-bold text-slate-900 truncate">{currentUser?.name || currentUser?.username || 'User'}</p>
                             <p className="text-[10px] text-teal-700 font-semibold mt-1">{resolvedRole}</p>
                             {currentUser?.email && <p className="text-[10px] text-slate-500 truncate mt-1">{currentUser.email}</p>}
                           </div>
-                          <button type="button" onClick={handleLogoutClick} className="w-full mt-1 px-3 py-2 rounded-xl text-left text-xs font-bold text-rose-600 hover:bg-rose-50 transition">Logout Account</button>
+
+                          {staffHomePage && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleNavClick(staffHomePage);
+                                setProfileDropdownOpen(false);
+                              }}
+                              className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-teal-800 hover:bg-teal-50 transition flex items-center gap-2.5 cursor-pointer"
+                            >
+                              <span className="w-7 h-7 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center text-xs shrink-0">🏥</span>
+                              <div>
+                                <p className="font-bold text-xs">Back to My Site</p>
+                                <p className="text-[10px] text-slate-400 font-normal">Return to your dashboard portal</p>
+                              </div>
+                            </button>
+                          )}
+
+                          <div className="border-t border-slate-100 my-1"></div>
+
+                          <button type="button" onClick={handleLogoutClick} className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-rose-600 hover:bg-rose-50 transition flex items-center gap-2.5 cursor-pointer">
+                            <span className="w-7 h-7 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center text-xs shrink-0">🚪</span>
+                            <span>Logout Account</span>
+                          </button>
                         </div>
                       </div>
                     )}

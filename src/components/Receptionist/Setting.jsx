@@ -12,13 +12,13 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
   const [editFormData, setEditFormData] = useState({
     name: '',
     receptionist_id: '',
-    role: 'Front Desk Receptionist',
-    shift: 'Morning Shift (08:00 AM - 04:00 PM)',
-    languages: 'English, Hindi',
+    role: '',
+    shift: '',
+    languages: '',
     contact: '',
     email: '',
     password: '',
-    status: 'On_Duty',
+    status: '',
     is_active: true,
     hospital: '',
     created_at: ''
@@ -104,18 +104,18 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
         ? (typeof activeRec.hospital === 'object' ? activeRec.hospital.id : activeRec.hospital)
         : (currentUser?.hospital || '');
 
-      const resolvedRole = (activeRec.role && activeRec.role.trim()) || activeRec.designation || currentUser?.role || 'Front Desk Receptionist';
+      const resolvedRole = (activeRec.role && activeRec.role.trim()) || activeRec.designation || '';
 
       setEditFormData({
         name: activeRec.name || currentUser?.name || '',
         receptionist_id: activeRec.receptionist_id || (activeRec.id ? `REC-${activeRec.id}` : (currentUser?.receptionist_id || '')),
         role: resolvedRole,
-        shift: activeRec.shift || 'Morning Shift (08:00 AM - 04:00 PM)',
-        languages: activeRec.languages || 'English, Hindi',
+        shift: activeRec.shift || '',
+        languages: activeRec.languages || '',
         contact: activeRec.contact || activeRec.phone || currentUser?.contact || '',
         email: activeRec.email || currentUser?.email || '',
         password: activeRec.password || '',
-        status: activeRec.status || 'On_Duty',
+        status: activeRec.status || '',
         is_active: activeRec.is_active !== undefined ? Boolean(activeRec.is_active) : true,
         hospital: targetHospId ? String(targetHospId) : '',
         created_at: activeRec.created_at || ''
@@ -157,23 +157,32 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
+    const cleanPhone = (editFormData.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      setSaveErrorMsg("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (!editFormData.email || !editFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      setSaveErrorMsg("Email must be a valid @gmail.com address.");
+      return;
+    }
     try {
       setSavingProfile(true);
       setSaveSuccessMsg('');
       setSaveErrorMsg('');
 
       const recId = receptionistData?.id || currentUser?.id;
-      const safeRole = (editFormData.role && editFormData.role.trim()) || currentUser?.role || 'Front Desk Receptionist';
+      const safeRole = (editFormData.role && editFormData.role.trim()) || '';
 
       const payload = {
         name: (editFormData.name || currentUser?.name || 'Receptionist').trim(),
         email: (editFormData.email || currentUser?.email || '').trim(),
-        contact: (editFormData.contact || currentUser?.contact || '').trim(),
-        phone: (editFormData.contact || currentUser?.contact || '').trim(),
+        contact: cleanPhone,
+        phone: cleanPhone,
         role: safeRole,
-        shift: editFormData.shift || 'Morning Shift (08:00 AM - 04:00 PM)',
-        languages: (editFormData.languages || 'English, Hindi').trim(),
-        status: editFormData.status || 'On_Duty',
+        shift: editFormData.shift || '',
+        languages: (editFormData.languages || '').trim(),
+        status: editFormData.status || '',
         is_active: Boolean(editFormData.is_active),
         hospital: editFormData.hospital ? Number(editFormData.hospital) : null
       };
@@ -295,7 +304,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
+    <div className="w-full bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
       {/* HEADER BAR */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
         <div className="w-full px-4 sm:px-8 lg:px-12">
@@ -358,7 +367,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-6 sm:py-8 space-y-6">
+      <div className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-6 sm:py-8 space-y-6">
         {saveSuccessMsg && (
           <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 shadow-xs">
             <span>✓</span>
@@ -382,7 +391,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                   {(editFormData.name || currentUser?.name || 'RE').slice(0, 2).toUpperCase()}
                 </div>
                 <h3 className="text-base font-bold text-slate-900">{editFormData.name || currentUser?.name || 'Receptionist'}</h3>
-                <p className="text-xs text-sky-700 font-bold mt-0.5">{editFormData.role || currentUser?.role || 'Front Desk Receptionist'}</p>
+                <p className="text-xs text-sky-700 font-bold mt-0.5">{editFormData.role || 'Role not assigned'}</p>
 
                 <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2 text-xs">
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
@@ -393,13 +402,13 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Languages:</span>
-                    <span className="font-semibold text-slate-800 truncate max-w-[140px]">{editFormData.languages || 'English, Hindi'}</span>
+                    <span className="font-semibold text-slate-800 truncate max-w-[140px]">{editFormData.languages || 'Not Provided'}</span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Duty Status:</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${editFormData.status === 'On_Duty' || editFormData.status === 'Available' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
                       }`}>
-                      {editFormData.status || 'On_Duty'}
+                      {editFormData.status ? (editFormData.status === 'On_Duty' ? 'On Duty' : 'Off Duty') : 'Not Set'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
@@ -469,10 +478,12 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                       <input
                         type="email"
                         name="email"
+                        pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                        title="Email must be a valid @gmail.com address"
                         value={editFormData.email}
                         onChange={handleInputChange}
                         required
-                        placeholder="reception@hospital.com"
+                        placeholder="reception@gmail.com"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-600/20 transition"
                       />
                     </div>
@@ -503,11 +514,11 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                       </label>
                       <select
                         name="role"
-                        value={editFormData.role || 'Front Desk Receptionist'}
+                        value={editFormData.role || ''}
                         onChange={handleInputChange}
-                        required
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 font-semibold focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-600/20 transition cursor-pointer"
                       >
+                        <option value="">-- Select Role --</option>
                         {rolesList.map(r => (
                           <option key={r} value={r}>{r}</option>
                         ))}
@@ -521,9 +532,9 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                       </label>
                       <select
                         name="shift"
-                        value={editFormData.shift}
+                        value={editFormData.shift || ''}
                         onChange={handleInputChange}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-600/20 transition"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-600/20 transition cursor-pointer"
                       >
                         <option value="">-- Select Shift --</option>
                         {shiftsList.map(s => (
@@ -535,14 +546,13 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                     {/* 7. LANGUAGES */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Spoken Languages <span className="text-rose-500">*</span>
+                        Spoken Languages
                       </label>
                       <input
                         type="text"
                         name="languages"
-                        value={editFormData.languages}
+                        value={editFormData.languages || ''}
                         onChange={handleInputChange}
-                        required
                         placeholder="e.g. English, Hindi, Marathi"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-600/20 transition"
                       />
@@ -551,37 +561,40 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                     {/* 8. STATUS (AVAILABILITY) */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Status (Availability) <span className="text-rose-500">*</span>
+                        Status (Availability)
                       </label>
                       <select
                         name="status"
-                        value={editFormData.status === 'Off_Duty' || editFormData.status === 'Off Duty' ? 'Off_Duty' : 'On_Duty'}
+                        value={editFormData.status || ''}
                         onChange={handleInputChange}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-600/20 transition cursor-pointer"
                       >
+                        <option value="">-- Select Status --</option>
                         <option value="On_Duty">On Duty</option>
                         <option value="Off_Duty">Off Duty</option>
                       </select>
                     </div>
 
-                    {/* 9. HOSPITAL */}
+                    {/* 9. HOSPITAL (LOCKED) */}
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Hospital
-                      </label>
-                      <select
-                        name="hospital"
-                        value={editFormData.hospital}
-                        onChange={handleInputChange}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-600/20 transition"
-                      >
-                        <option value="">-- Select Hospital --</option>
-                        {hospitalsList.map(h => (
-                          <option key={h.id} value={h.id}>
-                            {h.Name || h.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Hospital <span className="text-rose-500">*</span>
+                        </label>
+                        <span className="text-[10px] text-sky-800 font-bold bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-flex items-center gap-1">
+                          🔒 Locked (Non-editable)
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={hospitalData?.Name || hospitalData?.name || (editFormData.hospital ? (hospitalsList.find(h => Number(h.id) === Number(editFormData.hospital))?.Name || hospitalsList.find(h => Number(h.id) === Number(editFormData.hospital))?.name) : '') || receptionistData?.hospital_name || currentUser?.hospital_name || 'Assigned Hospital'}
+                        disabled
+                        readOnly
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm font-semibold text-slate-700 cursor-not-allowed select-none"
+                      />
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        🔒 Hospital assignment is managed by Hospital Admin and cannot be changed here.
+                      </p>
                     </div>
 
                     {/* 11. PASSWORD (READ-ONLY IN PROFILE) */}
@@ -753,7 +766,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
             </form>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 };

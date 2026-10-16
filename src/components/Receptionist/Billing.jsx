@@ -832,12 +832,38 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
                       </td>
 
                       <td className="py-3 px-3 text-center">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border inline-block ${bill.isPaid
-                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                            : 'bg-amber-100 text-amber-800 border-amber-300 animate-pulse'
-                          }`}>
-                          {bill.isPaid ? '✓ Paid (Cleared)' : '⏳ Payment Pending'}
-                        </span>
+                        {!bill.isPaid ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenBillingModal(pat)}
+                            className="px-3.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition duration-150 inline-flex items-center gap-1.5 cursor-pointer"
+                            title="Edit & Clear Bill"
+                          >
+                            <span>✏️</span>
+                            <span>Edit</span>
+                          </button>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenBillingModal(pat)}
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 transition inline-flex items-center gap-1 cursor-pointer"
+                              title="Edit Billing Details"
+                            >
+                              <span>✏️</span>
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setInvoiceModalPatient(pat)}
+                              className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300 transition inline-flex items-center gap-1 cursor-pointer"
+                              title="Print Invoice / Gate Pass"
+                            >
+                              <span>🧾</span>
+                              <span>Invoice</span>
+                            </button>
+                          </div>
+                        )}
                       </td>
 
                       

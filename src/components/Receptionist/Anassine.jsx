@@ -970,6 +970,17 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
       return;
     }
 
+    const cleanPhone = (editFormData.contact || editModalPatient.contact || editModalPatient.phone || '').replace(/\D/g, '').slice(0, 10);
+    if (editFormData.contact && cleanPhone.length !== 10) {
+      alert("Phone number must be exactly 10 digits.");
+      return;
+    }
+    const editEmail = (editFormData.email || editModalPatient.email || '').trim();
+    if (editEmail && !editEmail.toLowerCase().endsWith('@gmail.com')) {
+      alert("Email must be a valid @gmail.com address.");
+      return;
+    }
+
     if (!editFormData.visit_date) {
       alert('Please select Appointment Date.');
       return;
@@ -1500,7 +1511,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                       maxLength={3}
                       value={editFormData.age}
                       onChange={(e) => setEditFormData({ ...editFormData, age: e.target.value })}
-                      placeholder="e.g. 28"
+                      placeholder="Enter your age"
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
                     />
                   </div>
@@ -1536,9 +1547,11 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Email ID</label>
                     <input
                       type="email"
+                      pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                      title="Email must be a valid @gmail.com address"
                       value={editFormData.email}
                       onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                      placeholder="patient@example.com"
+                      placeholder="patient@gmail.com"
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
                     />
                   </div>
@@ -1691,7 +1704,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Bed Number (Leave blank for OPD)</label>
                     <input
                       type="number"
-                      placeholder="e.g. 102 (Floor 1), 205 (Floor 2)"
+                      placeholder="Enter bed number"
                       value={editFormData.bed_number}
                       onChange={(e) => handleEditBedChange(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white font-mono"

@@ -602,6 +602,22 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
   const handleSaveDetails = async (e) => {
     if (e) e.preventDefault();
     if (!hospitalData || !hospitalData.id) return;
+
+    const cleanContact = (detailsFormData.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (!cleanContact || cleanContact.length !== 10) {
+      alert("Reception contact must be exactly 10 digits.");
+      return;
+    }
+    const cleanEmergency = (detailsFormData.emergency_contact || '').replace(/\D/g, '').slice(0, 12);
+    if (detailsFormData.emergency_contact && (cleanEmergency.length < 10 || cleanEmergency.length > 12)) {
+      alert("Emergency contact must be between 10 and 12 digits.");
+      return;
+    }
+    if (!detailsFormData.email || !detailsFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert("Email must be a valid @gmail.com address.");
+      return;
+    }
+
     setSaveLoading(true);
 
     try {
@@ -611,8 +627,8 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
         city: (detailsFormData.city || '').trim(),
         area: (detailsFormData.area || '').trim(),
         address: (detailsFormData.address || '').trim(),
-        contact: (detailsFormData.contact || '').trim(),
-        emergency_contact: (detailsFormData.emergency_contact || '').trim(),
+        contact: cleanContact,
+        emergency_contact: cleanEmergency,
         email: (detailsFormData.email || '').trim(),
         established_year: (detailsFormData.established_year || '').trim(),
         total_beds: Number(detailsFormData.total_beds) || 0,
@@ -1653,19 +1669,18 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                       maxLength={100}
                       value={detailsFormData.Name}
                       onChange={(e) => setDetailsFormData({ ...detailsFormData, Name: e.target.value })}
-                      placeholder="e.g. City General Hospital"
+                      placeholder="Enter hospital name"
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Established Year</label>
+                    <label className="font-semibold text-slate-700 block mb-1">Established Year (Permanent)</label>
                     <input
                       type="text"
-                      maxLength={10}
-                      value={detailsFormData.established_year}
-                      onChange={(e) => setDetailsFormData({ ...detailsFormData, established_year: e.target.value })}
-                      placeholder="e.g. 1998"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                      readOnly
+                      disabled
+                      value={detailsFormData.established_year || 'Not specified'}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-slate-100 text-slate-500 font-medium cursor-not-allowed select-none focus:outline-none"
                     />
                   </div>
                   <div>
@@ -1696,7 +1711,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                       maxLength={50}
                       value={detailsFormData.city}
                       onChange={(e) => setDetailsFormData({ ...detailsFormData, city: e.target.value })}
-                      placeholder="e.g. Mumbai"
+                      placeholder="Enter city"
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
@@ -1708,7 +1723,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                       maxLength={50}
                       value={detailsFormData.area}
                       onChange={(e) => setDetailsFormData({ ...detailsFormData, area: e.target.value })}
-                      placeholder="e.g. Andheri West"
+                      placeholder="Enter area"
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
@@ -1720,7 +1735,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                     required
                     value={detailsFormData.address}
                     onChange={(e) => setDetailsFormData({ ...detailsFormData, address: e.target.value })}
-                    placeholder="Enter complete building name, street, road, landmark and pin code"
+                    placeholder="Enter street address"
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                   ></textarea>
                 </div>
@@ -1735,23 +1750,27 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                   <div>
                     <label className="font-semibold text-slate-700 block mb-1">Reception Contact *</label>
                     <input
-                      type="text"
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]{10}"
                       required
-                      maxLength={20}
+                      maxLength={10}
                       value={detailsFormData.contact}
-                      onChange={(e) => setDetailsFormData({ ...detailsFormData, contact: e.target.value })}
-                      placeholder="e.g. +91 22 2345 6789"
+                      onChange={(e) => setDetailsFormData({ ...detailsFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                      placeholder="Enter contact number"
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
                   <div>
                     <label className="font-semibold text-slate-700 block mb-1">Emergency Contact</label>
                     <input
-                      type="text"
-                      maxLength={20}
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]{10,12}"
+                      maxLength={12}
                       value={detailsFormData.emergency_contact}
-                      onChange={(e) => setDetailsFormData({ ...detailsFormData, emergency_contact: e.target.value })}
-                      placeholder="e.g. +91 98765 43210"
+                      onChange={(e) => setDetailsFormData({ ...detailsFormData, emergency_contact: e.target.value.replace(/\D/g, '').slice(0, 12) })}
+                      placeholder="Enter emergency contact"
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
@@ -1760,9 +1779,11 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                     <input
                       type="email"
                       required
+                      pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                      title="Email must be a valid @gmail.com address"
                       value={detailsFormData.email}
                       onChange={(e) => setDetailsFormData({ ...detailsFormData, email: e.target.value })}
-                      placeholder="e.g. contact@hospital.org"
+                      placeholder="Enter email address"
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
@@ -1790,6 +1811,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                       onFocus={handleNumberFocus}
                       onBlur={() => handleNumberBlur('total_beds')}
                       onChange={(e) => handleNumberChange('total_beds', e.target.value)}
+                      placeholder="Enter total beds"
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
@@ -1803,6 +1825,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                       onFocus={handleNumberFocus}
                       onBlur={() => handleNumberBlur('icu_beds')}
                       onChange={(e) => handleNumberChange('icu_beds', e.target.value)}
+                      placeholder="Enter ICU beds"
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
@@ -1815,6 +1838,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                       onFocus={handleNumberFocus}
                       onBlur={() => handleNumberBlur('nicu_beds')}
                       onChange={(e) => handleNumberChange('nicu_beds', e.target.value)}
+                      placeholder="Enter NICU beds"
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
@@ -1828,6 +1852,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                       onFocus={handleNumberFocus}
                       onBlur={() => handleNumberBlur('operation_theatres')}
                       onChange={(e) => handleNumberChange('operation_theatres', e.target.value)}
+                      placeholder="Enter operation theatres"
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
@@ -1841,6 +1866,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                       onFocus={handleNumberFocus}
                       onBlur={() => handleNumberBlur('ambulances_count')}
                       onChange={(e) => handleNumberChange('ambulances_count', e.target.value)}
+                      placeholder="Enter ambulances count"
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
@@ -1853,6 +1879,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                       onFocus={handleNumberFocus}
                       onBlur={() => handleNumberBlur('restroom_for_relatives')}
                       onChange={(e) => handleNumberChange('restroom_for_relatives', e.target.value)}
+                      placeholder="Enter restrooms count"
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     />
                   </div>
@@ -1873,7 +1900,7 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
                   rows="2"
                   value={detailsFormData.departments}
                   onChange={(e) => setDetailsFormData({ ...detailsFormData, departments: e.target.value })}
-                  placeholder="e.g. Cardiology, Neurology, Emergency Medicine, Pediatrics, Orthopedics, Oncology"
+                  placeholder="Enter clinical departments"
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                 ></textarea>
                 <p className="text-[10px] text-slate-500 mt-0.5">

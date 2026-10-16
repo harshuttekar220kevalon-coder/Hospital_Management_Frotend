@@ -116,16 +116,16 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
       return;
     }
 
-    if (!mail) {
-      const msg = 'Please enter a valid email address.';
+    if (!mail || !mail.toLowerCase().endsWith('@gmail.com')) {
+      const msg = 'Email must be a valid @gmail.com address.';
       setErrorMessage(msg);
       alert(msg);
       setLoading(false);
       return;
     }
 
-    if (!contact) {
-      const msg = 'Please enter a valid contact phone number.';
+    if (!contact || contact.length !== 10) {
+      const msg = 'Phone number must be exactly 10 digits.';
       setErrorMessage(msg);
       alert(msg);
       setLoading(false);
@@ -212,7 +212,6 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
           try {
             const generatedDocId = `DOC-${Math.floor(1000 + Math.random() * 9000)}`;
             const docPayload = {
-              role: 'Doctor',
               doctor_id: generatedDocId,
               name: fullName.startsWith('Dr.') ? fullName : `Dr. ${fullName}`,
               email: mail,
@@ -223,11 +222,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
               password: pass,
               hospital: selectedHospId,
               hospitals: [selectedHospId],
-              status: 'On_Duty',
-              is_active: true,
-              Shifts: 'Morning First Shift',
-              shift: 'Morning First Shift',
-              opd_timings: 'Morning First Shift'
+              is_active: true
             };
             const postRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`, {
               method: 'POST',
@@ -270,8 +265,6 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
               contact_number: contact,
               phone_number: contact,
               hospital: selectedHospId,
-              shift: 'Morning First Shift',
-              status: 'On_Duty',
               is_active: true,
               password: pass
             };
@@ -309,16 +302,12 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
               hospital: selectedHospId || null,
               name: fullName,
               receptionist_id: generatedRecId,
-              role: 'Front Desk Receptionist',
-              designation: 'Front Desk Receptionist',
               contact: contact,
               phone: contact,
               contact_number: contact,
               phone_number: contact,
               email: mail,
               password: pass,
-              shift: 'Morning First Shift',
-              status: 'On_Duty',
               is_active: true
             };
             const postRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`, {
@@ -661,6 +650,8 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
                 onChange={handleChange}
                 placeholder="Enter email address"
                 required
+                pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                title="Email must be a valid @gmail.com address"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-600/20 transition duration-150"
               />
             </div>

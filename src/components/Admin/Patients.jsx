@@ -311,6 +311,16 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
       return;
     }
 
+    const cleanPhone = (addFormData.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      alert("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (addFormData.email && !addFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert("Email must be a valid @gmail.com address.");
+      return;
+    }
+
     try {
       const generatedDocPatId = generatePatientId();
       const selectedDocObj = doctorsList.find(d => d.id === Number(addFormData.doctor));
@@ -328,7 +338,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
       const payloadData = {
         patient_id: generatedDocPatId,
         name: addFormData.name.trim(),
-        contact: (addFormData.contact || '').replace(/\D/g, '').slice(0, 15),
+        contact: cleanPhone,
         email: (addFormData.email || '').trim(),
         password: (addFormData.password || addFormData.Password || '').trim(),
         Password: (addFormData.password || addFormData.Password || '').trim(),
@@ -627,7 +637,9 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Email Address</label>
                   <input
                     type="email"
-                    placeholder="patient@example.com"
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
+                    placeholder="patient@gmail.com"
                     value={addFormData.email}
                     onChange={(e) => setAddFormData({ ...addFormData, email: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
@@ -783,7 +795,7 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
                       min="0"
                       readOnly
                       value={addFormData.consultation_fee}
-                      placeholder="Doctor fee (auto)"
+                      placeholder="Doctor fee"
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono font-bold focus:outline-none cursor-not-allowed"
                     />
                     <p className="text-[10px] text-slate-500 mt-0.5">Fixed consultation fee set on Doctor profile</p>

@@ -28,16 +28,16 @@ const DoctorSettings = ({
     email: '',
     contact: '',
     phone: '',
-    specialization: 'General Medicine',
-    department: 'General Medicine',
+    specialization: '',
+    department: '',
     qualification: '',
     experience: '',
-    shift: 'Morning First Shift',
-    Shifts: 'Morning First Shift',
-    opd_timings: 'Morning First Shift',
-    consultation_fee: '500',
-    status: 'On_Duty',
-    duty_status: 'On_Duty',
+    shift: '',
+    Shifts: '',
+    opd_timings: '',
+    consultation_fee: '',
+    status: '',
+    duty_status: '',
     hospital: '',
     password: '',
     created_at: ''
@@ -216,8 +216,8 @@ const DoctorSettings = ({
       const activeDoctor = matchedDoctor || currentUser || {};
       setDoctorData(activeDoctor);
 
-      const currentSpec = activeDoctor.specialization || currentUser?.specialization || 'General Medicine';
-      const currentDept = activeDoctor.department || currentUser?.department || activeDoctor.specialization || 'General Medicine';
+      const currentSpec = activeDoctor.specialization || currentUser?.specialization || '';
+      const currentDept = activeDoctor.department || currentUser?.department || '';
 
       if (currentSpec && !extractedSpecs.includes(currentSpec)) {
         extractedSpecs.push(currentSpec);
@@ -235,8 +235,8 @@ const DoctorSettings = ({
         ? (typeof activeDoctor.hospital === 'object' ? activeDoctor.hospital.id : activeDoctor.hospital)
         : (currentUser?.hospital || '');
 
-      const docShift = activeDoctor.shift || activeDoctor.Shifts || activeDoctor.opd_timings || currentUser?.shift || 'Morning First Shift';
-      const docStatus = activeDoctor.status || activeDoctor.duty_status || currentUser?.status || 'On_Duty';
+      const docShift = activeDoctor.shift || activeDoctor.Shifts || activeDoctor.opd_timings || currentUser?.shift || '';
+      const docStatus = activeDoctor.status || activeDoctor.duty_status || currentUser?.status || '';
 
       setEditFormData({
         name: activeDoctor.name || currentUser?.name || '',
@@ -246,12 +246,12 @@ const DoctorSettings = ({
         phone: activeDoctor.phone || activeDoctor.contact || currentUser?.phone || currentUser?.contact || '',
         specialization: currentSpec,
         department: currentDept,
-        qualification: activeDoctor.qualification || currentUser?.qualification || 'MBBS, MD',
-        experience: activeDoctor.experience || currentUser?.experience || '5 Years',
+        qualification: activeDoctor.qualification || currentUser?.qualification || '',
+        experience: activeDoctor.experience || currentUser?.experience || '',
         shift: docShift,
         Shifts: docShift,
         opd_timings: docShift,
-        consultation_fee: activeDoctor.consultation_fee || currentUser?.consultation_fee || '500',
+        consultation_fee: activeDoctor.consultation_fee !== undefined && activeDoctor.consultation_fee !== null ? String(activeDoctor.consultation_fee) : '',
         status: docStatus,
         duty_status: docStatus,
         hospital: targetHospId ? String(targetHospId) : '',
@@ -314,6 +314,15 @@ const DoctorSettings = ({
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
+    const cleanPhone = (editFormData.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      setSaveErrorMsg("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (!editFormData.email || !editFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      setSaveErrorMsg("Email must be a valid @gmail.com address.");
+      return;
+    }
     try {
       setSavingProfile(true);
       setSaveSuccessMsg('');
@@ -327,8 +336,8 @@ const DoctorSettings = ({
         name: formattedName,
         doctor_id: editFormData.doctor_id,
         email: editFormData.email.trim(),
-        contact: editFormData.contact.trim(),
-        phone: editFormData.contact.trim(),
+        contact: cleanPhone,
+        phone: cleanPhone,
         specialization: editFormData.specialization.trim(),
         department: editFormData.department.trim(),
         qualification: editFormData.qualification.trim(),
@@ -493,7 +502,7 @@ const DoctorSettings = ({
     : (hospitalData ? [hospitalData] : []);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
+    <div className="w-full bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
       {/* HEADER BAR */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
         <div className="w-full px-4 sm:px-8 lg:px-12">
@@ -558,7 +567,7 @@ const DoctorSettings = ({
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-6 sm:py-8 space-y-6">
+      <div className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-6 sm:py-8 space-y-6">
         {saveSuccessMsg && (
           <div className="p-4 rounded-xl bg-teal-50 border border-teal-200 text-teal-900 text-xs font-bold flex items-center gap-2 shadow-xs">
             <span>✓</span>
@@ -585,34 +594,34 @@ const DoctorSettings = ({
                   {editFormData.name ? (editFormData.name.startsWith('Dr.') ? editFormData.name : `Dr. ${editFormData.name}`) : 'Dr. Doctor'}
                 </h3>
                 <p className="text-xs text-teal-700 font-semibold mt-0.5">
-                  {editFormData.specialization || 'General Medicine'} • {editFormData.department || 'OPD'}
+                  {editFormData.specialization || 'Specialization not set'}{editFormData.department ? ` • ${editFormData.department}` : ''}
                 </p>
 
                 <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2 text-xs">
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Doctor ID:</span>
                     <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
-                      {editFormData.doctor_id || (currentUser?.id ? `DOC-${currentUser.id}` : 'DOC-101')}
+                      {editFormData.doctor_id || (currentUser?.id ? `DOC-${currentUser.id}` : 'DOC-ID')}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">OPD Shift:</span>
                     <span className="font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 truncate max-w-[150px]">
-                      {editFormData.shift || 'Morning First Shift'}
+                      {editFormData.shift || 'Not Set'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Consultation Fee:</span>
                     <span className="font-bold text-slate-900 bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200">
-                      ₹{editFormData.consultation_fee || '500'}
+                      {editFormData.consultation_fee !== '' && editFormData.consultation_fee !== undefined && editFormData.consultation_fee !== null ? `₹${editFormData.consultation_fee}` : 'Not Set'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
                     <span className="text-slate-400">Duty Status:</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      editFormData.status === 'On_Duty' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                      editFormData.status === 'On_Duty' ? 'bg-emerald-100 text-emerald-800' : (editFormData.status === 'Off_Duty' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600')
                     }`}>
-                      {editFormData.status === 'On_Duty' ? 'On Duty' : 'Off Duty'}
+                      {editFormData.status ? (editFormData.status === 'On_Duty' ? 'On Duty' : editFormData.status === 'Off_Duty' ? 'Off Duty' : editFormData.status) : 'Not Set'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1 border-b border-slate-50 text-slate-600">
@@ -703,10 +712,12 @@ const DoctorSettings = ({
                       <input
                         type="email"
                         name="email"
+                        pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                        title="Email must be a valid @gmail.com address"
                         value={editFormData.email}
                         onChange={handleInputChange}
                         required
-                        placeholder="doctor@hospital.com"
+                        placeholder="doctor@gmail.com"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
                       />
                     </div>
@@ -875,11 +886,11 @@ const DoctorSettings = ({
                       </label>
                       <select
                         name="shift"
-                        value={editFormData.shift}
+                        value={editFormData.shift || ''}
                         onChange={handleInputChange}
-                        required
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
                       >
+                        <option value="">-- Select Shift --</option>
                         {shiftsList.map(s => (
                           <option key={s} value={s}>{s}</option>
                         ))}
@@ -889,7 +900,7 @@ const DoctorSettings = ({
                     {/* 10. CONSULTATION FEE */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Consultation Fee (₹) <span className="text-rose-500">*</span>
+                        Consultation Fee (₹)
                       </label>
                       <input
                         type="number"
@@ -925,7 +936,7 @@ const DoctorSettings = ({
                           if (saveSuccessMsg) setSaveSuccessMsg('');
                           if (saveErrorMsg) setSaveErrorMsg('');
                         }}
-                        placeholder="Enter fee (e.g. 500)"
+                        placeholder="Enter consultation fee"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition font-medium"
                       />
                     </div>
@@ -933,37 +944,40 @@ const DoctorSettings = ({
                     {/* 11. DUTY STATUS */}
                     <div className="sm:col-span-2">
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Duty Status <span className="text-rose-500">*</span>
+                        Duty Status
                       </label>
                       <select
                         name="status"
-                        value={editFormData.status === 'Off_Duty' || editFormData.status === 'Off Duty' ? 'Off_Duty' : 'On_Duty'}
+                        value={editFormData.status || ''}
                         onChange={handleInputChange}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition cursor-pointer"
                       >
+                        <option value="">-- Select Status --</option>
                         <option value="On_Duty">On Duty</option>
                         <option value="Off_Duty">Off Duty</option>
                       </select>
                     </div>
 
-                    {/* 12. HOSPITAL AFFILIATION */}
+                    {/* 12. HOSPITAL AFFILIATION (LOCKED) */}
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Primary Hospital Affiliation
-                      </label>
-                      <select
-                        name="hospital"
-                        value={editFormData.hospital}
-                        onChange={handleInputChange}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
-                      >
-                        <option value="">-- Select Hospital Branch --</option>
-                        {hospitalsList.map(h => (
-                          <option key={h.id} value={h.id}>
-                            {h.Name || h.name} {h.Branch_Code ? `(${h.Branch_Code})` : ''}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Primary Hospital Affiliation
+                        </label>
+                        <span className="text-[10px] text-teal-800 font-bold bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-flex items-center gap-1">
+                          🔒 Locked (Non-editable)
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={hospitalData?.Name || hospitalData?.name || (editFormData.hospital ? (hospitalsList.find(h => Number(h.id) === Number(editFormData.hospital))?.Name || hospitalsList.find(h => Number(h.id) === Number(editFormData.hospital))?.name) : '') || doctorData?.hospital_name || currentUser?.hospital_name || 'Assigned Hospital'}
+                        disabled
+                        readOnly
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm font-semibold text-slate-700 cursor-not-allowed select-none"
+                      />
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        🔒 Hospital assignment is managed by Hospital Admin and cannot be changed here.
+                      </p>
                     </div>
 
                     {/* 13. PASSWORD PREVIEW IN PROFILE */}
@@ -1079,7 +1093,7 @@ const DoctorSettings = ({
                     type={showNewPassword ? 'text' : 'password'}
                     value={passwordForm.newPassword}
                     onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
-                    placeholder="Enter new password (min 4 chars)"
+                    placeholder="Enter new password"
                     maxLength="20"
                     required
                     className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
@@ -1137,7 +1151,7 @@ const DoctorSettings = ({
             </form>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 };

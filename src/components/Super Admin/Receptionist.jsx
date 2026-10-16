@@ -164,6 +164,14 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
       alert('Please select an assigned hospital branch.');
       return;
     }
+    if (!formData.contact || formData.contact.trim().length !== 10) {
+      alert('Phone number must be exactly 10 digits.');
+      return;
+    }
+    if (!formData.email || !formData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert('Official email must be a valid @gmail.com address.');
+      return;
+    }
 
     try {
       const generatedRecId = `REC-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -519,7 +527,9 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="receptionist@hospital.com"
+                    placeholder="receptionist@gmail.com"
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>

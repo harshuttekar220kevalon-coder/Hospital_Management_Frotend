@@ -376,6 +376,14 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
       alert('Branch Allocation Required:\nPlease select a target hospital branch for this patient admission.');
       return;
     }
+    if (!addFormData.contact || addFormData.contact.trim().length !== 10) {
+      alert('Phone number must be exactly 10 digits.');
+      return;
+    }
+    if (addFormData.email && !addFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert('Email must be a valid @gmail.com address.');
+      return;
+    }
 
     try {
       const generatedDocPatId = generatePatientId();
@@ -952,9 +960,11 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Email Address</label>
                   <input
                     type="email"
-                    placeholder="patient@example.com"
+                    placeholder="patient@gmail.com"
                     value={addFormData.email}
                     onChange={(e) => setAddFormData({ ...addFormData, email: e.target.value })}
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>

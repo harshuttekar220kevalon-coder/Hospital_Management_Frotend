@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import NotificationBell from '../Common/NotificationBell';
-import { getNotificationEndpoint, getNotificationHeaders, getNotificationParams } from '../Common/notificationApi';
+import { getNotificationEndpoint, getNotificationHeaders, getNotificationParams, getNotificationRole } from '../Api/Api';
 
 const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser, onBackToWebsite }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -14,10 +14,21 @@ const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser, 
     if (!endpoint || !currentUser?.email) return;
     try {
       const params = getNotificationParams(currentUser);
-      const response = await fetch(`${endpoint}unread_count/?${params.toString()}`, { headers: getNotificationHeaders(currentUser) });
+      params.set('_t', String(Date.now()));
+      const response = await fetch(`${endpoint}?${params.toString()}`, {
+        cache: 'no-store',
+        headers: {
+          ...getNotificationHeaders(currentUser),
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+      });
       if (!response.ok) return;
       const data = await response.json();
-      setUnreadCount(Number(data.unread_count) || 0);
+      const list = Array.isArray(data) ? data : data.results || [];
+      const role = getNotificationRole(currentUser?.role);
+      const unread = list.filter(item => !item.is_read && ((item.recipient_email && item.recipient_email.toLowerCase() === currentUser?.email?.toLowerCase()) || item.recipient_role === role)).length;
+      setUnreadCount(unread);
     } catch {
       // Keep last known count
     }
@@ -56,16 +67,6 @@ const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser, 
   }, [isSidebarOpen]);
 
   const navItems = [
-    {
-      id: 'super_admin_dashboard',
-      label: 'HQ Dashboard',
-      matchPages: ['super_admin_dashboard'],
-      icon: (
-        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-        </svg>
-      )
-    },
     {
       id: 'super_admin_hospitals',
       label: 'Hospital Branches',
@@ -138,7 +139,7 @@ const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser, 
     },
     {
       id: 'super_admin_new_users',
-      label: 'New Users Approval',
+      label: 'Admin Approvals',
       matchPages: ['super_admin_new_users'],
       icon: (
         <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -270,31 +271,6 @@ const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser, 
           );
         })}
       </div>
-
-      {/* Sidebar Footer */}
-      <div className="p-3 border-t border-slate-800/90 space-y-1.5 shrink-0 bg-slate-900/95">
-        <button
-          type="button"
-          onClick={onBackToWebsite || (() => handleNavClick('home'))}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 transition cursor-pointer"
-        >
-          <svg className="w-4 h-4 shrink-0 text-sky-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-          </svg>
-          <span className="truncate">Back to Website</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={handleLogoutClick}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-300 hover:bg-rose-500/20 transition cursor-pointer"
-        >
-          <svg className="w-4 h-4 shrink-0 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-          <span className="truncate">Logout Account</span>
-        </button>
-      </div>
     </div>
   );
 
@@ -302,18 +278,70 @@ const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser, 
     <>
       {/* Dynamic layout style to shift main content for Super Admin on desktop */}
       <style>{`
+        /* Prevent ancestor transform/animation from trapping fixed positioning */
+        html,
+        body,
+        #root,
+        #root > *,
+        div.min-h-screen {
+          transform: none !important;
+          animation: none !important;
+          filter: none !important;
+          perspective: none !important;
+        }
+
         @media (min-width: 1024px) {
+          aside[data-sidebar="desktop"] {
+            position: fixed !important;
+            top: 0 !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            width: 16rem !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+            max-height: 100vh !important;
+            max-height: 100dvh !important;
+            z-index: 50 !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+          }
+          header[data-navbar="topbar"],
+          header.topbar-sticky {
+            position: sticky !important;
+            top: 0 !important;
+            margin-left: 16rem !important;
+            width: calc(100% - 16rem) !important;
+            max-width: calc(100% - 16rem) !important;
+            padding-left: 0 !important;
+            z-index: 40 !important;
+          }
           body > #root > div > main,
           div.min-h-screen > main {
             margin-left: 16rem !important;
             width: calc(100% - 16rem) !important;
             max-width: calc(100% - 16rem) !important;
+            min-height: 100vh !important;
           }
         }
       `}</style>
 
       {/* 1. DESKTOP PERMANENT SIDEBAR */}
-      <aside className="fixed inset-y-0 left-0 z-40 w-64 h-screen max-h-screen bg-slate-900 border-r border-slate-800 hidden lg:flex flex-col overflow-hidden">
+      <aside
+        data-sidebar="desktop"
+        style={{
+          position: 'fixed',
+          top: 0,
+          bottom: 0,
+          left: 0,
+          width: '16rem',
+          height: '100vh',
+          maxHeight: '100vh',
+          zIndex: 50,
+          overflowY: 'auto',
+          overflowX: 'hidden'
+        }}
+        className="fixed inset-y-0 left-0 z-50 w-64 h-screen max-h-screen bg-slate-900 border-r border-slate-800 hidden lg:flex flex-col overflow-y-auto overflow-x-hidden"
+      >
         {renderSidebarContent()}
       </aside>
 
@@ -321,11 +349,22 @@ const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser, 
       {isSidebarOpen && (
         <div
           onClick={() => setIsSidebarOpen(false)}
-          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 lg:hidden animate-in fade-in duration-200"
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[110] lg:hidden animate-in fade-in duration-200"
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 h-screen max-h-screen bg-slate-900 border-r border-slate-800 flex flex-col lg:hidden transform transition-transform duration-300 ease-in-out overflow-hidden ${
+        style={{
+          position: 'fixed',
+          top: 0,
+          bottom: 0,
+          left: 0,
+          height: '100vh',
+          maxHeight: '100vh',
+          zIndex: 120,
+          overflowY: 'auto',
+          overflowX: 'hidden'
+        }}
+        className={`fixed inset-y-0 left-0 z-[120] w-64 h-screen max-h-screen bg-slate-900 border-r border-slate-800 flex flex-col lg:hidden transform transition-transform duration-300 ease-in-out overflow-y-auto overflow-x-hidden ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -333,7 +372,10 @@ const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser, 
       </aside>
 
       {/* 3. HORIZONTAL TOP BAR (जो आड़ा आ रहा है - Contains ONLY Notification Icon & User Logo) */}
-      <header className="sticky top-0 z-30 w-full bg-slate-900 border-b border-slate-800 text-slate-100 shadow-sm lg:pl-64">
+      <header
+        data-navbar="topbar"
+        className="sticky top-0 z-40 w-full lg:ml-64 lg:w-[calc(100%-16rem)] bg-slate-900 border-b border-slate-800 text-slate-100 shadow-sm topbar-sticky"
+      >
         <div className="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           
           {/* Left section: Mobile menu trigger */}
@@ -357,7 +399,7 @@ const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser, 
             <NotificationBell currentUser={currentUser} setCurrentPage={handleNavClick} />
 
             {/* User Logo / Avatar */}
-            <div className="relative">
+            <div className="relative z-[9999]">
               <button
                 type="button"
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
@@ -370,7 +412,7 @@ const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser, 
 
               {/* Profile Dropdown */}
               {profileDropdownOpen && (
-                <div className="absolute right-0 top-full mt-2 w-64 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="absolute right-0 top-full mt-2 w-64 z-[9999] animate-in fade-in slide-in-from-top-2 duration-150">
                   <div className="bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl p-2 space-y-1.5 text-slate-100 backdrop-blur-xl">
                     <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700/60">
                       <div className="flex items-center gap-2.5">

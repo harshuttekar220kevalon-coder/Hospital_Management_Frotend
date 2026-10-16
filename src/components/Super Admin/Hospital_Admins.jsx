@@ -155,6 +155,16 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
       return;
     }
 
+    if (!trimmedContact || trimmedContact.length !== 10) {
+      alert('Phone number must be exactly 10 digits.');
+      return;
+    }
+
+    if (!trimmedEmail.endsWith('@gmail.com')) {
+      alert('Official email must be a valid @gmail.com address.');
+      return;
+    }
+
     try {
       const nameParts = trimmedName.split(' ');
       const fName = nameParts[0] || '';
@@ -610,7 +620,9 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="admin@hospital.com"
+                    placeholder="admin@gmail.com"
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>

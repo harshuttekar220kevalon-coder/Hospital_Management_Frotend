@@ -436,6 +436,17 @@ const SuperAdminAppointmentDetails = ({
   const handleSaveEditSubmit = async (e) => {
     e.preventDefault();
     if (!activeAppt || !activeAppt.id) return;
+
+    const cleanPhone = (editFormData.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (editFormData.contact && cleanPhone.length !== 10) {
+      alert("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (editFormData.email && !editFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert("Email must be a valid @gmail.com address.");
+      return;
+    }
+
     try {
       setIsSavingEdit(true);
       const selectedDoc = doctorsList.find(d => Number(d.id) === Number(editFormData.doctor));
@@ -448,8 +459,8 @@ const SuperAdminAppointmentDetails = ({
         name: editFormData.name.trim(),
         account_holder_name: (editFormData.account_holder_name || '').trim(),
         booked_by: (editFormData.account_holder_name || '').trim(),
-        contact: editFormData.contact.trim(),
-        phone: editFormData.contact.trim(),
+        contact: cleanPhone,
+        phone: cleanPhone,
         email: editFormData.email.trim(),
         age: editFormData.age ? Number(editFormData.age) : null,
         gender: editFormData.gender,
@@ -1141,9 +1152,12 @@ const SuperAdminAppointmentDetails = ({
                 <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Contact Phone</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     value={editFormData.contact}
-                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-medium"
                     placeholder="Phone number"
                   />
@@ -1152,6 +1166,8 @@ const SuperAdminAppointmentDetails = ({
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Email Address</label>
                   <input
                     type="email"
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     value={editFormData.email}
                     onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-medium"

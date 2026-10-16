@@ -164,6 +164,15 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
       alert('Receptionist Name is required.');
       return;
     }
+    const cleanPhone = (formData.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      alert("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (!formData.email || !formData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert("Email must be a valid @gmail.com address.");
+      return;
+    }
 
     try {
       const generatedRecId = `REC-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -180,7 +189,7 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
         role: formData.role || 'Front Desk Receptionist',
         shift: formData.shift,
         languages: formData.languages.trim(),
-        contact: (formData.contact || '').replace(/\D/g, '').slice(0, 10),
+        contact: cleanPhone,
         email: formData.email.trim(),
         password: formData.password,
         status: formData.status || 'On_Duty',
@@ -496,9 +505,11 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
                   <input
                     type="email"
                     required
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="receptionist@hospital.com"
+                    placeholder="receptionist@gmail.com"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>

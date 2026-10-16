@@ -147,6 +147,15 @@ const PatientSetting = ({ currentUser, setCurrentUser, setCurrentPage, isLoggedI
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
+    const cleanPhone = (editFormData.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      setSaveErrorMsg("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (!editFormData.email || !editFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      setSaveErrorMsg("Email must be a valid @gmail.com address.");
+      return;
+    }
     try {
       setSavingProfile(true);
       setSaveSuccessMsg('');
@@ -158,8 +167,8 @@ const PatientSetting = ({ currentUser, setCurrentUser, setCurrentPage, isLoggedI
       const payload = {
         name: editFormData.name.trim(),
         address: editFormData.address.trim(),
-        contact: editFormData.contact.trim(),
-        phone: editFormData.contact.trim(),
+        contact: cleanPhone,
+        phone: cleanPhone,
         email: editFormData.email.trim()
       };
 
@@ -448,7 +457,7 @@ const PatientSetting = ({ currentUser, setCurrentUser, setCurrentPage, isLoggedI
                         type="text"
                         value={editFormData.patient_id}
                         disabled
-                        placeholder="Auto-generated (PAT-0001)"
+                        placeholder="Patient ID"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm font-mono text-slate-500 cursor-not-allowed"
                       />
                     </div>
@@ -461,10 +470,12 @@ const PatientSetting = ({ currentUser, setCurrentUser, setCurrentPage, isLoggedI
                       <input
                         type="email"
                         name="email"
+                        pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                        title="Email must be a valid @gmail.com address"
                         value={editFormData.email}
                         onChange={handleInputChange}
                         required
-                        placeholder="patient@example.com"
+                        placeholder="patient@gmail.com"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
                       />
                     </div>
@@ -617,7 +628,7 @@ const PatientSetting = ({ currentUser, setCurrentUser, setCurrentPage, isLoggedI
                     type={showNewPassword ? 'text' : 'password'}
                     value={passwordForm.newPassword}
                     onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
-                    placeholder="Enter new password (min 4 characters)"
+                    placeholder="Enter new password"
                     required
                     className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition"
                   />

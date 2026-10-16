@@ -488,6 +488,17 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setSelect
       const trimmedName = (editFormData.name || '').trim();
       const trimmedEmail = (editFormData.email || '').trim().toLowerCase();
       const trimmedContact = (editFormData.contact || '').trim();
+
+      if (!trimmedContact || trimmedContact.length !== 10) {
+        alert('Phone number must be exactly 10 digits.');
+        return;
+      }
+
+      if (!trimmedEmail.endsWith('@gmail.com')) {
+        alert('Official email must be a valid @gmail.com address.');
+        return;
+      }
+
       const passwordToSend = (editFormData.password || '').trim() || admin.password || 'Admin@123';
       const employeeIdToSend = editFormData.employee_id || admin.employee_id || (admin.id ? `ADM-${admin.id}` : 'ADM-NEW');
 
@@ -1571,7 +1582,9 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setSelect
                     required
                     value={editFormData.email}
                     onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value.toLowerCase() })}
-                    placeholder="admin@hospital.com"
+                    placeholder="admin@gmail.com"
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white lowercase"
                   />
                 </div>

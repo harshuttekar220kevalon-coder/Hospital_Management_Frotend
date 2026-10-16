@@ -10,7 +10,7 @@ const PatientNotifications = ({ currentUser, currentPage, setCurrentPage, isLogg
       isLoggedIn={isLoggedIn}
       onLogout={onLogout}
     />
-    <NotificationCenter currentUser={currentUser} />
+    <NotificationCenter currentUser={{ ...currentUser, role: 'PATIENTS' }} allowSend={false} />
   </>
 );
 

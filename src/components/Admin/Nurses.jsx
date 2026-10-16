@@ -194,6 +194,15 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
       alert('Nurse Full Name is required.');
       return;
     }
+    const cleanContact = (formData.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (!cleanContact || cleanContact.length !== 10) {
+      alert("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (!formData.email || !formData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert("Email must be a valid @gmail.com address.");
+      return;
+    }
 
     try {
       const generatedNurseId = generateNurseId();
@@ -208,7 +217,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
         shift: formData.shift,
         qualification: formData.qualification.trim() || null,
         experience: formData.experience.trim() || null,
-        contact: formData.contact.trim(),
+        contact: cleanContact,
         email: formData.email.trim(),
         password: formData.password,
         status: currentStatus,
@@ -530,9 +539,11 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
                   <input
                     type="email"
                     required
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="nurse@hospital.com"
+                    placeholder="nurse@gmail.com"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
                   />
                 </div>

@@ -177,6 +177,14 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
       const rawHosp = editFormData.hospital || activeNurse.hospital;
       const hospId = Number(typeof rawHosp === 'object' ? rawHosp?.id : rawHosp);
       const contactVal = (editFormData.contact || '').trim();
+      if (!contactVal || contactVal.length !== 10) {
+        alert('Phone number must be exactly 10 digits.');
+        return;
+      }
+      if (!editFormData.email || !editFormData.email.trim().toLowerCase().endsWith('@gmail.com')) {
+        alert('Official email must be a valid @gmail.com address.');
+        return;
+      }
 
       const isActiveFlag = editFormData.is_active !== undefined ? Boolean(editFormData.is_active) : true;
       const currentStatus = isActiveFlag ? (editFormData.status === 'Off_Duty' ? 'Off_Duty' : 'On_Duty') : 'Inactive';
@@ -799,7 +807,9 @@ const Nurse_Details = ({ currentUser, selectedNurse, setSelectedNurse, setCurren
                     required
                     value={editFormData.email}
                     onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                    placeholder="nurse@hospital.com"
+                    placeholder="nurse@gmail.com"
+                    pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                    title="Email must be a valid @gmail.com address"
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white"
                   />
                 </div>

@@ -71,12 +71,21 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
 
   const submitEdit = async (event) => {
     event.preventDefault();
+    const cleanPhone = (form.contact || '').replace(/\D/g, '').slice(0, 10);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      alert("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (!form.email || !form.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert("Email must be a valid @gmail.com address.");
+      return;
+    }
     const payload = {
       name: form.name.trim(),
       role: form.role || null,
       shift: form.shift || null,
       languages: form.languages.trim(),
-      contact: form.contact,
+      contact: cleanPhone,
       email: form.email.trim(),
       is_active: Boolean(form.is_active)
     };
@@ -158,14 +167,14 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
           <label className="font-semibold text-slate-700">Shift<select value={form.shift} onChange={(event) => setForm({ ...form, shift: event.target.value })} className={`${fieldClass} mt-1`}><option value="">Select shift</option>{shifts.map((shift) => <option key={shift}>{shift}</option>)}</select></label>
           <label className="font-semibold text-slate-700">Languages *<input required value={form.languages} onChange={(event) => setForm({ ...form, languages: event.target.value })} className={`${fieldClass} mt-1`} placeholder="e.g. English, Hindi" /></label>
           <label className="font-semibold text-slate-700">Phone *<input required type="tel" inputMode="numeric" pattern="[0-9]{10}" maxLength={10} value={form.contact} onChange={(event) => setForm({ ...form, contact: event.target.value.replace(/\D/g, '').slice(0, 10) })} className={`${fieldClass} mt-1`} /></label>
-          <label className="font-semibold text-slate-700">Email *<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className={`${fieldClass} mt-1`} /></label>
+          <label className="font-semibold text-slate-700">Email *<input required type="email" pattern="[a-zA-Z0-9._%+-]+@gmail\.com" title="Email must be a valid @gmail.com address" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className={`${fieldClass} mt-1`} /></label>
           <label className="font-semibold text-slate-700">Duty Status (unchangeable)<input readOnly value={form.status} className={`${fieldClass} mt-1 bg-slate-100`} /></label>
           <label className="font-semibold text-slate-700">Created At (automatic)<input readOnly value={receptionist.created_at || 'Assigned on registration'} className={`${fieldClass} mt-1 bg-slate-100`} /></label>
           <label className="font-semibold text-slate-700">Password (reset separately)<input readOnly type="password" value="********" className={`${fieldClass} mt-1 bg-slate-100`} /></label>
           <label className="sm:col-span-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 font-semibold text-slate-700"><input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} className="h-4 w-4 rounded text-teal-600" />Account is active</label>
           <div className="sm:col-span-2 flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setEditing(false)} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold cursor-pointer">Cancel</button><button type="submit" className="px-5 py-2 rounded-xl bg-teal-600 text-white font-bold cursor-pointer">Save Changes</button></div>
         </form></div></div>}
-      {resetOpen && <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4"><form onSubmit={resetPassword} className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4"><h2 className="font-bold text-slate-800">Reset Receptionist Password</h2><input type="password" minLength={6} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="New password (min 6 characters)" className={fieldClass} /><div className="flex justify-end gap-2"><button type="button" onClick={() => setResetOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 cursor-pointer">Cancel</button><button className="px-4 py-2 rounded-xl bg-slate-800 text-white font-bold cursor-pointer">Reset Password</button></div></form></div>}
+      {resetOpen && <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4"><form onSubmit={resetPassword} className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4"><h2 className="font-bold text-slate-800">Reset Receptionist Password</h2><input type="password" minLength={6} required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter new password" className={fieldClass} /><div className="flex justify-end gap-2"><button type="button" onClick={() => setResetOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 cursor-pointer">Cancel</button><button className="px-4 py-2 rounded-xl bg-slate-800 text-white font-bold cursor-pointer">Reset Password</button></div></form></div>}
       {deleteOpen && <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4"><h2 className="font-bold text-slate-800">Confirm Receptionist Removal</h2><p className="text-xs text-slate-500">Remove {receptionist.name} from the receptionist records?</p><div className="flex justify-end gap-2"><button type="button" onClick={() => setDeleteOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 cursor-pointer">Cancel</button><button type="button" onClick={deleteReceptionist} className="px-4 py-2 rounded-xl bg-rose-600 text-white font-bold cursor-pointer">Delete Receptionist</button></div></div></div>}
     </div>
   );

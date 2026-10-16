@@ -707,7 +707,7 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
                   required
                   value={editTimingsValue}
                   onChange={(e) => setEditTimingsValue(e.target.value)}
-                  placeholder="e.g. Mon - Sat (09:00 AM - 01:00 PM)"
+                  placeholder="Enter schedule timings"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>

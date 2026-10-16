@@ -230,6 +230,11 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
       return;
     }
 
+    if (!enteredEmail.toLowerCase().endsWith('@gmail.com')) {
+      alert('Email me @gmail.com aana anivarya hai! Please enter a valid @gmail.com address.');
+      return;
+    }
+
     if (loggedInEmail && enteredEmail.toLowerCase() !== loggedInEmail) {
       alert(`⚠️ Validation Error: Aap sirf apni logged-in email (${currentUser.email}) se hi appointment book kar sakte hain! Kisi aur patient ki email nahi daal sakte.`);
       return;
@@ -768,7 +773,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                           min="0"
                           max="150"
                           maxLength={3}
-                          placeholder="e.g. 28"
+                          placeholder="Enter your age"
                           value={formData.age}
                           onChange={handleChange}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
@@ -850,7 +855,9 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                           name="email"
                           required
                           readOnly={Boolean(currentUser?.email)}
-                          placeholder="e.g. patient@example.com"
+                          pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
+                          title="Email must be a valid @gmail.com address"
+                          placeholder="e.g. patient@gmail.com"
                           value={currentUser?.email || formData.email}
                           onChange={handleChange}
                           className={`w-full px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium shadow-2xs ${currentUser?.email

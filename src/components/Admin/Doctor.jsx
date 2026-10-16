@@ -103,6 +103,15 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
       alert('A hospital must be assigned to your admin account before registering a doctor.');
       return;
     }
+    const cleanPhone = (form.phone || '').replace(/\D/g, '').slice(0, 10);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      alert("Phone number must be exactly 10 digits.");
+      return;
+    }
+    if (!form.email || !form.email.trim().toLowerCase().endsWith('@gmail.com')) {
+      alert("Email must be a valid @gmail.com address.");
+      return;
+    }
     const payload = {
       hospitals: [hospitalId],
       name: /^Dr\.?\s/i.test(form.name) ? form.name.trim() : `Dr. ${form.name.trim()}`,
@@ -112,7 +121,7 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
       qualification: form.qualification.trim() || null,
       experience: form.experience.trim() || null,
       Shifts: form.Shifts,
-      phone: form.phone.trim(),
+      phone: cleanPhone,
       email: form.email.trim(),
       password: form.password,
       status: form.status,
@@ -182,14 +191,14 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
         <form onSubmit={submitAdd} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <label className="font-semibold text-slate-700">Assigned Hospital<input readOnly value={hospital?.Name || hospital?.name || currentUser?.hospital_data?.Name || (hospitalId ? `Hospital #${hospitalId}` : 'Loading assigned hospital...')} className={`${inputClass} mt-1 bg-slate-100`} /></label>
           <label className="font-semibold text-slate-700">Doctor ID <span className="font-normal text-slate-500">(optional; generated if blank)</span><input value={form.doctor_id} onChange={(event) => setForm({ ...form, doctor_id: event.target.value })} className={`${inputClass} mt-1`} placeholder="DOC-1234" /></label>
-          <label className="sm:col-span-2 font-semibold text-slate-700">Doctor Full Name *<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={`${inputClass} mt-1`} placeholder="e.g. Asha Sharma" /></label>
-          <label className="font-semibold text-slate-700">Specialization *<input required value={form.specialization} onChange={(event) => setForm({ ...form, specialization: event.target.value })} className={`${inputClass} mt-1`} placeholder="Enter specialization(s)" /></label>
+          <label className="sm:col-span-2 font-semibold text-slate-700">Doctor Full Name *<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={`${inputClass} mt-1`} placeholder="Enter doctor name" /></label>
+          <label className="font-semibold text-slate-700">Specialization *<input required value={form.specialization} onChange={(event) => setForm({ ...form, specialization: event.target.value })} className={`${inputClass} mt-1`} placeholder="Enter specialization" /></label>
           <fieldset className="sm:col-span-2 font-semibold text-slate-700"><legend>Department(s) *</legend><div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-slate-300 bg-slate-50 p-3">{hospitalDepartments.length ? hospitalDepartments.map((department) => <label key={department} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-white cursor-pointer"><input type="checkbox" checked={form.department.includes(department)} onChange={(event) => setForm({ ...form, department: event.target.checked ? [...form.department, department] : form.department.filter((item) => item !== department) })} className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500" />{department}</label>) : <p className="text-xs font-normal text-slate-500">No departments are configured for this hospital.</p>}</div><span className="block mt-1 text-[11px] font-normal text-slate-500">Choose one or more departments from this hospital.</span></fieldset>
-          <label className="font-semibold text-slate-700">Qualification<input value={form.qualification} onChange={(event) => setForm({ ...form, qualification: event.target.value })} className={`${inputClass} mt-1`} /></label>
-          <label className="font-semibold text-slate-700">Experience<input value={form.experience} onChange={(event) => setForm({ ...form, experience: event.target.value })} className={`${inputClass} mt-1`} placeholder="e.g. 5 years" /></label>
+          <label className="font-semibold text-slate-700">Qualification<input value={form.qualification} onChange={(event) => setForm({ ...form, qualification: event.target.value })} className={`${inputClass} mt-1`} placeholder="Enter qualification" /></label>
+          <label className="font-semibold text-slate-700">Experience<input value={form.experience} onChange={(event) => setForm({ ...form, experience: event.target.value })} className={`${inputClass} mt-1`} placeholder="Enter experience" /></label>
           <label className="font-semibold text-slate-700">Duty Shift<select value={form.Shifts} onChange={(event) => setForm({ ...form, Shifts: event.target.value })} className={`${inputClass} mt-1`}>{shifts.map((item) => <option key={item}>{item}</option>)}</select></label>
-          <label className="font-semibold text-slate-700">Phone *<input required type="tel" inputMode="numeric" pattern="[0-9]{10}" maxLength={10} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value.replace(/\D/g, '').slice(0, 10) })} className={`${inputClass} mt-1`} placeholder="10-digit phone number" /></label>
-          <label className="font-semibold text-slate-700">Email *<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className={`${inputClass} mt-1`} /></label>
+          <label className="font-semibold text-slate-700">Phone *<input required type="tel" inputMode="numeric" pattern="[0-9]{10}" maxLength={10} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value.replace(/\D/g, '').slice(0, 10) })} className={`${inputClass} mt-1`} placeholder="Enter phone number" /></label>
+          <label className="font-semibold text-slate-700">Email *<input required type="email" pattern="[a-zA-Z0-9._%+-]+@gmail\.com" title="Email must be a valid @gmail.com address" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className={`${inputClass} mt-1`} /></label>
           <label className="font-semibold text-slate-700">Password *<input required type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className={`${inputClass} mt-1`} /></label>
           <label className="font-semibold text-slate-700">Duty Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} className={`${inputClass} mt-1`}><option value="On_Duty">On_Duty</option><option value="Off_Duty">Off_Duty</option></select></label>
           <label className="font-semibold text-slate-700">Consultation Fee<input required type="number" min="0" step="0.01" value={form.consultation_fee} onChange={(event) => setForm({ ...form, consultation_fee: event.target.value })} className={`${inputClass} mt-1`} /></label>
