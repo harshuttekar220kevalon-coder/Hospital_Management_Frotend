@@ -15,6 +15,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
   const [resetOpen, setResetOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [password, setPassword] = useState('');
+  const [showEditPassword, setShowEditPassword] = useState(true);
   const [form, setForm] = useState({});
 
   const updateReceptionist = (updated) => {
@@ -66,6 +67,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
       status: receptionist.status || 'On_Duty',
       is_active: receptionist.is_active !== false
     });
+    setShowEditPassword(true);
     setEditing(true);
   };
 
@@ -170,7 +172,23 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
           <label className="font-semibold text-slate-700">Email *<input required type="email" pattern="[a-zA-Z0-9._%+-]+@gmail\.com" title="Email must be a valid @gmail.com address" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className={`${fieldClass} mt-1`} /></label>
           <label className="font-semibold text-slate-700">Duty Status (unchangeable)<input readOnly value={form.status} className={`${fieldClass} mt-1 bg-slate-100`} /></label>
           <label className="font-semibold text-slate-700">Created At (automatic)<input readOnly value={receptionist.created_at || 'Assigned on registration'} className={`${fieldClass} mt-1 bg-slate-100`} /></label>
-          <label className="font-semibold text-slate-700">Password (reset separately)<input readOnly type="password" value="********" className={`${fieldClass} mt-1 bg-slate-100`} /></label>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-700">Password</span>
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                Read Only
+              </span>
+            </div>
+            <div className="relative">
+              <input
+                type="password"
+                readOnly
+                tabIndex={-1}
+                value={receptionist.password || 'Reception@123'}
+                className={`${fieldClass} mt-1 bg-slate-100 font-mono cursor-not-allowed select-all`}
+              />
+            </div>
+          </div>
           <label className="sm:col-span-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 font-semibold text-slate-700"><input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} className="h-4 w-4 rounded text-teal-600" />Account is active</label>
           <div className="sm:col-span-2 flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={() => setEditing(false)} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold cursor-pointer">Cancel</button><button type="submit" className="px-5 py-2 rounded-xl bg-teal-600 text-white font-bold cursor-pointer">Save Changes</button></div>
         </form></div></div>}

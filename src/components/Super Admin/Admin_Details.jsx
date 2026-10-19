@@ -472,7 +472,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setSelect
       status: admin.is_active !== false ? 'Active' : 'Inactive',
       is_active: admin.is_active !== false
     });
-    setShowEditPassword(false);
+    setShowEditPassword(true);
     setIsEditModalOpen(true);
   };
 
@@ -768,16 +768,12 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setSelect
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 sm:col-span-2">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 uppercase text-[10px] font-bold">Signin Password</span>
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="text-[10px] text-sky-600 font-semibold hover:underline cursor-pointer"
-                >
-                  {showPassword ? 'Hide' : 'Show'}
-                </button>
+                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  Protected (Reset Only)
+                </span>
               </div>
               <p className="font-mono font-semibold text-slate-800 mt-0.5 tracking-wider">
-                {showPassword ? (admin.password || localStorage.getItem(`pwd_${(admin.email || '').toLowerCase()}`) || 'Admin@123') : '••••••••'}
+                ••••••••••••
               </p>
             </div>
           </div>
@@ -1516,7 +1512,7 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setSelect
             </div>
 
             <form onSubmit={handleSaveEdit} className="space-y-3 text-xs">
-              {/* TOP GRID: ADMIN ID & PASSWORD */}
+              {/* TOP GRID: ADMIN ID & PASSWORD (READ ONLY) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -1540,24 +1536,17 @@ const Admin_Details = ({ currentUser, selectedAdmin, setSelectedAdmin, setSelect
                       Admin Password
                     </label>
                     <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                      Credentials
+                      Read Only
                     </span>
                   </div>
-                  <div className="relative flex items-center">
+                  <div className="relative">
                     <input
-                      type={showEditPassword ? 'text' : 'password'}
-                      value={editFormData.password}
-                      onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
-                      placeholder="Enter login password"
-                      className="w-full pl-3 pr-16 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-mono text-xs focus:outline-none focus:border-sky-600 focus:bg-white tracking-wider"
+                      type="password"
+                      readOnly
+                      tabIndex={-1}
+                      value={editFormData.password || admin.password || 'Admin@123'}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono text-xs cursor-not-allowed select-all focus:outline-none tracking-wider"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowEditPassword(!showEditPassword)}
-                      className="absolute right-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-bold text-[11px] border border-slate-300 shadow-2xs flex items-center gap-1 transition cursor-pointer"
-                    >
-                      {showEditPassword ? 'Hide' : 'Show'}
-                    </button>
                   </div>
                 </div>
               </div>

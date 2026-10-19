@@ -20,6 +20,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
   const [selectedAdmin, setSelectedAdmin] = useState(null);
   const [deleteAdminTarget, setDeleteAdminTarget] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleViewAdminDetails = (admin) => {
     if (setSelectedAdminProp) {
@@ -36,6 +37,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
     email: '',
     contact: '',
     password: '',
+    confirmPassword: '',
     designation: '',
     hospital: '',
     is_active: true
@@ -135,6 +137,7 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
   const handleOpenAddModal = () => {
     setFormData(initialFormState);
     setShowPassword(false);
+    setShowConfirmPassword(false);
     setIsAddModalOpen(true);
   };
 
@@ -162,6 +165,21 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
 
     if (!trimmedEmail.endsWith('@gmail.com')) {
       alert('Official email must be a valid @gmail.com address.');
+      return;
+    }
+
+    if (!formData.password) {
+      alert('Please enter a login password.');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      alert('Password must be at least 6 characters long.');
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      alert('Password and Confirm Password do not match. Please verify.');
       return;
     }
 
@@ -644,6 +662,19 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
                   />
                 </div>
                 <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Designation</label>
+                  <input
+                    type="text"
+                    value={formData.designation}
+                    onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                    placeholder="Not Provided"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Signin Password *</label>
                   <div className="relative">
                     <input
@@ -673,35 +704,54 @@ const Hospital_Admins = ({ currentUser, setCurrentPage, setSelectedAdmin: setSel
                     </button>
                   </div>
                 </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Confirm Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      value={formData.confirmPassword || ''}
+                      onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                      placeholder="Re-enter login password"
+                      className="w-full pl-3 pr-10 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                      title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showConfirmPassword ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Designation</label>
-                  <input
-                    type="text"
-                    value={formData.designation}
-                    onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-                    placeholder="Not Provided"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch *</label>
-                  <select
-                    required
-                    value={formData.hospital}
-                    onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
-                  >
-                    <option value="">-- Select Hospital --</option>
-                    {hospitalsList.map((h) => (
-                      <option key={h.id} value={h.id}>
-                        {h.Name || h.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Assign Hospital Branch *</label>
+                <select
+                  required
+                  value={formData.hospital}
+                  onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 font-medium cursor-pointer"
+                >
+                  <option value="">-- Select Hospital --</option>
+                  {hospitalsList.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.Name || h.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex items-center gap-2 pt-1">

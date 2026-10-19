@@ -14,7 +14,7 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [visibleCount, setVisibleCount] = useState(10);
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const initialForm = { name: '', doctor_id: '', specialization: '', department: [], qualification: '', experience: '', Shifts: shifts[0], phone: '', email: '', password: '', status: 'On_Duty', is_active: true, consultation_fee: '0.00' };
+  const initialForm = { name: '', doctor_id: '', specialization: '', department: [], qualification: '', experience: '', Shifts: shifts[0], phone: '', email: '', password: '', confirmPassword: '', status: 'On_Duty', is_active: true, consultation_fee: '0.00' };
   const [form, setForm] = useState(initialForm);
   const hospitalDepartments = (Array.isArray(hospital?.departments)
     ? hospital.departments.map((department) => typeof department === 'string' ? department : department?.name)
@@ -112,6 +112,10 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
       alert("Email must be a valid @gmail.com address.");
       return;
     }
+    if (form.password !== form.confirmPassword) {
+      alert("Password and Confirm Password do not match.");
+      return;
+    }
     const payload = {
       hospitals: [hospitalId],
       name: /^Dr\.?\s/i.test(form.name) ? form.name.trim() : `Dr. ${form.name.trim()}`,
@@ -199,7 +203,8 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
           <label className="font-semibold text-slate-700">Duty Shift<select value={form.Shifts} onChange={(event) => setForm({ ...form, Shifts: event.target.value })} className={`${inputClass} mt-1`}>{shifts.map((item) => <option key={item}>{item}</option>)}</select></label>
           <label className="font-semibold text-slate-700">Phone *<input required type="tel" inputMode="numeric" pattern="[0-9]{10}" maxLength={10} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value.replace(/\D/g, '').slice(0, 10) })} className={`${inputClass} mt-1`} placeholder="Enter phone number" /></label>
           <label className="font-semibold text-slate-700">Email *<input required type="email" pattern="[a-zA-Z0-9._%+-]+@gmail\.com" title="Email must be a valid @gmail.com address" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className={`${inputClass} mt-1`} /></label>
-          <label className="font-semibold text-slate-700">Password *<input required type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className={`${inputClass} mt-1`} /></label>
+          <label className="font-semibold text-slate-700">Password *<input required type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className={`${inputClass} mt-1`} placeholder="Enter password" /></label>
+          <label className="font-semibold text-slate-700">Confirm Password *<input required type="password" value={form.confirmPassword} onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })} className={`${inputClass} mt-1`} placeholder="Confirm password" /></label>
           <label className="font-semibold text-slate-700">Duty Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} className={`${inputClass} mt-1`}><option value="On_Duty">On_Duty</option><option value="Off_Duty">Off_Duty</option></select></label>
           <label className="font-semibold text-slate-700">Consultation Fee<input required type="number" min="0" step="0.01" value={form.consultation_fee} onChange={(event) => setForm({ ...form, consultation_fee: event.target.value })} className={`${inputClass} mt-1`} /></label>
           <label className="sm:col-span-2 flex items-center gap-2 text-slate-700"><input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} />Account is active</label>

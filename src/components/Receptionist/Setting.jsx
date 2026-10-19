@@ -24,7 +24,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
     created_at: ''
   });
 
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
   const [saveErrorMsg, setSaveErrorMsg] = useState('');
@@ -114,7 +114,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
         languages: activeRec.languages || '',
         contact: activeRec.contact || activeRec.phone || currentUser?.contact || '',
         email: activeRec.email || currentUser?.email || '',
-        password: activeRec.password || '',
+        password: activeRec.password || 'Reception@123',
         status: activeRec.status || '',
         is_active: activeRec.is_active !== undefined ? Boolean(activeRec.is_active) : true,
         hospital: targetHospId ? String(targetHospId) : '',
@@ -613,20 +613,13 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                       </div>
                       <div className="relative">
                         <input
-                          type={showPassword ? 'text' : 'password'}
+                          type="password"
                           name="password"
                           value={editFormData.password}
                           readOnly
                           placeholder="••••••••"
-                          className="w-full px-3.5 py-2.5 pr-20 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm text-slate-700 font-mono cursor-not-allowed select-all focus:outline-none"
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm text-slate-700 font-mono cursor-not-allowed select-all focus:outline-none"
                         />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(p => !p)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
-                        >
-                          {showPassword ? 'Hide' : 'Show'}
-                        </button>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">
                         🔒 Read-only field. Password can only be edited in the <strong>Password & Security</strong> section.

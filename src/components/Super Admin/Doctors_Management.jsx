@@ -26,6 +26,17 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
   const [selectedDoctorForDelete, setSelectedDoctorForDelete] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(true);
+
+  const getHospitalDepartments = (hospital) => {
+    if (!hospital) return [];
+    const raw = hospital.departments || hospital.department || '';
+    if (Array.isArray(raw)) {
+      return raw.map(d => typeof d === 'string' ? d.trim() : (d?.name || '').trim()).filter(Boolean);
+    }
+    return String(raw).split(',').map(s => s.trim()).filter(Boolean);
+  };
 
   const shiftsList = [
     'Morning First Shift',
@@ -51,12 +62,14 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
     name: '',
     doctor_id: '',
     specialization: 'General Medicine',
+    department: [],
     Shifts: 'Morning First Shift',
     shift: 'Morning First Shift',
     consultation_fee: '500',
     contact: '',
     email: '',
     password: '',
+    confirmPassword: '',
     status: 'On_Duty',
     is_active: true
   };
@@ -101,12 +114,26 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
       alert('Email must be a valid @gmail.com address.');
       return;
     }
+    if (formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword) {
+      alert('Password and Confirm Password do not match.');
+      return;
+    }
+    if (formData.password && !formData.confirmPassword) {
+      alert('Please confirm your password.');
+      return;
+    }
     setIsSubmitting(true);
     try {
+      const deptValue = Array.isArray(formData.department)
+        ? formData.department.join(', ')
+        : (formData.department || '');
+
       const payload = {
         name: formData.name.startsWith('Dr.') ? formData.name : `Dr. ${formData.name}`,
         hospital: formData.hospital ? Number(formData.hospital) : null,
+        hospitals: formData.hospital ? [Number(formData.hospital)] : [],
         specialization: formData.specialization,
+        department: deptValue,
         Shifts: formData.Shifts,
         shift: formData.Shifts,
         opd_timings: formData.Shifts,
@@ -155,10 +182,16 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
     }
     setIsSubmitting(true);
     try {
+      const deptValue = Array.isArray(formData.department)
+        ? formData.department.join(', ')
+        : (formData.department || '');
+
       const payload = {
         name: formData.name,
         hospital: formData.hospital ? Number(formData.hospital) : null,
+        hospitals: formData.hospital ? [Number(formData.hospital)] : [],
         specialization: formData.specialization,
+        department: deptValue,
         Shifts: formData.Shifts,
         shift: formData.Shifts,
         opd_timings: formData.Shifts,
@@ -218,20 +251,28 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
   const handleOpenEdit = (doc) => {
     setSelectedDoctorForEdit(doc);
     const docHosp = typeof doc.hospital === 'object' && doc.hospital !== null ? doc.hospital.id : doc.hospital;
+    const docHospId = docHosp || (Array.isArray(doc.hospitals) && doc.hospitals[0] ? (typeof doc.hospitals[0] === 'object' ? doc.hospitals[0].id : doc.hospitals[0]) : '');
+    const docDepts = Array.isArray(doc.department)
+      ? doc.department
+      : String(doc.department || doc.departments || '').split(',').map(s => s.trim()).filter(Boolean);
+
     setFormData({
-      hospital: docHosp || '',
+      hospital: docHospId ? String(docHospId) : '',
       name: doc.name || '',
       doctor_id: doc.doctor_id || (doc.id ? `DOC-${doc.id}` : ''),
       specialization: doc.specialization || 'General Medicine',
+      department: docDepts,
       Shifts: doc.Shifts || doc.shift || 'Morning First Shift',
       shift: doc.Shifts || doc.shift || 'Morning First Shift',
       consultation_fee: doc.consultation_fee || '500',
       contact: doc.contact || doc.phone || '',
       email: doc.email || '',
-      password: '',
+      password: doc.password || '',
+      confirmPassword: '',
       status: doc.status || doc.duty_status || 'On_Duty',
       is_active: doc.is_active !== false
     });
+    setShowEditPassword(false);
     setIsEditModalOpen(true);
   };
 
@@ -280,6 +321,9 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
 
   const onDutyCount = doctors.filter(d => !String(d.status || d.duty_status || '').toLowerCase().includes('off') && !String(d.status || '').toLowerCase().includes('leave')).length;
   const offDutyCount = doctors.length - onDutyCount;
+
+  const selectedHospForForm = hospitalsList.find(h => Number(h.id) === Number(formData.hospital));
+  const availableDeptsForForm = getHospitalDepartments(selectedHospForForm);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto min-h-screen bg-slate-50 font-sans">
@@ -516,7 +560,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
                   <select
                     required
                     value={formData.hospital}
-                    onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, hospital: e.target.value, department: [] })}
                     className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-500"
                   >
                     <option value="">-- Select Hospital --</option>
@@ -524,6 +568,61 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
                       <option key={h.id} value={h.id}>{h.Name || h.name}</option>
                     ))}
                   </select>
+                </div>
+
+                {/* Dynamic Departments based on Selected Hospital */}
+                <div className="space-y-1 sm:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-700 font-semibold">
+                      Departments {availableDeptsForForm.length > 0 && <span className="text-slate-400 font-normal">({availableDeptsForForm.length} available)</span>}
+                    </label>
+                    {Array.isArray(formData.department) && formData.department.length > 0 && (
+                      <span className="text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                        {formData.department.length} selected
+                      </span>
+                    )}
+                  </div>
+
+                  {!formData.hospital ? (
+                    <div className="p-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-400 text-center text-xs">
+                      Please select a hospital branch above to view its clinical departments.
+                    </div>
+                  ) : availableDeptsForForm.length === 0 ? (
+                    <div className="p-3 rounded-xl border border-dashed border-amber-300 bg-amber-50/60 text-amber-700 text-center text-xs">
+                      No departments configured for this hospital branch yet.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 rounded-xl border border-slate-300 bg-slate-50 max-h-36 overflow-y-auto">
+                      {availableDeptsForForm.map((dept) => {
+                        const isChecked = Array.isArray(formData.department) && formData.department.includes(dept);
+                        return (
+                          <label
+                            key={dept}
+                            className={`flex items-center gap-2 p-2 rounded-lg border text-xs font-medium cursor-pointer transition ${
+                              isChecked
+                                ? 'bg-teal-50 border-teal-400 text-teal-900 shadow-2xs'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const current = Array.isArray(formData.department) ? formData.department : [];
+                                if (e.target.checked) {
+                                  setFormData({ ...formData, department: [...current, dept] });
+                                } else {
+                                  setFormData({ ...formData, department: current.filter(d => d !== dept) });
+                                }
+                              }}
+                              className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+                            />
+                            <span className="truncate">{dept}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -604,22 +703,44 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
                   />
                 </div>
 
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-slate-700 font-semibold">Login Password</label>
+                <div className="space-y-1">
+                  <label className="text-slate-700 font-semibold">Login Password *</label>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
-                      placeholder="Default: Doctor@123"
+                      required
+                      placeholder="Enter login password"
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-500"
+                      className="w-full p-2.5 pr-12 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-500 font-mono"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 font-semibold"
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 font-semibold text-xs cursor-pointer"
                     >
                       {showPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-700 font-semibold">Confirm Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      placeholder="Confirm login password"
+                      value={formData.confirmPassword || ''}
+                      onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                      className="w-full p-2.5 pr-12 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-500 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 font-semibold text-xs cursor-pointer"
+                    >
+                      {showConfirmPassword ? 'Hide' : 'Show'}
                     </button>
                   </div>
                 </div>
@@ -678,7 +799,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
                   <label className="text-slate-700 font-semibold">Hospital Branch</label>
                   <select
                     value={formData.hospital}
-                    onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, hospital: e.target.value, department: [] })}
                     className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-500"
                   >
                     <option value="">-- Select Hospital --</option>
@@ -686,6 +807,61 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
                       <option key={h.id} value={h.id}>{h.Name || h.name}</option>
                     ))}
                   </select>
+                </div>
+
+                {/* Dynamic Departments based on Selected Hospital */}
+                <div className="space-y-1 sm:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-700 font-semibold">
+                      Departments {availableDeptsForForm.length > 0 && <span className="text-slate-400 font-normal">({availableDeptsForForm.length} available)</span>}
+                    </label>
+                    {Array.isArray(formData.department) && formData.department.length > 0 && (
+                      <span className="text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                        {formData.department.length} selected
+                      </span>
+                    )}
+                  </div>
+
+                  {!formData.hospital ? (
+                    <div className="p-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-400 text-center text-xs">
+                      Please select a hospital branch above to view its clinical departments.
+                    </div>
+                  ) : availableDeptsForForm.length === 0 ? (
+                    <div className="p-3 rounded-xl border border-dashed border-amber-300 bg-amber-50/60 text-amber-700 text-center text-xs">
+                      No departments configured for this hospital branch yet.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 rounded-xl border border-slate-300 bg-slate-50 max-h-36 overflow-y-auto">
+                      {availableDeptsForForm.map((dept) => {
+                        const isChecked = Array.isArray(formData.department) && formData.department.includes(dept);
+                        return (
+                          <label
+                            key={dept}
+                            className={`flex items-center gap-2 p-2 rounded-lg border text-xs font-medium cursor-pointer transition ${
+                              isChecked
+                                ? 'bg-teal-50 border-teal-400 text-teal-900 shadow-2xs'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const current = Array.isArray(formData.department) ? formData.department : [];
+                                if (e.target.checked) {
+                                  setFormData({ ...formData, department: [...current, dept] });
+                                } else {
+                                  setFormData({ ...formData, department: current.filter(d => d !== dept) });
+                                }
+                              }}
+                              className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+                            />
+                            <span className="truncate">{dept}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -763,6 +939,24 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
                     title="Email must be a valid @gmail.com address"
                     className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-teal-500"
                   />
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-700 font-semibold">Doctor Password</label>
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                      Read Only
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      readOnly
+                      tabIndex={-1}
+                      value={formData.password || selectedDoctorForEdit?.password || 'Doctor@123'}
+                      className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono text-xs cursor-not-allowed select-all focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 

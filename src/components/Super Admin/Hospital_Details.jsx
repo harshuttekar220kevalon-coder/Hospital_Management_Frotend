@@ -21,6 +21,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
   const [isEditHospitalModalOpen, setIsEditHospitalModalOpen] = useState(false);
   const [isDeleteHospitalModalOpen, setIsDeleteHospitalModalOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [adminFormData, setAdminFormData] = useState({
     name: '',
@@ -28,6 +29,7 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
     email: '',
     contact: '',
     password: '',
+    confirmPassword: '',
     is_active: true
   });
 
@@ -237,9 +239,11 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
       email: '',
       contact: '',
       password: '',
+      confirmPassword: '',
       is_active: true
     });
     setShowPassword(false);
+    setShowConfirmPassword(false);
     setIsAdminCreateModalOpen(true);
   };
 
@@ -253,9 +257,22 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
       alert('Admin email must be a valid @gmail.com address.');
       return;
     }
+    if (!adminFormData.password) {
+      alert('Password is required.');
+      return;
+    }
+    if (adminFormData.password.length < 6) {
+      alert('Password must be at least 6 characters.');
+      return;
+    }
+    if (adminFormData.password !== adminFormData.confirmPassword) {
+      alert('Password and Confirm Password do not match. Please verify.');
+      return;
+    }
     try {
+      const { confirmPassword, ...restAdminData } = adminFormData;
       const payload = {
-        ...adminFormData,
+        ...restAdminData,
         hospital: activeBranch.id
       };
 
@@ -1110,6 +1127,18 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                   />
                 </div>
                 <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Designation</label>
+                  <input
+                    type="text"
+                    value={adminFormData.designation}
+                    onChange={(e) => setAdminFormData({ ...adminFormData, designation: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
                   <label className="block font-semibold text-slate-700 uppercase mb-1">Signin Password *</label>
                   <div className="relative">
                     <input
@@ -1129,16 +1158,27 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
                     </button>
                   </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 uppercase mb-1">Designation</label>
-                <input
-                  type="text"
-                  value={adminFormData.designation}
-                  onChange={(e) => setAdminFormData({ ...adminFormData, designation: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white"
-                />
+                <div>
+                  <label className="block font-semibold text-slate-700 uppercase mb-1">Confirm Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      value={adminFormData.confirmPassword || ''}
+                      onChange={(e) => setAdminFormData({ ...adminFormData, confirmPassword: e.target.value })}
+                      placeholder="Re-enter password"
+                      className="w-full pl-3 pr-10 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-sky-600 focus:bg-white font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                    >
+                      {showConfirmPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center gap-2 pt-1">

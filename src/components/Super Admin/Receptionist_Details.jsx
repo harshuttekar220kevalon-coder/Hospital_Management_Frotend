@@ -20,6 +20,10 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [assignHospitalId, setAssignHospitalId] = useState('');
   const [showEditPassword, setShowEditPassword] = useState(false);
+  const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   const shiftsList = [
     'Morning First Shift',
@@ -145,7 +149,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
       status: activeReceptionist.status || 'On_Duty',
       is_active: activeReceptionist.is_active !== false && activeReceptionist.status !== 'Inactive' && activeReceptionist.status !== 'Deactivated'
     });
-    setShowEditPassword(false);
+    setShowEditPassword(true);
     setIsEditModalOpen(true);
   };
 
@@ -315,6 +319,60 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
     }
   };
 
+  const handleOpenResetPassword = () => {
+    setResetEmail((activeReceptionist?.email || '').toLowerCase());
+    setNewPassword('');
+    setShowNewPassword(false);
+    setIsResetPasswordModalOpen(true);
+  };
+
+  const handleSaveResetPassword = async (e) => {
+    e.preventDefault();
+    const emailToReset = (resetEmail || '').trim().toLowerCase();
+    const passwordToSet = newPassword.trim();
+
+    if (!emailToReset) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+    if (!passwordToSet || passwordToSet.length < 6) {
+      alert('Please enter a secure password of at least 6 characters.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${activeReceptionist.id}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: emailToReset,
+          password: passwordToSet
+        })
+      });
+
+      if (response.ok) {
+        const updated = await response.json().catch(() => null);
+        const freshReceptionist = {
+          ...activeReceptionist,
+          email: emailToReset,
+          password: passwordToSet,
+          ...(updated || {})
+        };
+        setReceptionistData(freshReceptionist);
+        if (setSelectedReceptionist) setSelectedReceptionist(freshReceptionist);
+        localStorage.setItem('selectedReceptionist', JSON.stringify(freshReceptionist));
+
+        setIsResetPasswordModalOpen(false);
+        alert(`Password reset successfully for receptionist with email: ${emailToReset}`);
+      } else {
+        alert('Failed to reset password. Please verify the email ID or network connection.');
+      }
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      alert('Network error while resetting password.');
+    }
+  };
+
   if (!activeReceptionist || !activeReceptionist.id) {
     return (
       <div className="w-full px-4 sm:px-8 lg:px-12 py-12 text-center">
@@ -403,6 +461,14 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
             className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 transition cursor-pointer flex items-center gap-1.5"
           >
             {activeReceptionist.status === 'Off_Duty' ? 'Set On Duty' : 'Mark Off Duty'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenResetPassword}
+            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 transition cursor-pointer flex items-center gap-1.5"
+          >
+            Reset Password
           </button>
 
           <button
@@ -709,7 +775,7 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                 />
               </div>
 
-              {/* 3 & 9. RECEPTIONIST ID & PASSWORD (UNCHANGEABLE & UNCLICKABLE) */}
+              {/* 3. RECEPTIONIST ID & PASSWORD (READ ONLY) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -735,24 +801,17 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                       Password:
                     </label>
                     <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                      Unchangeable
+                      Read Only
                     </span>
                   </div>
-                  <div className="relative flex items-center">
+                  <div className="relative">
                     <input
-                      type={showEditPassword ? 'text' : 'password'}
+                      type="password"
                       readOnly
                       tabIndex={-1}
-                      value={activeReceptionist.password || editFormData.password || 'Reception@123'}
-                      className="w-full pl-3 pr-18 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono text-xs cursor-not-allowed select-none focus:outline-none tracking-wider"
+                      value={editFormData.password || activeReceptionist.password || 'Reception@123'}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-700 font-mono text-xs cursor-not-allowed select-all focus:outline-none tracking-wider"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowEditPassword(!showEditPassword)}
-                      className="absolute right-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-bold text-[11px] border border-slate-300 shadow-2xs flex items-center gap-1 transition cursor-pointer"
-                    >
-                      {showEditPassword ? 'Hide' : 'Show'}
-                    </button>
                   </div>
                 </div>
               </div>
@@ -987,6 +1046,74 @@ const Receptionist_Details = ({ currentUser, selectedReceptionist, setSelectedRe
                 Yes, Delete Record
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* RESET PASSWORD MODAL */}
+      {isResetPasswordModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-4 sm:p-6 space-y-4 my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h2 className="text-base font-bold text-slate-800">Reset Receptionist Password</h2>
+              <button
+                type="button"
+                onClick={() => setIsResetPasswordModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 text-2xl font-bold cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveResetPassword} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">Receptionist Email *</label>
+                <input
+                  type="email"
+                  required
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value.toLowerCase())}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-amber-600 lowercase"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase mb-1">New Secure Password *</label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Minimum 6 characters"
+                    className="w-full pl-3 pr-16 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 font-semibold text-[11px] cursor-pointer"
+                  >
+                    {showNewPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsResetPasswordModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                >
+                  Update Password
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
