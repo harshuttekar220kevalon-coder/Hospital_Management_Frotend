@@ -1,4 +1,17 @@
-export const API_BASE_URL = "http://127.0.0.1:8000/api";
+// Local and Live (Render) API Endpoints
+export const LOCAL_API_URL = "http://127.0.0.1:8000/api";
+export const LIVE_API_URL = "https://hospital-management-backend-fo01.onrender.com/api";
+
+// Switch between Live Render API and Local API:
+// Set to true to test the Render Live backend, or false for Local Django server
+export const USE_LIVE_API = true;
+
+// Active API Base URL with environment variable support and automatic fallback
+export const API_BASE_URL =
+  import.meta.env?.VITE_API_URL ||
+  (import.meta.env?.PROD
+    ? LIVE_API_URL
+    : (USE_LIVE_API ? LIVE_API_URL : LOCAL_API_URL));
 
 export const extractArray = (resData) => {
   if (!resData) return [];
