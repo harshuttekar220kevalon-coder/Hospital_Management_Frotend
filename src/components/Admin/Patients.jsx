@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const getAssignedNurseForPatientBed = (bedNumber, nursesList = [], hospitalId = null) => {
   if (!nursesList || !Array.isArray(nursesList) || nursesList.length === 0) {
@@ -468,14 +469,29 @@ const AdminPatients = ({ currentUser, setCurrentPage, setSelectedPatient, setSel
 
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <p className="text-sm font-semibold text-slate-700">{patients.length} registered patient profile(s) linked to this hospital</p>
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search patient name, ID, phone, email, address..."
-          className="w-full sm:w-96 px-3.5 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white transition"
-        />
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search patient name, ID, phone, email, address..."
+            className="w-full sm:w-96 px-3.5 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white transition"
+          />
+        </div>
       </div>
+
+      {/* ACTIVE FILTER TAGS */}
+      <ActiveFilterTags
+        filters={[
+          {
+            key: 'searchTerm',
+            name: 'Search',
+            value: searchTerm,
+            onRemove: () => setSearchTerm('')
+          }
+        ]}
+        onClearAll={() => setSearchTerm('')}
+      />
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto w-full">

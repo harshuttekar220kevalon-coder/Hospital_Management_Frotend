@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import PatientNavbar from './PatientNavbar';
 import PatientFooter from './PatientFooter';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const extractArray = (resData) => {
   if (!resData) return [];
@@ -654,7 +655,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                 <select
                   value={selectedHospitalFilter}
                   onChange={(e) => setSelectedHospitalFilter(e.target.value)}
-                  className="py-1.5 px-3 rounded-xl border border-slate-200 text-xs bg-white text-slate-700 focus:outline-none focus:border-teal-500"
+                  className="py-1.5 px-3 rounded-xl border border-slate-200 text-xs bg-white text-slate-700 focus:outline-none focus:border-teal-500 cursor-pointer"
                 >
                   <option value="ALL">All Hospitals</option>
                   {Array.from(new Set(historyRecords.map(r => r.hospital_name).filter(h => h && h !== '-'))).map((hName, idx) => (
@@ -662,6 +663,38 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* ACTIVE FILTER TAGS */}
+            <div className="px-4 pt-3">
+              <ActiveFilterTags
+                filters={[
+                  {
+                    key: 'searchQuery',
+                    name: 'Search',
+                    value: searchQuery,
+                    onRemove: () => setSearchQuery('')
+                  },
+                  {
+                    key: 'selectedHospitalFilter',
+                    name: 'Hospital',
+                    value: selectedHospitalFilter,
+                    onRemove: () => setSelectedHospitalFilter('ALL')
+                  },
+                  {
+                    key: 'selectedTab',
+                    name: 'Category',
+                    value: selectedTab,
+                    displayValue: selectedTab === 'DISCHARGED' ? 'Discharged' : selectedTab === 'CANCELLED' ? 'Cancelled' : selectedTab,
+                    onRemove: () => setSelectedTab('ALL')
+                  }
+                ]}
+                onClearAll={() => {
+                  setSearchQuery('');
+                  setSelectedHospitalFilter('ALL');
+                  setSelectedTab('ALL');
+                }}
+              />
             </div>
 
             {/* RESPONSIVE TABLE */}

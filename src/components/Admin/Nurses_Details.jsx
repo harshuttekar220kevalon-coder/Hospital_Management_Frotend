@@ -95,6 +95,7 @@ const AdminNurseDetails = ({ currentUser, selectedNurse, setSelectedNurse, setCu
       experience: form.experience.trim() || null,
       contact: cleanContact,
       email: form.email.trim(),
+      status: form.status,
       is_active: Boolean(form.is_active),
       max_patient_capacity: Number(form.max_patient_capacity) || 50,
       assigned_floor: form.assigned_floor === '' ? null : Number(form.assigned_floor)

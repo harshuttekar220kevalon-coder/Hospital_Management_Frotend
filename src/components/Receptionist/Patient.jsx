@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const extractArray = (resData) => {
   if (!resData) return [];
@@ -676,6 +677,30 @@ const ReceptionistPatient = ({ currentUser, setCurrentPage, setSelectedPatient }
             </button>
           </div>
         )}
+
+        {/* ACTIVE FILTER TAGS */}
+        <ActiveFilterTags
+          filters={[
+            {
+              key: 'searchTerm',
+              name: 'Search',
+              value: searchTerm,
+              onRemove: () => setSearchTerm('')
+            },
+            {
+              key: 'activeFilter',
+              name: 'Patient Status',
+              value: activeFilter,
+              displayValue: activeFilter === 'HISTORY' ? '📜 History (Discharged & Settled)' :
+                            activeFilter === 'ACTIVE' ? 'Active Admissions' : activeFilter,
+              onRemove: () => setActiveFilter('ALL')
+            }
+          ]}
+          onClearAll={() => {
+            setSearchTerm('');
+            setActiveFilter('ALL');
+          }}
+        />
 
         {/* TABLE */}
         <div className="overflow-x-auto w-full">

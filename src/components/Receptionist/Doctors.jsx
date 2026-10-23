@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const extractArray = (resData) => {
   if (!resData) return [];
@@ -418,6 +419,36 @@ const ReceptionistDoctors = ({ currentUser, setCurrentPage, setSelectedDoctorFor
           </div>
         </div>
 
+        {/* ACTIVE FILTER TAGS */}
+        <ActiveFilterTags
+          filters={[
+            {
+              key: 'searchTerm',
+              name: 'Search',
+              value: searchTerm,
+              onRemove: () => setSearchTerm('')
+            },
+            {
+              key: 'shiftFilter',
+              name: 'Shift',
+              value: shiftFilter,
+              onRemove: () => setShiftFilter('ALL')
+            },
+            {
+              key: 'statusFilter',
+              name: 'Status',
+              value: statusFilter,
+              displayValue: statusFilter === 'On_Duty' ? 'On Duty' : statusFilter === 'Off_Duty' ? 'Off Duty' : statusFilter,
+              onRemove: () => setStatusFilter('ALL')
+            }
+          ]}
+          onClearAll={() => {
+            setSearchTerm('');
+            setShiftFilter('ALL');
+            setStatusFilter('ALL');
+          }}
+        />
+
         {/* TABLE */}
         <div className="overflow-x-auto w-full">
           <table className="w-full text-left text-xs text-slate-600 min-w-[850px]">
@@ -476,9 +507,13 @@ const ReceptionistDoctors = ({ currentUser, setCurrentPage, setSelectedDoctorFor
                         {dept}
                       </td>
                       <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
-                          {specialty}
-                        </span>
+                        {specialty && specialty !== '-' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                            {specialty}
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 font-medium">-</span>
+                        )}
                       </td>
                       <td className="py-3 px-3 font-semibold text-slate-700">
                         {hospName}

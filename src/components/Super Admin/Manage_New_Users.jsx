@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const asList = (payload) => (Array.isArray(payload) ? payload : payload?.results || payload?.data || []);
 const relatedId = (value) => (value && typeof value === 'object' ? value.id : value);
@@ -270,6 +271,35 @@ const ManageNewUsers = () => {
                 <option value="UNASSIGNED">Unassigned Branches</option>
               </select>
             </div>
+          </div>
+
+          {/* ACTIVE FILTER TAGS */}
+          <div className="px-4 pt-3">
+            <ActiveFilterTags
+              filters={[
+                { name: 'Search', value: search.trim(), onRemove: () => setSearch('') },
+                {
+                  name: 'Approval Status',
+                  value: statusFilter,
+                  displayValue: statusFilter === 'PENDING' ? 'Pending Approval' : statusFilter === 'APPROVED' ? 'Approved' : statusFilter,
+                  onRemove: () => setStatusFilter('ALL'),
+                },
+                {
+                  name: 'Hospital',
+                  value: hospitalFilter,
+                  displayValue:
+                    hospitalFilter === 'UNASSIGNED'
+                      ? 'Unassigned Branches'
+                      : hospitals.find((h) => String(h.id) === String(hospitalFilter))?.Name || hospitalFilter,
+                  onRemove: () => setHospitalFilter('ALL'),
+                },
+              ]}
+              onClearAll={() => {
+                setSearch('');
+                setStatusFilter('ALL');
+                setHospitalFilter('ALL');
+              }}
+            />
           </div>
 
           {(error || approvalError) && (

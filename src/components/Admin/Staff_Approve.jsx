@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const asArray = (payload) => (Array.isArray(payload) ? payload : payload?.results || payload?.data || []);
 const relatedId = (value) => (value && typeof value === 'object' ? value.id : value);
@@ -438,46 +439,83 @@ const Staff_Approve = ({ currentUser }) => {
 
         {/* SEARCH & FILTERS BAR */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="p-4 border-b border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* Search Input */}
-            <div className="sm:col-span-1">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, ID, email, contact..."
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-600/20 transition"
-              />
+          <div className="p-4 border-b border-slate-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Filter Staff</span>
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Search Input */}
+              <div className="sm:col-span-1">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by name, ID, email, contact..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-600/20 transition"
+                />
+              </div>
 
-            {/* Role Filter */}
-            <div>
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                aria-label="Filter staff by role"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-700 focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-600/20 transition cursor-pointer"
-              >
-                <option value="ALL">All Roles ({totalCount})</option>
-                <option value="Doctor">Doctors ({doctorCount})</option>
-                <option value="Nurse">Nurses ({nurseCount})</option>
-                <option value="Receptionist">Receptionists ({recCount})</option>
-              </select>
-            </div>
+              {/* Role Filter */}
+              <div>
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  aria-label="Filter staff by role"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-700 focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-600/20 transition cursor-pointer"
+                >
+                  <option value="ALL">All Roles ({totalCount})</option>
+                  <option value="Doctor">Doctors ({doctorCount})</option>
+                  <option value="Nurse">Nurses ({nurseCount})</option>
+                  <option value="Receptionist">Receptionists ({recCount})</option>
+                </select>
+              </div>
 
-            {/* Status Filter */}
-            <div>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                aria-label="Filter staff by approval status"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-700 focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-600/20 transition cursor-pointer"
-              >
-                <option value="ALL">All Approval Status</option>
-                <option value="PENDING">Pending Approval Only ({pendingCount})</option>
-                <option value="APPROVED">Approved Active Staff ({approvedCount})</option>
-              </select>
+              {/* Status Filter */}
+              <div>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  aria-label="Filter staff by approval status"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-700 focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-600/20 transition cursor-pointer"
+                >
+                  <option value="ALL">All Approval Status</option>
+                  <option value="PENDING">Pending Approval Only ({pendingCount})</option>
+                  <option value="APPROVED">Approved Active Staff ({approvedCount})</option>
+                </select>
+              </div>
             </div>
+          </div>
+
+          {/* ACTIVE FILTER TAGS */}
+          <div className="px-4 pt-2">
+            <ActiveFilterTags
+              filters={[
+                {
+                  key: 'search',
+                  name: 'Search',
+                  value: search,
+                  onRemove: () => setSearch('')
+                },
+                {
+                  key: 'roleFilter',
+                  name: 'Role',
+                  value: roleFilter,
+                  onRemove: () => setRoleFilter('ALL')
+                },
+                {
+                  key: 'statusFilter',
+                  name: 'Approval Status',
+                  value: statusFilter,
+                  displayValue: statusFilter === 'PENDING' ? 'Pending Approval' : statusFilter === 'APPROVED' ? 'Approved Active' : statusFilter,
+                  onRemove: () => setStatusFilter('ALL')
+                }
+              ]}
+              onClearAll={() => {
+                setSearch('');
+                setRoleFilter('ALL');
+                setStatusFilter('ALL');
+              }}
+            />
           </div>
 
           {/* TABLE */}

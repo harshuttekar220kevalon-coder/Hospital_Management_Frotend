@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const extractArray = (resData) => {
   if (!resData) return [];
@@ -486,14 +487,15 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
       const numericId = selectedBillingPatient.id;
       const patientName = selectedBillingPatient.patient_Name || selectedBillingPatient.patient_name || selectedBillingPatient.name || `Patient #${numericId}`;
 
+      const exactDbId = (numericId && !isNaN(Number(numericId))) ? Number(numericId) : null;
       const candidateIds = [
+        exactDbId,
         selectedBillingPatient.appointment_pk,
+        selectedBillingPatient.id && !isNaN(Number(selectedBillingPatient.id)) ? Number(selectedBillingPatient.id) : null,
         selectedBillingPatient.appointment_id,
         selectedBillingPatient.Appoment_id,
         selectedBillingPatient.appoment_id,
-        numericId,
-        selectedBillingPatient.id,
-        targetId,
+        targetId && !isNaN(Number(targetId)) ? Number(targetId) : null,
         typeof targetId === 'string' && targetId.startsWith('APT-') ? targetId.replace('APT-', '') : null,
         typeof targetId === 'string' ? targetId.replace(/\D/g, '') : null,
         typeof selectedBillingPatient.id === 'string' ? selectedBillingPatient.id.replace(/\D/g, '') : null
@@ -747,6 +749,29 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
             <span className="px-1.5 py-0.2 rounded-full bg-white/30 text-[10px]">{paidSettledPatients.length}</span>
           </button>
         </div>
+
+        {/* ACTIVE FILTER TAGS */}
+        <ActiveFilterTags
+          filters={[
+            {
+              key: 'searchTerm',
+              name: 'Search',
+              value: searchTerm,
+              onRemove: () => setSearchTerm('')
+            },
+            {
+              key: 'billingFilter',
+              name: 'Billing Status',
+              value: billingFilter,
+              displayValue: billingFilter === 'PENDING' ? 'Payment Due / Unpaid' : billingFilter === 'PAID' ? 'Settled & Cleared (Gate Pass)' : billingFilter,
+              onRemove: () => setBillingFilter('ALL')
+            }
+          ]}
+          onClearAll={() => {
+            setSearchTerm('');
+            setBillingFilter('ALL');
+          }}
+        />
 
         {/* BILLING PATIENT QUEUE TABLE */}
         <div className="overflow-x-auto w-full">

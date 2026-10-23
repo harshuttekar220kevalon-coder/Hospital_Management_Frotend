@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const getFloorNumber = (bed) => {
   if (!bed) return null;
@@ -29,7 +30,7 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
   const [nursesList, setNursesList] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const [activeTab, setActiveTab] = useState('ALL');
+  const [activeTab, setActiveTab] = useState('TODAY');
   const [searchTerm, setSearchTerm] = useState('');
   const [hospitalFilter, setHospitalFilter] = useState('ALL');
   const [specializationFilter, setSpecializationFilter] = useState('ALL');
@@ -761,6 +762,30 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
           />
         </div>
       </div>
+
+      {/* ACTIVE FILTER TAGS */}
+      <ActiveFilterTags
+        filters={[
+          {
+            name: 'Tab View',
+            value: activeTab !== 'ALL' ? activeTab : '',
+            displayValue:
+              activeTab === 'TODAY'
+                ? 'Registered Today'
+                : activeTab === 'WITH_APPTS'
+                ? 'With Appointments'
+                : activeTab === 'NEW'
+                ? 'New Accounts'
+                : activeTab,
+            onRemove: () => setActiveTab('ALL'),
+          },
+          { name: 'Search', value: searchTerm.trim(), onRemove: () => setSearchTerm('') },
+        ]}
+        onClearAll={() => {
+          setActiveTab('ALL');
+          setSearchTerm('');
+        }}
+      />
 
       {/* PATIENTS TABLE - 5 COLUMNS ONLY (NAME, ID, CONTACT, EMAIL, ACTIONS) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">

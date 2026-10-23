@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 // Helper: Safe array extractor
 const extractArray = (resData) => {
@@ -697,6 +698,7 @@ const ReceptionistAppoiment = ({
         email: editFormData.email.trim(),
         age: editFormData.age ? Number(editFormData.age) : editingAppt.age,
         gender: editFormData.gender,
+        Gender: editFormData.gender,
         doctor: chosenDoc ? Number(chosenDoc.id) : (editFormData.doctor ? Number(editFormData.doctor) : null),
         doctor_name: chosenDoc ? (chosenDoc.name?.startsWith('Dr.') ? chosenDoc.name : `Dr. ${chosenDoc.name}`) : (editFormData.doctor ? `Dr. ID ${editFormData.doctor}` : 'Awaiting Doctor Assignment'),
         nurse: chosenNurse ? Number(chosenNurse.id) : null,
@@ -713,12 +715,14 @@ const ReceptionistAppoiment = ({
         payment_status: editFormData.payment_status
       };
 
+      const exactDbId = (editingAppt?.id && !isNaN(Number(editingAppt.id))) ? Number(editingAppt.id) : null;
       const candidateIds = [
+        exactDbId,
         editingAppt.appointment_pk,
+        editingAppt.id && !isNaN(Number(editingAppt.id)) ? Number(editingAppt.id) : null,
         editingAppt.appointment_id,
         editingAppt.Appoment_id,
         editingAppt.appoment_id,
-        editingAppt.id,
         typeof editingAppt.id === 'string' && editingAppt.id.startsWith('APT-') ? editingAppt.id.replace('APT-', '') : null,
         typeof editingAppt.id === 'string' ? editingAppt.id.replace(/\D/g, '') : null
       ].filter(Boolean);
@@ -1088,6 +1092,38 @@ const ReceptionistAppoiment = ({
           </div>
         </div>
 
+        {/* ACTIVE FILTER TAGS */}
+        <ActiveFilterTags
+          filters={[
+            {
+              key: 'searchTerm',
+              name: 'Search',
+              value: searchTerm,
+              onRemove: () => setSearchTerm('')
+            },
+            {
+              key: 'assignFilter',
+              name: 'Assignment',
+              value: assignFilter,
+              displayValue: assignFilter === 'ASSIGNED' ? 'Assigned' : assignFilter === 'UNASSIGNED' ? 'Unassigned' : assignFilter,
+              onRemove: () => setAssignFilter('ALL')
+            },
+            {
+              key: 'dateTab',
+              name: 'Schedule',
+              value: dateTab,
+              displayValue: dateTab === 'TODAY' ? "Today's Appointments" : dateTab === 'YESTERDAY' ? "Yesterday's Appointments" : dateTab === 'HISTORY' ? "Appointments History" : dateTab,
+              onRemove: () => setDateTab('TODAY')
+            }
+          ]}
+          onClearAll={() => {
+            setDateTab('TODAY');
+            setSelectedKpi('TODAY');
+            setAssignFilter('ALL');
+            setSearchTerm('');
+          }}
+        />
+
         {/* RESULTS INFO BAR */}
         <div className="flex items-center justify-between text-xs text-slate-500 pb-1">
           <div>
@@ -1096,20 +1132,6 @@ const ReceptionistAppoiment = ({
             {assignFilter !== 'ALL' && <span className="ml-1 text-teal-700 font-semibold">• Filter: {assignFilter}</span>}
             {searchTerm && <span className="ml-1 text-slate-600 font-semibold">• Query: "{searchTerm}"</span>}
           </div>
-          {(dateTab !== 'TODAY' || assignFilter !== 'ALL' || searchTerm) && (
-            <button
-              type="button"
-              onClick={() => {
-                setDateTab('TODAY');
-                setSelectedKpi('TODAY');
-                setAssignFilter('ALL');
-                setSearchTerm('');
-              }}
-              className="text-amber-700 hover:text-amber-800 font-bold hover:underline cursor-pointer"
-            >
-              Reset Filters
-            </button>
-          )}
         </div>
 
         {/* 4. MASTER APPOINTMENTS TABLE */}

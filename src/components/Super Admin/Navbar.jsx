@@ -51,7 +51,11 @@ const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser, 
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   // Lock body scroll when mobile sidebar is open
@@ -393,13 +397,13 @@ const SuperAdminNavbar = ({ currentPage, setCurrentPage, onLogout, currentUser, 
           </div>
 
           {/* Right section: ONLY NOTIFICATION ICON & USER LOGO (As Requested) */}
-          <div className="flex items-center gap-3 sm:gap-4 ml-auto" ref={dropdownRef}>
+          <div className="flex items-center gap-3 sm:gap-4 ml-auto">
             
             {/* Notification Bell */}
             <NotificationBell currentUser={currentUser} setCurrentPage={handleNavClick} />
 
             {/* User Logo / Avatar */}
-            <div className="relative z-[9999]">
+            <div className="relative z-[9999]" ref={dropdownRef}>
               <button
                 type="button"
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}

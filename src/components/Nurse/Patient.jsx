@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL, extractArray } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const getFloorDisplay = (floorOrBed) => {
   if (!floorOrBed) return 'Not Assigned';
@@ -445,12 +446,14 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
         nurse_name: activeNurse?.name || ''
       };
 
+      const exactDbId = (selectedPatientModal?.id && !isNaN(Number(selectedPatientModal.id))) ? Number(selectedPatientModal.id) : null;
       const candidateIds = [
+        exactDbId,
         selectedPatientModal.appointment_pk,
+        selectedPatientModal.id && !isNaN(Number(selectedPatientModal.id)) ? Number(selectedPatientModal.id) : null,
         selectedPatientModal.appointment_id,
         selectedPatientModal.Appoment_id,
         selectedPatientModal.appoment_id,
-        selectedPatientModal.id,
         typeof selectedPatientModal.id === 'string' && selectedPatientModal.id.startsWith('APT-') ? selectedPatientModal.id.replace('APT-', '') : null,
         typeof selectedPatientModal.id === 'string' ? selectedPatientModal.id.replace(/\D/g, '') : null
       ].filter(Boolean);
@@ -550,112 +553,60 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
     }
   };
 
-  const statusOptions = ['Admitted', 'Under Observation', 'Pending', 'Assigned', 'Completed', 'Discharged', 'Cancelled'];
+  const healthCareOptions = [
+    'Done',
+    'Not Done',
+    'Fully Recovered',
+    'Recovering',
+    'No Significant Change'
+  ];
 
-  const handleUpdatePatientStatus = async (patient, newStatus) => {
+  const handleUpdateHealthCare = async (patient, newHealthCare) => {
     if (!patient || !patient.id) return;
     setUpdatingPatientId(patient.id);
     try {
-      const response = await fetch(`${API_BASE_URL}/super-admin/Patients/${patient.id}/`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      });
-
-      if (response && response.ok) {
-        const updated = await response.json();
-        setPatients(prev => prev.map(p => p.id === patient.id ? { ...p, ...updated, status: newStatus } : p));
-      } else {
-        setPatients(prev => prev.map(p => p.id === patient.id ? { ...p, status: newStatus } : p));
-      }
-
-      setActionSuccessMsg(`Status updated to "${newStatus}" for ${patient.name || 'Patient'}!`);
-      setTimeout(() => setActionSuccessMsg(''), 4000);
-    } catch (err) {
-      console.error('Error updating patient status:', err);
-      alert('Failed to update status in backend.');
-    } finally {
-      setUpdatingPatientId(null);
-    }
-  };
-
-  const isPatientCheckupDone = (patient) => {
-    if (!patient) return false;
-    const s = (patient.status || '').toLowerCase().trim();
-    const cs = (patient.checkup_status || '').toLowerCase().trim();
-    const apptId = patient.id;
-    try {
-      const stored = localStorage.getItem(`nurse_checkup_${apptId}`) ||
-        (patient.Appoment_id ? localStorage.getItem(`nurse_checkup_${patient.Appoment_id}`) : null) ||
-        (patient.appointment_id ? localStorage.getItem(`nurse_checkup_${patient.appointment_id}`) : null);
-      if (stored === 'Done') return true;
-      if (stored === 'Not Done') return false;
-    } catch {}
-    if (s === 'completed' || s === 'discharged' || s === 'checkup done' || s.includes('checkup done') || s.includes('done') || cs === 'done' || cs === 'completed') return true;
-    return false;
-  };
-
-  const handleUpdateCheckupStatus = async (patient, newCheckupValue) => {
-    if (!patient || !patient.id) return;
-    setUpdatingPatientId(patient.id);
-    const isDone = newCheckupValue === 'Checkup Done';
-    const backendStatus = isDone ? 'Completed' : 'Admitted';
-    const checkupStatusVal = isDone ? 'Done' : 'Pending';
-
-    try {
-      localStorage.setItem(`nurse_checkup_${patient.id}`, isDone ? 'Done' : 'Not Done');
-      if (patient.Appoment_id) {
-        localStorage.setItem(`nurse_checkup_${patient.Appoment_id}`, isDone ? 'Done' : 'Not Done');
-      }
-      if (patient.appointment_id) {
-        localStorage.setItem(`nurse_checkup_${patient.appointment_id}`, isDone ? 'Done' : 'Not Done');
-      }
-
+      const exactDbId = (patient?.id && !isNaN(Number(patient.id))) ? Number(patient.id) : null;
       const candidateIds = [
+        exactDbId,
         patient.appointment_pk,
+        patient.id && !isNaN(Number(patient.id)) ? Number(patient.id) : null,
         patient.appointment_id,
         patient.Appoment_id,
         patient.appoment_id,
-        patient.id,
         typeof patient.id === 'string' && patient.id.startsWith('APT-') ? patient.id.replace('APT-', '') : null,
         typeof patient.id === 'string' ? patient.id.replace(/\D/g, '') : null
       ].filter(Boolean);
+
+      let isSuccess = false;
+      let updatedData = null;
 
       for (const targetId of Array.from(new Set(candidateIds))) {
         try {
           const res = await fetch(`${API_BASE_URL}/super-admin/appointments/${targetId}/`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: backendStatus, checkup_status: checkupStatusVal })
+            body: JSON.stringify({ Health_Care: newHealthCare, health_care: newHealthCare })
           });
-          if (res && res.ok) break;
+          if (res && res.ok) {
+            isSuccess = true;
+            updatedData = await res.json().catch(() => null);
+            break;
+          }
         } catch (e) {}
       }
 
-      try {
-        await fetch(`${API_BASE_URL}/super-admin/Patients/${patient.id}/`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: backendStatus })
-        }).catch(() => null);
-      } catch (e) {}
-
       setPatients(prev => prev.map(p => {
         if (p.id === patient.id || (patient.Appoment_id && p.Appoment_id === patient.Appoment_id)) {
-          return { ...p, status: backendStatus, checkup_status: checkupStatusVal };
+          return { ...p, ...(updatedData || {}), Health_Care: newHealthCare, health_care: newHealthCare };
         }
         return p;
       }));
 
-      const pName = patient.patient_name || patient.patient_Name || patient.name || 'Patient';
-      setActionSuccessMsg(
-        isDone
-          ? `Checkup Done marked for ${pName} • Added to "Checkup Done" list!`
-          : `Checkup Not Done marked for ${pName} • Moved to "Active Inpatients".`
-      );
+      setActionSuccessMsg(`Health Care updated to "${newHealthCare}" for ${patient.name || 'Patient'}!`);
       setTimeout(() => setActionSuccessMsg(''), 4000);
     } catch (err) {
-      console.error('Error updating checkup status:', err);
+      console.error('Error updating Health Care:', err);
+      alert('Failed to update Health Care in backend.');
     } finally {
       setUpdatingPatientId(null);
     }
@@ -664,6 +615,16 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
   // Condition helper
   const getPatientCondition = (p) => {
     return p.Condation || p.condation || p.condition || p.Condition || p.symptoms_severity || 'Normal';
+  };
+
+  const isPatientCheckupDone = (patient) => {
+    if (!patient) return false;
+    return (
+      patient.checkup_status === 'Checkup Done' ||
+      patient.status === 'Completed' ||
+      patient.status === 'Discharged' ||
+      patient.status === 'Checked'
+    );
   };
 
   // Filtering by Search + Status on assigned patients
@@ -837,17 +798,42 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
           </div>
         </div>
 
+        {/* ACTIVE FILTER TAGS */}
+        <ActiveFilterTags
+          filters={[
+            {
+              key: 'searchTerm',
+              name: 'Search',
+              value: searchTerm,
+              onRemove: () => setSearchTerm('')
+            },
+            {
+              key: 'statusFilter',
+              name: 'Status',
+              value: statusFilter,
+              displayValue: statusFilter === 'Critical' ? 'Critical & Urgent' :
+                            statusFilter === 'Admitted' ? 'Active Inpatients' :
+                            statusFilter === 'Completed' ? 'Checkup Done' : statusFilter,
+              onRemove: () => setStatusFilter('ALL')
+            }
+          ]}
+          onClearAll={() => {
+            setSearchTerm('');
+            setStatusFilter('ALL');
+          }}
+        />
+
         {/* TABLE */}
         <div className="overflow-x-auto w-full">
           <table className="w-full text-center text-xs text-slate-600 min-w-[640px]">
             <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
               <tr>
-                <th className="py-3 px-3 text-center">Bed & Floor</th>
                 <th className="py-3 px-3 text-center">Patient & Appointment ID</th>
+                <th className="py-3 px-3 text-center">Bed & Floor</th>
                 <th className="py-3 px-3 text-center">Age / Gender</th>
                 <th className="py-3 px-3 text-center">Condition & Triage</th>
-                <th className="py-3 px-3 text-center">Care Status</th>
-                <th className="py-3 px-3 text-center">Actions</th>
+                <th className="py-3 px-3 text-center">Health Care</th>
+                <th className="py-3 px-3 text-center">Doctor Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -873,7 +859,17 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
 
                   return (
                     <tr key={patient.id || idx} className="hover:bg-slate-50/80 transition">
-                      {/* BED & FLOOR */}
+                      {/* 1. PATIENT NAME & APPOINTMENT ID */}
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-slate-800 text-sm">
+                          {patient.patient_name || patient.patient_Name || patient.name || 'Patient'}
+                        </div>
+                        <div className="font-mono text-[10px] text-teal-700 font-bold">
+                          {formatAppointmentId(patient)}
+                        </div>
+                      </td>
+
+                      {/* 2. BED & FLOOR */}
                       <td className="py-3 px-3 font-mono font-bold text-slate-800">
                         <div className="flex flex-col items-center gap-0.5">
                           <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${
@@ -887,28 +883,12 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
                         </div>
                       </td>
 
-                      {/* PATIENT NAME & APPOINTMENT ID */}
-                      <td className="py-3 px-3">
-                        <div className="font-bold text-slate-800 text-sm">
-                          {patient.patient_name || patient.patient_Name || patient.name || 'Patient'}
-                        </div>
-                        {patient.name && (patient.patient_name || patient.patient_Name) &&
-                         patient.name.toLowerCase().trim() !== (patient.patient_name || patient.patient_Name).toLowerCase().trim() && (
-                          <div className="text-[10px] text-slate-500 font-medium">
-                            ({patient.name})
-                          </div>
-                        )}
-                        <div className="font-mono text-[10px] text-teal-700 font-bold">
-                          {formatAppointmentId(patient)}
-                        </div>
-                      </td>
-
-                      {/* AGE / GENDER */}
+                      {/* 3. AGE / GENDER */}
                       <td className="py-3 px-3 font-medium text-slate-700">
                         {patient.age ? `${patient.age} Yrs` : 'Adult'} • {patient.Gender || patient.gender || 'Not Specified'}
                       </td>
 
-                      {/* CONDITION & TRIAGE */}
+                      {/* 4. CONDITION & TRIAGE */}
                       <td className="py-3 px-3">
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${
                           isCrit ? 'bg-rose-50 text-rose-700 border-rose-300 font-black' :
@@ -920,56 +900,45 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
                         </span>
                       </td>
 
-                      {/* CARE STATUS (LOADED FROM BACKEND & EDITABLE BY NURSE) */}
+                      {/* 5. HEALTH CARE (NURSE UPDATE ONLY) */}
                       <td className="py-3 px-3">
                         <select
-                          value={patient.status || 'Admitted'}
-                          onChange={(e) => handleUpdatePatientStatus(patient, e.target.value)}
+                          value={patient.Health_Care || patient.health_care || 'Not Done'}
+                          onChange={(e) => handleUpdateHealthCare(patient, e.target.value)}
                           disabled={updatingPatientId === patient.id}
                           className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition cursor-pointer shadow-2xs focus:outline-none focus:ring-2 disabled:opacity-50 ${
-                            patient.status === 'Completed' || patient.status === 'Discharged'
+                            (patient.Health_Care || patient.health_care) === 'Fully Recovered'
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-300 focus:ring-emerald-400'
-                              : patient.status === 'Under Observation'
-                              ? 'bg-purple-50 text-purple-800 border-purple-300 focus:ring-purple-400'
-                              : patient.status === 'Admitted'
-                              ? 'bg-blue-50 text-blue-800 border-blue-300 focus:ring-blue-400'
-                              : patient.status === 'Pending' || patient.status === 'Assigned'
+                              : (patient.Health_Care || patient.health_care) === 'Recovering'
+                              ? 'bg-sky-50 text-sky-800 border-sky-300 focus:ring-sky-400'
+                              : (patient.Health_Care || patient.health_care) === 'Done'
+                              ? 'bg-teal-50 text-teal-800 border-teal-300 focus:ring-teal-400'
+                              : (patient.Health_Care || patient.health_care) === 'No Significant Change'
                               ? 'bg-amber-50 text-amber-800 border-amber-300 focus:ring-amber-400'
-                              : patient.status === 'Cancelled'
-                              ? 'bg-rose-50 text-rose-800 border-rose-300 focus:ring-rose-400'
-                              : 'bg-slate-50 text-slate-800 border-slate-300 focus:ring-slate-400'
+                              : 'bg-slate-50 text-slate-700 border-slate-300 focus:ring-slate-400'
                           }`}
                         >
-                          {!statusOptions.includes(patient.status) && patient.status && (
-                            <option value={patient.status} className="bg-white text-slate-800">
-                              {patient.status}
-                            </option>
-                          )}
-                          {statusOptions.map((st) => (
-                            <option key={st} value={st} className="bg-white text-slate-800">
-                              {st}
+                          {healthCareOptions.map((opt) => (
+                            <option key={opt} value={opt} className="bg-white text-slate-800">
+                              {opt}
                             </option>
                           ))}
                         </select>
                       </td>
 
-                      {/* ACTIONS: ONLY CHECKUP DONE OR NOT DONE */}
+                      {/* 6. DOCTOR STATUS (READ-ONLY FOR NURSE) */}
                       <td className="py-3 px-3 text-center">
-                        <div className="flex items-center justify-center">
-                          <select
-                            value={isPatientCheckupDone(patient) ? 'Checkup Done' : 'Checkup Not Done'}
-                            onChange={(e) => handleUpdateCheckupStatus(patient, e.target.value)}
-                            disabled={updatingPatientId === patient.id}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs focus:outline-none focus:ring-2 disabled:opacity-50 ${
-                              isPatientCheckupDone(patient)
-                                ? 'bg-emerald-600 text-white border-emerald-600 focus:ring-emerald-400'
-                                : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 focus:ring-amber-400'
-                            }`}
-                          >
-                            <option value="Checkup Not Done" className="bg-white text-slate-800">Checkup Not Done</option>
-                            <option value="Checkup Done" className="bg-white text-slate-800">Checkup Done</option>
-                          </select>
-                        </div>
+                        <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border inline-block ${
+                          patient.status === 'Discharged'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            : patient.checkup_status === 'Checkup Done'
+                            ? 'bg-teal-50 text-teal-800 border-teal-300'
+                            : patient.status === 'Admitted'
+                            ? 'bg-purple-50 text-purple-800 border-purple-300'
+                            : 'bg-amber-50 text-amber-800 border-amber-300'
+                        }`}>
+                          {patient.status === 'Discharged' ? 'Discharged' : patient.checkup_status === 'Checkup Done' ? 'Consulted' : 'Pending Doctor'}
+                        </span>
                       </td>
                     </tr>
                   );

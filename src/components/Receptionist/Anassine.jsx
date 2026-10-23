@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const extractArray = (resData) => {
   if (!resData) return [];
@@ -413,15 +414,20 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
   };
 
   const updateBackendAppointment = async (apptId, payload, file = null, numericId = null, patientItem = null) => {
-    // Collect all candidate APPOINTMENT IDs (Never use non-appointment patient IDs)
+    // Collect all candidate APPOINTMENT IDs (Prioritize exact database primary key)
+    const exactDbPk = (numericId && !isNaN(Number(numericId)))
+      ? Number(numericId)
+      : (patientItem?.id && !isNaN(Number(patientItem.id)))
+        ? Number(patientItem.id)
+        : null;
+
     const rawIds = [
+      exactDbPk,
       patientItem?.appointment_pk,
+      apptId && !isNaN(Number(apptId)) ? Number(apptId) : null,
       patientItem?.appointment_id,
       patientItem?.Appoment_id,
       patientItem?.appoment_id,
-      numericId,
-      patientItem?.id,
-      apptId,
       typeof apptId === 'string' && apptId.startsWith('APT-') ? apptId.replace('APT-', '') : null,
       typeof apptId === 'string' ? apptId.replace(/\D/g, '') : null
     ].filter(Boolean);
@@ -1080,6 +1086,7 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
         email: (editFormData.email || editModalPatient.email || '').trim(),
         age: ageNum,
         gender: genderVal,
+        Gender: genderVal,
         doctor: chosenDoc ? Number(chosenDoc.id) : (editFormData.doctor ? Number(editFormData.doctor) : null),
         doctor_name: chosenDoc ? (chosenDoc.name?.startsWith('Dr.') ? chosenDoc.name : `Dr. ${chosenDoc.name}`) : (editFormData.doctor ? `Dr. ID ${editFormData.doctor}` : 'Awaiting Doctor Assignment'),
         nurse: chosenNurse ? Number(chosenNurse.id) : null,
@@ -1239,35 +1246,74 @@ const ReceptionistAnassine = ({ currentUser, setCurrentPage, setSelectedPatient 
           ))}
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="relative sm:col-span-2">
-            <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search unassigned queue by UHID, patient name, phone, symptoms..."
-              className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-600/20 transition"
-            />
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Triage Filters</span>
           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="relative sm:col-span-2">
+              <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search unassigned queue by UHID, patient name, phone, symptoms..."
+                className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-600/20 transition"
+              />
+            </div>
 
-          <div>
-            <select
-              value={severityFilter}
-              onChange={(e) => setSeverityFilter(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-600/20 transition cursor-pointer"
-            >
-              <option value="ALL">All Clinical Severities</option>
-              <option value="Emergency">Emergency / Critical / Urgent</option>
-              <option value="Critical">Critical</option>
-              <option value="Urgent">Urgent</option>
-              <option value="Normal">Normal</option>
-            </select>
+            <div>
+              <select
+                value={severityFilter}
+                onChange={(e) => setSeverityFilter(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/50 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-600/20 transition cursor-pointer"
+              >
+                <option value="ALL">All Clinical Severities</option>
+                <option value="Emergency">Emergency / Critical / Urgent</option>
+                <option value="Critical">Critical</option>
+                <option value="Urgent">Urgent</option>
+                <option value="Normal">Normal</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* ACTIVE FILTER TAGS */}
+      <ActiveFilterTags
+        filters={[
+          {
+            key: 'searchTerm',
+            name: 'Search',
+            value: searchTerm,
+            onRemove: () => setSearchTerm('')
+          },
+          {
+            key: 'severityFilter',
+            name: 'Severity',
+            value: severityFilter,
+            displayValue: severityFilter === 'Emergency' ? 'Emergency / Critical / Urgent' : severityFilter,
+            onRemove: () => setSeverityFilter('ALL')
+          },
+          {
+            key: 'activeTab',
+            name: 'Queue Category',
+            value: activeTab,
+            displayValue: activeTab === 'NO_DOCTOR' ? 'Doctor Required' :
+                          activeTab === 'NO_BED' ? 'Bed / Ward Required' :
+                          activeTab === 'EMERGENCY' ? 'Emergency / Critical' :
+                          activeTab === 'CANCELLED' ? 'Cancelled' : activeTab,
+            onRemove: () => setActiveTab('ALL_UNASSIGNED')
+          }
+        ]}
+        onClearAll={() => {
+          setSearchTerm('');
+          setSeverityFilter('ALL');
+          setActiveTab('ALL_UNASSIGNED');
+        }}
+      />
 
       {/* UNASSIGNED PATIENTS TABLE */}
       <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs">

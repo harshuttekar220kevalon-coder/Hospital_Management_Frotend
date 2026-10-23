@@ -8,7 +8,7 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
   const [assignedHospitals, setAssignedHospitals] = useState([]);
   const [hospitalFilter, setHospitalFilter] = useState('ALL');
   const [patients, setPatients] = useState([]);
-  const [selectedDay, setSelectedDay] = useState('Monday');
+  const [selectedDay, setSelectedDay] = useState(() => new Date().toLocaleDateString('en-US', { weekday: 'long' }) || 'Monday');
   const [isEditTimingsModalOpen, setIsEditTimingsModalOpen] = useState(false);
   const [editTimingsValue, setEditTimingsValue] = useState('');
   const [updatingDutyStatus, setUpdatingDutyStatus] = useState(false);

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const formatApptId = (raw) => {
   if (!raw) return '';
@@ -1441,13 +1442,13 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               </div>
 
               {/* Search Box */}
-              <div className="relative w-full lg:w-72">
+              <div className="flex items-center gap-2 w-full lg:w-auto">
                 <input
                   type="text"
                   placeholder="Search by Bed No, Floor, or Patient..."
                   value={roomSearch}
                   onChange={(e) => { setRoomSearch(e.target.value); setBedPage(1); }}
-                  className="w-full pl-4 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full lg:w-72 pl-4 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -1487,6 +1488,37 @@ const HospitalManagement = ({ currentUser, selectedHospital: propSelectedHospita
               })}
             </div>
           </div>
+
+          {/* ACTIVE FILTER TAGS */}
+          <ActiveFilterTags
+            filters={[
+              {
+                key: 'roomSearch',
+                name: 'Search',
+                value: roomSearch,
+                onRemove: () => { setRoomSearch(''); setBedPage(1); }
+              },
+              {
+                key: 'bedStatusFilter',
+                name: 'Bed Status',
+                value: bedStatusFilter,
+                onRemove: () => { setBedStatusFilter('ALL'); setBedPage(1); }
+              },
+              {
+                key: 'selectedFloor',
+                name: 'Floor',
+                value: selectedFloor,
+                displayValue: selectedFloor !== 'ALL' ? `Floor ${selectedFloor}` : selectedFloor,
+                onRemove: () => { setSelectedFloor('ALL'); setBedPage(1); }
+              }
+            ]}
+            onClearAll={() => {
+              setRoomSearch('');
+              setBedStatusFilter('ALL');
+              setSelectedFloor('ALL');
+              setBedPage(1);
+            }}
+          />
 
           {/* Beds Table */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">

@@ -82,7 +82,11 @@ const NotificationBell = ({ currentUser, setCurrentPage, light = false }) => {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   if (!currentUser?.email || !endpoint) return null;
@@ -113,10 +117,9 @@ const NotificationBell = ({ currentUser, setCurrentPage, light = false }) => {
     window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
   };
 
-  // Show up to 5 items in the compact dropdown: unread first, then recent read
+  // Show only unread / new notifications in the compact dropdown
   const unreadItems = notifications.filter((n) => !n.is_read);
-  const readItems = notifications.filter((n) => n.is_read);
-  const displayItems = [...unreadItems, ...readItems].slice(0, 5);
+  const displayItems = unreadItems;
 
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>
@@ -198,50 +201,92 @@ const NotificationBell = ({ currentUser, setCurrentPage, light = false }) => {
             ) : (
               displayItems.map((item) => {
                 const unread = !item.is_read;
+                const senderDisplay = item.sender_name || item.sender_role || item.sender_email || 'Hospital Admin';
                 return (
                   <div
                     key={item.id}
                     onClick={() => handleNotificationClick(item)}
-                    className={`p-3 text-left transition flex items-start gap-2.5 cursor-pointer hover:bg-slate-800/40 ${
-                      unread
-                        ? light
-                          ? 'bg-teal-50/60'
-                          : 'bg-teal-950/25'
-                        : ''
+                    className={`p-3 text-left transition flex items-start gap-2.5 cursor-pointer ${
+                      light
+                        ? unread
+                          ? 'bg-teal-50/70 hover:bg-teal-100/60'
+                          : 'hover:bg-slate-50'
+                        : unread
+                        ? 'bg-teal-950/30 hover:bg-teal-950/50'
+                        : 'hover:bg-slate-800/40'
                     }`}
                   >
                     {/* Unread dot indicator */}
                     <div className="mt-1 shrink-0">
                       <span
                         className={`block h-2 w-2 rounded-full ${
-                          unread ? 'bg-teal-400 ring-2 ring-teal-400/30' : 'bg-slate-600'
+                          unread
+                            ? 'bg-teal-400 ring-2 ring-teal-400/40 animate-pulse'
+                            : 'bg-slate-600'
                         }`}
                       />
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center justify-between gap-1.5">
                         <p
                           className={`text-xs truncate ${
-                            unread ? 'font-bold text-white' : 'font-medium text-slate-300'
+                            unread
+                              ? light
+                                ? 'font-bold text-slate-900'
+                                : 'font-bold text-white'
+                              : light
+                              ? 'font-medium text-slate-700'
+                              : 'font-medium text-slate-300'
                           }`}
                         >
                           {item.title || 'Notification'}
                         </p>
-                        <span className="text-[10px] text-slate-400 shrink-0">
+                        <time
+                          title={item.created_at ? new Date(item.created_at).toLocaleString() : ''}
+                          className="text-[10px] text-slate-400 shrink-0 font-medium"
+                        >
                           {formatTimeAgo(item.created_at)}
-                        </span>
+                        </time>
                       </div>
+
                       {item.message && (
-                        <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
+                        <p
+                          className={`text-[11px] line-clamp-2 mt-0.5 leading-relaxed ${
+                            light ? 'text-slate-600' : 'text-slate-300'
+                          }`}
+                        >
                           {item.message}
                         </p>
                       )}
-                      {item.sender_name && (
-                        <span className="text-[10px] text-teal-400/80 font-medium mt-1 inline-block">
-                          From: {item.sender_name}
+
+                      <div className="mt-1.5 flex items-center justify-between gap-2">
+                        <span
+                          className={`text-[10px] font-semibold truncate ${
+                            light ? 'text-teal-700' : 'text-teal-400'
+                          }`}
+                        >
+                          From: {senderDisplay}
+                          {item.sender_role && (
+                            <span className="ml-1 opacity-75 text-[9px] uppercase">
+                              ({item.sender_role})
+                            </span>
+                          )}
                         </span>
-                      )}
+                        <span
+                          className={`shrink-0 text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                            unread
+                              ? light
+                                ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                                : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                              : light
+                              ? 'bg-slate-100 text-slate-600 border border-slate-200'
+                              : 'bg-slate-800 text-slate-400 border border-slate-700'
+                          }`}
+                        >
+                          {unread ? 'Unread' : 'Read'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );

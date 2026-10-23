@@ -801,14 +801,19 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
 
   // Backend appointment update helper with candidate ID fallbacks & file upload support
   const updateBackendAppointment = async (apptId, payload, file = null, numericId = null, patientItem = null) => {
+    const exactDbPk = (numericId && !isNaN(Number(numericId)))
+      ? Number(numericId)
+      : (patientItem?.id && !isNaN(Number(patientItem.id)))
+        ? Number(patientItem.id)
+        : null;
+
     const rawIds = [
+      exactDbPk,
       patientItem?.appointment_pk,
+      apptId && !isNaN(Number(apptId)) ? Number(apptId) : null,
       patientItem?.appointment_id,
       patientItem?.Appoment_id,
       patientItem?.appoment_id,
-      numericId,
-      patientItem?.id,
-      apptId,
       typeof apptId === 'string' && apptId.startsWith('APT-') ? apptId.replace('APT-', '') : null,
       typeof apptId === 'string' ? apptId.replace(/\D/g, '') : null
     ].filter(Boolean);

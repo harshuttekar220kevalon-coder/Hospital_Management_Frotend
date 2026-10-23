@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const extractArray = (resData) => {
   if (!resData) return [];
@@ -316,6 +317,32 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
         </select>
       </div>
 
+      {/* ACTIVE FILTER TAGS */}
+      <ActiveFilterTags
+        filters={[
+          { name: 'Search', value: searchTerm.trim(), onRemove: () => setSearchTerm('') },
+          {
+            name: 'Hospital',
+            value: hospitalFilter,
+            displayValue: hospitalsList.find((h) => String(h.id) === String(hospitalFilter))?.Name || hospitalFilter,
+            onRemove: () => setHospitalFilter('ALL'),
+          },
+          { name: 'Shift', value: shiftFilter, onRemove: () => setShiftFilter('ALL') },
+          {
+            name: 'Status',
+            value: statusFilter,
+            displayValue: statusFilter === 'On_Duty' ? 'On Duty' : statusFilter === 'Off_Duty' ? 'Off Duty / On Leave' : statusFilter,
+            onRemove: () => setStatusFilter('ALL'),
+          },
+        ]}
+        onClearAll={() => {
+          setSearchTerm('');
+          setHospitalFilter('ALL');
+          setShiftFilter('ALL');
+          setStatusFilter('ALL');
+        }}
+      />
+
       {/* Table */}
       {loading ? (
         <div className="flex flex-col items-center justify-center space-y-3 rounded-2xl border border-slate-200 bg-white p-16">
@@ -377,14 +404,18 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                         {nurse.shift || nurse.shifts || '-'}
                       </td>
                       <td className="py-3.5 px-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                          isOff
-                            ? 'border border-rose-200 bg-rose-50 text-rose-700'
-                            : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                        }`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${isOff ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
-                          {nurseStatus}
-                        </span>
+                        {nurseStatus && nurseStatus !== '-' ? (
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                            isOff
+                              ? 'border border-rose-200 bg-rose-50 text-rose-700'
+                              : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                          }`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${isOff ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
+                            {nurseStatus}
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 font-medium">-</span>
+                        )}
                       </td>
                       <td className="py-3.5 px-4 font-mono text-xs text-slate-600">
                         {nurse.contact || nurse.phone || nurse.email || '-'}

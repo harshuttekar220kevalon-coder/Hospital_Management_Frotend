@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) => {
   const [receptionists, setReceptionists] = useState([]);
@@ -365,6 +366,27 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
         </div>
       </div>
 
+      {/* ACTIVE FILTER TAGS */}
+      <ActiveFilterTags
+        filters={[
+          { name: 'Search', value: searchTerm.trim(), onRemove: () => setSearchTerm('') },
+          { name: 'Shift', value: shiftFilter, onRemove: () => setShiftFilter('ALL') },
+          {
+            name: 'Hospital',
+            value: hospitalFilter,
+            displayValue: hospitalsList.find((h) => String(h.id) === String(hospitalFilter))?.Name || hospitalFilter,
+            onRemove: () => setHospitalFilter('ALL'),
+          },
+          { name: 'Status', value: statusFilter, onRemove: () => setStatusFilter('ALL') },
+        ]}
+        onClearAll={() => {
+          setSearchTerm('');
+          setShiftFilter('ALL');
+          setHospitalFilter('ALL');
+          setStatusFilter('ALL');
+        }}
+      />
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto w-full">
           {loading ? (
@@ -401,7 +423,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                   return (
                     <tr key={rec.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-bold text-slate-800 break-words">{rec.name || 'Not Provided'}</div>
+                        <div className="font-bold text-slate-800 break-words">{rec.name || '-'}</div>
                         <span className="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 inline-block mt-0.5">
                           {rec.receptionist_id || `REC-${rec.id}`}
                         </span>
@@ -409,10 +431,10 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
 
                       <td className="py-3.5 px-4 text-center">
                         <div className="font-semibold text-slate-800 text-xs">
-                          {rec.role || rec.designation || 'Not Provided'}
+                          {rec.role || rec.designation || '-'}
                         </div>
                         <span className="text-[11px] text-slate-500">
-                          {rec.shift || 'Not Provided'}
+                          {rec.shift || '-'}
                         </span>
                       </td>
 
@@ -422,8 +444,8 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                             {assignedHosp ? assignedHosp.Name : rec.hospital_name}
                           </span>
                         ) : (
-                          <span className="text-slate-400 font-medium text-xs">
-                            Not Provided
+                          <span className="text-slate-500 font-medium text-xs">
+                            -
                           </span>
                         )}
                       </td>
@@ -431,7 +453,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-col items-center justify-center gap-0.5">
                           <span className="font-bold text-slate-800 text-xs">
-                            {rec.contact || rec.phone || 'Not Provided'}
+                            {rec.contact || rec.phone || '-'}
                           </span>
                           {emailLower ? (
                             <a
@@ -442,7 +464,7 @@ const Receptionist = ({ currentUser, setCurrentPage, setSelectedReceptionist }) 
                               {emailLower}
                             </a>
                           ) : (
-                            <span className="text-[11px] text-slate-400">Not Provided</span>
+                            <span className="text-[11px] text-slate-500">-</span>
                           )}
                         </div>
                       </td>

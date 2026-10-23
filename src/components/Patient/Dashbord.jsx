@@ -814,7 +814,7 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                   </div>
 
                   {/* INDIVIDUAL SEPARATE PATIENT ATTRIBUTE CARDS (STRICTLY FROM APPOINTMENT DATA) */}
-                  <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                  <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                     {/* 1. Patient Name (Appointment Form Data) */}
                     <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
                       <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Patient Name</p>
@@ -876,6 +876,25 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                         Triage Priority
                       </p>
                     </div>
+
+                    {/* 6. Nurse Health Care Status */}
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                      <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Nurse Health Care</p>
+                      <div className="pt-0.5">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          (activeAppt?.Health_Care || activeAppt?.health_care) === 'Fully Recovered' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                          (activeAppt?.Health_Care || activeAppt?.health_care) === 'Recovering' ? 'bg-sky-100 text-sky-800 border-sky-300' :
+                          (activeAppt?.Health_Care || activeAppt?.health_care) === 'Done' ? 'bg-teal-100 text-teal-800 border-teal-300' :
+                          (activeAppt?.Health_Care || activeAppt?.health_care) === 'No Significant Change' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                          'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}>
+                          {activeAppt?.Health_Care || activeAppt?.health_care || 'Not Done'}
+                        </span>
+                      </div>
+                      <p className="text-slate-400 text-[10px]">
+                        Nurse Care Status
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -930,6 +949,11 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                               {isSelected && (
                                 <span className="text-[10px] font-bold text-teal-700 bg-teal-100/60 px-1.5 py-0.5 rounded">
                                   Viewing
+                                </span>
+                              )}
+                              {(app.Health_Care || app.health_care) && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                                  Nurse: {app.Health_Care || app.health_care}
                                 </span>
                               )}
                               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">

@@ -348,7 +348,8 @@ const DoctorSettings = ({
         consultation_fee: editFormData.consultation_fee,
         status: editFormData.status,
         duty_status: editFormData.status,
-        hospital: editFormData.hospital ? Number(editFormData.hospital) : null
+        hospital: editFormData.hospital ? Number(editFormData.hospital) : null,
+        hospitals: editFormData.hospital ? [Number(editFormData.hospital)] : []
       };
 
       if (editFormData.password) {

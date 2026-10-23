@@ -91,6 +91,7 @@ const ReceptionistChat = lazy(() => import('../Receptionist/Chat'));
 
 // Common Components
 import ScrollToTop from '../Common/ScrollToTop';
+const CommonHospital = lazy(() => import('../Common/New Hospital'));
 
 
 const getDashboardByRole = (role) => {
@@ -104,7 +105,7 @@ const getDashboardByRole = (role) => {
   return 'login';
 };
 
-const PUBLIC_WEBSITE_PAGES = ['home', 'patient_home', 'about', 'patient_about', 'contact', 'patient_contact', 'appointment', 'appoint', 'patient_appointment'];
+const PUBLIC_WEBSITE_PAGES = ['home', 'patient_home', 'about', 'patient_about', 'contact', 'patient_contact', 'appointment', 'appoint', 'patient_appointment', 'new_hospital', 'hospital', 'hospital_detail'];
 
 const AppRoutes = () => {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -202,7 +203,10 @@ const AppRoutes = () => {
         savedPage === 'patient_home' ||
         savedPage === 'patient_about' ||
         savedPage === 'patient_contact' ||
-        savedPage === 'patient_appointment'
+        savedPage === 'patient_appointment' ||
+        savedPage === 'new_hospital' ||
+        savedPage === 'hospital' ||
+        savedPage === 'hospital_detail'
       ) {
         return savedPage;
       }
@@ -379,566 +383,587 @@ const AppRoutes = () => {
 
   return (
     <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-50"><div className="h-10 w-10 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" role="status" aria-label="Loading page" /></div>}>
-    <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans antialiased w-full overflow-x-hidden">
-      {isLoggedIn && !isApprovalPending && !isPatient && !isWebsiteMode && !isPublicWebsitePage && (
-        isSuperAdmin ? (
-          <SuperAdminNavbar
-            currentPage={currentPage}
-            setCurrentPage={navigateToPage}
-            isLoggedIn={isLoggedIn}
-            onLogout={handleLogout}
-            currentUser={currentUser}
-            onBackToWebsite={handleBackToWebsite}
-          />
-        ) : isAdmin ? (
-          <AdminNavbar
-            currentPage={currentPage}
-            setCurrentPage={navigateToPage}
-            isLoggedIn={isLoggedIn}
-            onLogout={handleLogout}
-            currentUser={currentUser}
-            onBackToWebsite={handleBackToWebsite}
-          />
-        ) : isDoctor ? (
-          <DoctorNavbar
-            currentPage={currentPage}
-            setCurrentPage={navigateToPage}
-            isLoggedIn={isLoggedIn}
-            onLogout={handleLogout}
-            currentUser={currentUser}
-            onBackToWebsite={handleBackToWebsite}
-          />
-        ) : isNurse ? (
-          <NurseNavbar
-            currentPage={currentPage}
-            setCurrentPage={navigateToPage}
-            isLoggedIn={isLoggedIn}
-            onLogout={handleLogout}
-            currentUser={currentUser}
-            onBackToWebsite={handleBackToWebsite}
-          />
-        ) : isReceptionist ? (
-          <ReceptionistNavbar
-            currentPage={currentPage}
-            setCurrentPage={navigateToPage}
-            isLoggedIn={isLoggedIn}
-            onLogout={handleLogout}
-            currentUser={currentUser}
-            onBackToWebsite={handleBackToWebsite}
-          />
-        ) : (
-          <Navbar
-            currentPage={currentPage}
-            setCurrentPage={navigateToPage}
-            isLoggedIn={isLoggedIn}
-            onLogout={handleLogout}
-            currentUser={currentUser}
-            onBackToWebsite={handleBackToWebsite}
-          />
-        )
-      )}
-
-      <main className="flex-1 w-full overflow-x-hidden">
-        {isApprovalRestrictedPage ? (
-          <section className="mx-auto flex min-h-[70vh] w-full max-w-2xl items-center justify-center px-4 py-12">
-            <div className="w-full rounded-3xl border border-amber-200 bg-white p-6 text-center shadow-lg sm:p-10">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-600">
-                <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 8v4m0 4h.01M10.3 3.86 1.82 18a2 2 0 0 0 1.72 3h16.92a2 2 0 0 0 1.72-3L13.7 3.86a2 2 0 0 0-3.4 0Z" />
-                </svg>
-              </div>
-              <h1 className="mt-5 text-2xl font-extrabold text-slate-900">Account approval pending</h1>
-              <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-600">
-                {isAdmin
-                  ? 'You are signed in, but the Super Admin has not approved this administrator account yet. Your dashboard and profile are locked until approval is complete.'
-                  : 'You are signed in, but your Branch Hospital Admin has not approved this staff account yet. Your dashboard and profile are locked until approval is complete.'}
-              </p>
-              <p className="mt-4 text-xs font-semibold text-slate-500">This page will update automatically after approval.</p>
-              <div className="mt-7 flex flex-col items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleBackToWebsite}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-teal-600/20 transition hover:bg-teal-700 cursor-pointer"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                  </svg>
-                  <span>Back To Website</span>
-                </button>
-              </div>
-            </div>
-          </section>
-        ) : !isLoggedIn ? (
-          currentPage === 'signin' ? (
-            <SignIn
-              setCurrentPage={navigateToPage}
-              setIsLoggedIn={handleLoginSuccess}
-            />
-          ) : currentPage === 'staff_signup' ? (
-            <Staf_Signin
-              setCurrentPage={navigateToPage}
-              setIsLoggedIn={handleLoginSuccess}
-            />
-          ) : currentPage === 'reset_password' ? (
-            <ResetPassword
-              setCurrentPage={navigateToPage}
-            />
-          ) : currentPage === 'login' ? (
-            <Login
-              setCurrentPage={navigateToPage}
-              setIsLoggedIn={handleLoginSuccess}
-            />
-          ) : currentPage === 'about' || currentPage === 'patient_about' ? (
-            <PatientAbout
+      <div className="min-h-screen bg-slate-100 text-slate-800 flex flex-col font-sans antialiased w-full overflow-x-hidden">
+        {isLoggedIn && !isApprovalPending && !isPatient && !isWebsiteMode && !isPublicWebsitePage && (
+          isSuperAdmin ? (
+            <SuperAdminNavbar
+              currentPage={currentPage}
               setCurrentPage={navigateToPage}
               isLoggedIn={isLoggedIn}
-              currentUser={currentUser}
               onLogout={handleLogout}
+              currentUser={currentUser}
+              onBackToWebsite={handleBackToWebsite}
             />
-          ) : currentPage === 'contact' || currentPage === 'patient_contact' ? (
-            <PatientContact
+          ) : isAdmin ? (
+            <AdminNavbar
+              currentPage={currentPage}
               setCurrentPage={navigateToPage}
               isLoggedIn={isLoggedIn}
-              currentUser={currentUser}
               onLogout={handleLogout}
+              currentUser={currentUser}
+              onBackToWebsite={handleBackToWebsite}
             />
-          ) : currentPage === 'appointment' || currentPage === 'appoint' || currentPage === 'patient_appointment' ? (
-            <PatientAppointment
+          ) : isDoctor ? (
+            <DoctorNavbar
+              currentPage={currentPage}
               setCurrentPage={navigateToPage}
               isLoggedIn={isLoggedIn}
-              currentUser={currentUser}
               onLogout={handleLogout}
+              currentUser={currentUser}
+              onBackToWebsite={handleBackToWebsite}
+            />
+          ) : isNurse ? (
+            <NurseNavbar
+              currentPage={currentPage}
+              setCurrentPage={navigateToPage}
+              isLoggedIn={isLoggedIn}
+              onLogout={handleLogout}
+              currentUser={currentUser}
+              onBackToWebsite={handleBackToWebsite}
+            />
+          ) : isReceptionist ? (
+            <ReceptionistNavbar
+              currentPage={currentPage}
+              setCurrentPage={navigateToPage}
+              isLoggedIn={isLoggedIn}
+              onLogout={handleLogout}
+              currentUser={currentUser}
+              onBackToWebsite={handleBackToWebsite}
             />
           ) : (
-            <PatientHome
+            <Navbar
+              currentPage={currentPage}
               setCurrentPage={navigateToPage}
               isLoggedIn={isLoggedIn}
-              currentUser={currentUser}
               onLogout={handleLogout}
+              currentUser={currentUser}
+              onBackToWebsite={handleBackToWebsite}
             />
           )
-        ) : (
-          <>
-            {(currentPage === 'home' || currentPage === 'patient_home') && (
-              <PatientHome
+        )}
+
+        <main className="flex-1 w-full overflow-x-hidden">
+          {isApprovalRestrictedPage ? (
+            <section className="mx-auto flex min-h-[70vh] w-full max-w-2xl items-center justify-center px-4 py-12">
+              <div className="w-full rounded-3xl border border-amber-200 bg-white p-6 text-center shadow-lg sm:p-10">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+                  <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 8v4m0 4h.01M10.3 3.86 1.82 18a2 2 0 0 0 1.72 3h16.92a2 2 0 0 0 1.72-3L13.7 3.86a2 2 0 0 0-3.4 0Z" />
+                  </svg>
+                </div>
+                <h1 className="mt-5 text-2xl font-extrabold text-slate-900">Account approval pending</h1>
+                <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-600">
+                  {isAdmin
+                    ? 'You are signed in, but the Super Admin has not approved this administrator account yet. Your dashboard and profile are locked until approval is complete.'
+                    : 'You are signed in, but your Branch Hospital Admin has not approved this staff account yet. Your dashboard and profile are locked until approval is complete.'}
+                </p>
+                <p className="mt-4 text-xs font-semibold text-slate-500">This page will update automatically after approval.</p>
+                <div className="mt-7 flex flex-col items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleBackToWebsite}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-teal-600/20 transition hover:bg-teal-700 cursor-pointer"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    <span>Back To Website</span>
+                  </button>
+                </div>
+              </div>
+            </section>
+          ) : !isLoggedIn ? (
+            currentPage === 'signin' ? (
+              <SignIn
                 setCurrentPage={navigateToPage}
-                isLoggedIn={isLoggedIn}
-                currentUser={currentUser}
-                onLogout={handleLogout}
+                setIsLoggedIn={handleLoginSuccess}
               />
-            )}
-            {(currentPage === 'about' || currentPage === 'patient_about') && (
+            ) : currentPage === 'staff_signup' ? (
+              <Staf_Signin
+                setCurrentPage={navigateToPage}
+                setIsLoggedIn={handleLoginSuccess}
+              />
+            ) : currentPage === 'reset_password' ? (
+              <ResetPassword
+                setCurrentPage={navigateToPage}
+              />
+            ) : currentPage === 'login' ? (
+              <Login
+                setCurrentPage={navigateToPage}
+                setIsLoggedIn={handleLoginSuccess}
+              />
+            ) : currentPage === 'about' || currentPage === 'patient_about' ? (
               <PatientAbout
                 setCurrentPage={navigateToPage}
                 isLoggedIn={isLoggedIn}
                 currentUser={currentUser}
                 onLogout={handleLogout}
               />
-            )}
-            {(currentPage === 'contact' || currentPage === 'patient_contact') && (
+            ) : currentPage === 'contact' || currentPage === 'patient_contact' ? (
               <PatientContact
                 setCurrentPage={navigateToPage}
                 isLoggedIn={isLoggedIn}
                 currentUser={currentUser}
                 onLogout={handleLogout}
               />
-            )}
-            {(currentPage === 'appointment' || currentPage === 'appoint' || currentPage === 'patient_appointment') && (
+            ) : currentPage === 'appointment' || currentPage === 'appoint' || currentPage === 'patient_appointment' ? (
               <PatientAppointment
                 setCurrentPage={navigateToPage}
                 isLoggedIn={isLoggedIn}
                 currentUser={currentUser}
                 onLogout={handleLogout}
               />
-            )}
-            {currentPage === 'super_admin_dashboard' && (
-              <SuperAdminDashboard
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedHospital={setSelectedHospital}
-                setSelectedDoctor={setSelectedDoctor}
-                setSelectedNurse={setSelectedNurse}
-                setSelectedReceptionist={setSelectedReceptionist}
-                setSelectedPatient={setSelectedPatient}
-                setSelectedAdmin={setSelectedAdmin}
-                setSelectedAppointment={setSelectedAppointment}
-              />
-            )}
-            {currentPage === 'super_admin_hospitals' && (
-              <Hospital
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedHospital={setSelectedHospital}
-              />
-            )}
-            {currentPage === 'super_admin_admins' && (
-              <Hospital_Admins
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedAdmin={setSelectedAdmin}
-              />
-            )}
-            {currentPage === 'admin_details' && (
-              <Admin_Details
-                currentUser={currentUser}
-                selectedAdmin={selectedAdmin}
-                setSelectedAdmin={setSelectedAdmin}
-                setSelectedPatient={setSelectedPatient}
-                setSelectedAppointment={setSelectedAppointment}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {currentPage === 'super_admin_doctors' && (
-              <Doctors_Management
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedDoctor={setSelectedDoctor}
-              />
-            )}
-            {currentPage === 'doctor_details' && (
-              <Doctor_Details
-                currentUser={currentUser}
-                selectedDoctor={selectedDoctor}
-                setSelectedDoctor={setSelectedDoctor}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {currentPage === 'super_admin_nurses' && (
-              <Nurses
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedNurse={setSelectedNurse}
-              />
-            )}
-            {currentPage === 'nurse_details' && (
-              <Nurse_Details
-                currentUser={currentUser}
-                selectedNurse={selectedNurse}
-                setSelectedNurse={setSelectedNurse}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {currentPage === 'super_admin_receptionists' && (
-              <Receptionist_Management
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedReceptionist={setSelectedReceptionist}
-              />
-            )}
-            {currentPage === 'receptionist_details' && (
-              <Receptionist_Details
-                currentUser={currentUser}
-                selectedReceptionist={selectedReceptionist}
-                setSelectedReceptionist={setSelectedReceptionist}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {currentPage === 'super_admin_patients' && (
-              <Patients_Management
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedPatient={setSelectedPatient}
-              />
-            )}
-            {currentPage === 'super_admin_new_users' && <ManageNewUsers currentUser={currentUser} />}
-            {currentPage === 'super_admin_appointments' && (
-              <SuperAdminAppointments
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedPatient={setSelectedPatient}
-                setSelectedAppointment={setSelectedAppointment}
-              />
-            )}
-            {(currentPage === 'appointment_details' || currentPage === 'super_admin_appointment_details') && (
-              <SuperAdminAppointmentDetails
-                currentUser={currentUser}
-                selectedAppointment={selectedAppointment}
-                setSelectedAppointment={setSelectedAppointment}
-                setSelectedPatient={setSelectedPatient}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {currentPage === 'patient_details' && (
-              <Patient_Details
-                currentUser={currentUser}
-                selectedPatient={selectedPatient}
-                setSelectedPatient={setSelectedPatient}
-                setSelectedAppointment={setSelectedAppointment}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {currentPage === 'hospital_details' && (
-              <Hospital_Details
-                currentUser={currentUser}
+            ) : currentPage === 'new_hospital' || currentPage === 'hospital' || currentPage === 'hospital_detail' ? (
+              <CommonHospital
                 selectedHospital={selectedHospital}
                 setSelectedHospital={setSelectedHospital}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {currentPage === 'admin_dashboard' && (
-              <AdminDashboard
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedHospital={setSelectedHospital}
-                setSelectedDoctor={setSelectedDoctor}
-                setSelectedPatient={setSelectedPatient}
-                setSelectedNurse={setSelectedNurse}
-                setSelectedReceptionist={setSelectedReceptionist}
-              />
-            )}
-            {currentPage === 'admin_hospital_management' && (
-              <HospitalManagement
-                currentUser={currentUser}
-                selectedHospital={selectedHospital}
-                setSelectedHospital={setSelectedHospital}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {currentPage === 'admin_doctors' && (
-              <AdminDoctors
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedDoctor={setSelectedDoctor}
-                setSelectedHospital={setSelectedHospital}
-              />
-            )}
-            {currentPage === 'admin_doctor_details' && (
-              <AdminDoctorDetails
-                currentUser={currentUser}
-                selectedDoctor={selectedDoctor}
-                setSelectedDoctor={setSelectedDoctor}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {currentPage === 'admin_nurses' && (
-              <AdminNurses
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedNurse={setSelectedNurse}
-                setSelectedHospital={setSelectedHospital}
-              />
-            )}
-            {currentPage === 'admin_nurse_details' && (
-              <AdminNurseDetails
-                currentUser={currentUser}
-                selectedNurse={selectedNurse}
-                setSelectedNurse={setSelectedNurse}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {currentPage === 'admin_receptionists' && (
-              <AdminReceptionists
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedReceptionist={setSelectedReceptionist}
-                setSelectedHospital={setSelectedHospital}
-              />
-            )}
-            {currentPage === 'admin_receptionist_details' && (
-              <AdminReceptionistDetails
-                currentUser={currentUser}
-                selectedReceptionist={selectedReceptionist}
-                setSelectedReceptionist={setSelectedReceptionist}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {currentPage === 'admin_patients' && (
-              <AdminPatients
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedPatient={setSelectedPatient}
-                setSelectedHospital={setSelectedHospital}
-              />
-            )}
-            {currentPage === 'admin_patient_details' && (
-              <AdminPatientDetails
-                currentUser={currentUser}
-                selectedPatient={selectedPatient}
-                setSelectedPatient={setSelectedPatient}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {currentPage === 'admin_staff_approve' && (
-              <AdminStaffApprove
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {(currentPage === 'admin_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('ADMIN') && !(currentUser?.role || '').toString().toUpperCase().includes('SUPER'))) && (
-              <AdminSettings
-                currentUser={currentUser}
-                setCurrentUser={setCurrentUser}
-                setCurrentPage={navigateToPage}
-                selectedHospital={selectedHospital}
-                setSelectedHospital={setSelectedHospital}
-              />
-            )}
-            {currentPage === 'doctor_dashboard' && (
-              <DoctorDashboard currentUser={currentUser} setCurrentPage={navigateToPage} />
-            )}
-            {currentPage === 'doctor_appointments' && (
-              <DoctorAppointments currentUser={currentUser} setCurrentPage={navigateToPage} />
-            )}
-            {currentPage === 'doctor_patients' && (
-              <DoctorPatients currentUser={currentUser} setCurrentPage={navigateToPage} />
-            )}
-            {currentPage === 'doctor_schedule' && (
-              <DoctorRegularSchedule currentUser={currentUser} setCurrentPage={navigateToPage} />
-            )}
-            {(currentPage === 'doctor_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('DOCTOR'))) && (
-              <DoctorSettings
-                currentUser={currentUser}
-                setCurrentUser={setCurrentUser}
-                setCurrentPage={navigateToPage}
-                selectedHospital={selectedHospital}
-                setSelectedHospital={setSelectedHospital}
-              />
-            )}
-            {currentPage === 'nurse_dashboard' && (
-              <NurseDashboard currentUser={currentUser} setCurrentPage={navigateToPage} />
-            )}
-            {currentPage === 'nurse_patients' && (
-              <NursePatients currentUser={currentUser} setCurrentPage={navigateToPage} />
-            )}
-            {(currentPage === 'nurse_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('NURSE'))) && (
-              <NurseSettings
-                currentUser={currentUser}
-                setCurrentUser={setCurrentUser}
-                setCurrentPage={navigateToPage}
-                selectedHospital={selectedHospital}
-                setSelectedHospital={setSelectedHospital}
-              />
-            )}
-            {currentPage === 'receptionist_dashboard' && (
-              <ReceptionistDashboard
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedPatient={setSelectedPatient}
-                setSelectedDoctorForPatient={setSelectedDoctorForPatient}
-              />
-            )}
-            {(currentPage === 'receptionist_appointments' || currentPage === 'receptionist_appoiment' || currentPage === 'receptionist_appointment') && (
-              <ReceptionistAppoiment
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedPatient={setSelectedPatient}
-              />
-            )}
-            {currentPage === 'receptionist_doctors' && (
-              <ReceptionistDoctors
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedDoctorForPatient={setSelectedDoctorForPatient}
-              />
-            )}
-            {(currentPage === 'receptionist_nurses' || currentPage === 'receptionist_nurse') && (
-              <ReceptionistNurse
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {currentPage === 'receptionist_patients' && (
-              <ReceptionistPatient
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedPatient={setSelectedPatient}
-                selectedDoctorForPatient={selectedDoctorForPatient}
-              />
-            )}
-            {currentPage === 'receptionist_patient_details' && (
-              <ReceptionistPatientDetails
-                currentUser={currentUser}
-                selectedPatient={selectedPatient}
-                setSelectedPatient={setSelectedPatient}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {(currentPage === 'receptionist_anassine' || currentPage === 'receptionist_unassigned' || currentPage === 'anassine') && (
-              <ReceptionistAnassine
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedPatient={setSelectedPatient}
-                setSelectedDoctorForPatient={setSelectedDoctorForPatient}
-              />
-            )}
-            {(currentPage === 'receptionist_billing' || currentPage === 'billing') && (
-              <ReceptionistBilling
-                currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                setSelectedPatient={setSelectedPatient}
-              />
-            )}
-            {(currentPage === 'receptionist_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('RECEPTION'))) && (
-              <ReceptionistSetting
-                currentUser={currentUser}
-                setCurrentUser={setCurrentUser}
-                setCurrentPage={navigateToPage}
-              />
-            )}
-            {currentPage === 'patient_dashboard' && (
-              <PatientDashboard
-                currentUser={currentUser}
                 setCurrentPage={navigateToPage}
                 isLoggedIn={isLoggedIn}
-                onLogout={handleLogout}
-              />
-            )}
-            {(currentPage === 'my_hestory' || currentPage === 'patient_my_hestory' || currentPage === 'my_history' || currentPage === 'patient_my_history' || currentPage === 'patient_discharge_history' || currentPage === 'discharge_history') && (
-              <MyHestory
                 currentUser={currentUser}
-                setCurrentPage={navigateToPage}
-                isLoggedIn={isLoggedIn}
                 onLogout={handleLogout}
               />
-            )}
-            {(currentPage === 'patient_setting' || currentPage === 'patient_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('PATIENT'))) && (
-              <PatientSetting
+            ) : (
+              <PatientHome
+                setCurrentPage={navigateToPage}
+                setSelectedHospital={setSelectedHospital}
+                isLoggedIn={isLoggedIn}
                 currentUser={currentUser}
-                setCurrentUser={setCurrentUser}
-                setCurrentPage={navigateToPage}
-                isLoggedIn={isLoggedIn}
                 onLogout={handleLogout}
               />
-            )}
-            {currentPage === 'notifications' && (
-              isSuperAdmin ? (
-                <SuperAdminNotifications currentUser={currentUser} />
-              ) : isAdmin ? (
-                <AdminNotifications currentUser={currentUser} />
-              ) : isPatient ? (
-                <PatientNotifications
+            )
+          ) : (
+            <>
+              {(currentPage === 'home' || currentPage === 'patient_home') && (
+                <PatientHome
+                  setCurrentPage={navigateToPage}
+                  setSelectedHospital={setSelectedHospital}
+                  isLoggedIn={isLoggedIn}
                   currentUser={currentUser}
-                  currentPage={currentPage}
+                  onLogout={handleLogout}
+                />
+              )}
+              {(currentPage === 'new_hospital' || currentPage === 'hospital' || currentPage === 'hospital_detail') && (
+                <CommonHospital
+                  selectedHospital={selectedHospital}
+                  setSelectedHospital={setSelectedHospital}
+                  setCurrentPage={navigateToPage}
+                  isLoggedIn={isLoggedIn}
+                  currentUser={currentUser}
+                  onLogout={handleLogout}
+                />
+              )}
+              {(currentPage === 'about' || currentPage === 'patient_about') && (
+                <PatientAbout
+                  setCurrentPage={navigateToPage}
+                  isLoggedIn={isLoggedIn}
+                  currentUser={currentUser}
+                  onLogout={handleLogout}
+                />
+              )}
+              {(currentPage === 'contact' || currentPage === 'patient_contact') && (
+                <PatientContact
+                  setCurrentPage={navigateToPage}
+                  isLoggedIn={isLoggedIn}
+                  currentUser={currentUser}
+                  onLogout={handleLogout}
+                />
+              )}
+              {(currentPage === 'appointment' || currentPage === 'appoint' || currentPage === 'patient_appointment') && (
+                <PatientAppointment
+                  setCurrentPage={navigateToPage}
+                  isLoggedIn={isLoggedIn}
+                  currentUser={currentUser}
+                  onLogout={handleLogout}
+                />
+              )}
+              {currentPage === 'super_admin_dashboard' && (
+                <SuperAdminDashboard
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedHospital={setSelectedHospital}
+                  setSelectedDoctor={setSelectedDoctor}
+                  setSelectedNurse={setSelectedNurse}
+                  setSelectedReceptionist={setSelectedReceptionist}
+                  setSelectedPatient={setSelectedPatient}
+                  setSelectedAdmin={setSelectedAdmin}
+                  setSelectedAppointment={setSelectedAppointment}
+                />
+              )}
+              {currentPage === 'super_admin_hospitals' && (
+                <Hospital
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedHospital={setSelectedHospital}
+                />
+              )}
+              {currentPage === 'super_admin_admins' && (
+                <Hospital_Admins
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedAdmin={setSelectedAdmin}
+                />
+              )}
+              {currentPage === 'admin_details' && (
+                <Admin_Details
+                  currentUser={currentUser}
+                  selectedAdmin={selectedAdmin}
+                  setSelectedAdmin={setSelectedAdmin}
+                  setSelectedPatient={setSelectedPatient}
+                  setSelectedAppointment={setSelectedAppointment}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {currentPage === 'super_admin_doctors' && (
+                <Doctors_Management
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedDoctor={setSelectedDoctor}
+                />
+              )}
+              {currentPage === 'doctor_details' && (
+                <Doctor_Details
+                  currentUser={currentUser}
+                  selectedDoctor={selectedDoctor}
+                  setSelectedDoctor={setSelectedDoctor}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {currentPage === 'super_admin_nurses' && (
+                <Nurses
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedNurse={setSelectedNurse}
+                />
+              )}
+              {currentPage === 'nurse_details' && (
+                <Nurse_Details
+                  currentUser={currentUser}
+                  selectedNurse={selectedNurse}
+                  setSelectedNurse={setSelectedNurse}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {currentPage === 'super_admin_receptionists' && (
+                <Receptionist_Management
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedReceptionist={setSelectedReceptionist}
+                />
+              )}
+              {currentPage === 'receptionist_details' && (
+                <Receptionist_Details
+                  currentUser={currentUser}
+                  selectedReceptionist={selectedReceptionist}
+                  setSelectedReceptionist={setSelectedReceptionist}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {currentPage === 'super_admin_patients' && (
+                <Patients_Management
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedPatient={setSelectedPatient}
+                />
+              )}
+              {currentPage === 'super_admin_new_users' && <ManageNewUsers currentUser={currentUser} />}
+              {currentPage === 'super_admin_appointments' && (
+                <SuperAdminAppointments
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedPatient={setSelectedPatient}
+                  setSelectedAppointment={setSelectedAppointment}
+                />
+              )}
+              {(currentPage === 'appointment_details' || currentPage === 'super_admin_appointment_details') && (
+                <SuperAdminAppointmentDetails
+                  currentUser={currentUser}
+                  selectedAppointment={selectedAppointment}
+                  setSelectedAppointment={setSelectedAppointment}
+                  setSelectedPatient={setSelectedPatient}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {currentPage === 'patient_details' && (
+                <Patient_Details
+                  currentUser={currentUser}
+                  selectedPatient={selectedPatient}
+                  setSelectedPatient={setSelectedPatient}
+                  setSelectedAppointment={setSelectedAppointment}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {currentPage === 'hospital_details' && (
+                <Hospital_Details
+                  currentUser={currentUser}
+                  selectedHospital={selectedHospital}
+                  setSelectedHospital={setSelectedHospital}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {currentPage === 'admin_dashboard' && (
+                <AdminDashboard
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedHospital={setSelectedHospital}
+                  setSelectedDoctor={setSelectedDoctor}
+                  setSelectedPatient={setSelectedPatient}
+                  setSelectedNurse={setSelectedNurse}
+                  setSelectedReceptionist={setSelectedReceptionist}
+                />
+              )}
+              {currentPage === 'admin_hospital_management' && (
+                <HospitalManagement
+                  currentUser={currentUser}
+                  selectedHospital={selectedHospital}
+                  setSelectedHospital={setSelectedHospital}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {currentPage === 'admin_doctors' && (
+                <AdminDoctors
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedDoctor={setSelectedDoctor}
+                  setSelectedHospital={setSelectedHospital}
+                />
+              )}
+              {currentPage === 'admin_doctor_details' && (
+                <AdminDoctorDetails
+                  currentUser={currentUser}
+                  selectedDoctor={selectedDoctor}
+                  setSelectedDoctor={setSelectedDoctor}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {currentPage === 'admin_nurses' && (
+                <AdminNurses
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedNurse={setSelectedNurse}
+                  setSelectedHospital={setSelectedHospital}
+                />
+              )}
+              {currentPage === 'admin_nurse_details' && (
+                <AdminNurseDetails
+                  currentUser={currentUser}
+                  selectedNurse={selectedNurse}
+                  setSelectedNurse={setSelectedNurse}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {currentPage === 'admin_receptionists' && (
+                <AdminReceptionists
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedReceptionist={setSelectedReceptionist}
+                  setSelectedHospital={setSelectedHospital}
+                />
+              )}
+              {currentPage === 'admin_receptionist_details' && (
+                <AdminReceptionistDetails
+                  currentUser={currentUser}
+                  selectedReceptionist={selectedReceptionist}
+                  setSelectedReceptionist={setSelectedReceptionist}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {currentPage === 'admin_patients' && (
+                <AdminPatients
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedPatient={setSelectedPatient}
+                  setSelectedHospital={setSelectedHospital}
+                />
+              )}
+              {currentPage === 'admin_patient_details' && (
+                <AdminPatientDetails
+                  currentUser={currentUser}
+                  selectedPatient={selectedPatient}
+                  setSelectedPatient={setSelectedPatient}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {currentPage === 'admin_staff_approve' && (
+                <AdminStaffApprove
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {(currentPage === 'admin_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('ADMIN') && !(currentUser?.role || '').toString().toUpperCase().includes('SUPER'))) && (
+                <AdminSettings
+                  currentUser={currentUser}
+                  setCurrentUser={setCurrentUser}
+                  setCurrentPage={navigateToPage}
+                  selectedHospital={selectedHospital}
+                  setSelectedHospital={setSelectedHospital}
+                />
+              )}
+              {currentPage === 'doctor_dashboard' && (
+                <DoctorDashboard currentUser={currentUser} setCurrentPage={navigateToPage} />
+              )}
+              {currentPage === 'doctor_appointments' && (
+                <DoctorAppointments currentUser={currentUser} setCurrentPage={navigateToPage} />
+              )}
+              {currentPage === 'doctor_patients' && (
+                <DoctorPatients currentUser={currentUser} setCurrentPage={navigateToPage} />
+              )}
+              {currentPage === 'doctor_schedule' && (
+                <DoctorRegularSchedule currentUser={currentUser} setCurrentPage={navigateToPage} />
+              )}
+              {(currentPage === 'doctor_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('DOCTOR'))) && (
+                <DoctorSettings
+                  currentUser={currentUser}
+                  setCurrentUser={setCurrentUser}
+                  setCurrentPage={navigateToPage}
+                  selectedHospital={selectedHospital}
+                  setSelectedHospital={setSelectedHospital}
+                />
+              )}
+              {currentPage === 'nurse_dashboard' && (
+                <NurseDashboard currentUser={currentUser} setCurrentPage={navigateToPage} />
+              )}
+              {currentPage === 'nurse_patients' && (
+                <NursePatients currentUser={currentUser} setCurrentPage={navigateToPage} />
+              )}
+              {(currentPage === 'nurse_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('NURSE'))) && (
+                <NurseSettings
+                  currentUser={currentUser}
+                  setCurrentUser={setCurrentUser}
+                  setCurrentPage={navigateToPage}
+                  selectedHospital={selectedHospital}
+                  setSelectedHospital={setSelectedHospital}
+                />
+              )}
+              {currentPage === 'receptionist_dashboard' && (
+                <ReceptionistDashboard
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedPatient={setSelectedPatient}
+                  setSelectedDoctorForPatient={setSelectedDoctorForPatient}
+                />
+              )}
+              {(currentPage === 'receptionist_appointments' || currentPage === 'receptionist_appoiment' || currentPage === 'receptionist_appointment') && (
+                <ReceptionistAppoiment
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedPatient={setSelectedPatient}
+                />
+              )}
+              {currentPage === 'receptionist_doctors' && (
+                <ReceptionistDoctors
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedDoctorForPatient={setSelectedDoctorForPatient}
+                />
+              )}
+              {(currentPage === 'receptionist_nurses' || currentPage === 'receptionist_nurse') && (
+                <ReceptionistNurse
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {currentPage === 'receptionist_patients' && (
+                <ReceptionistPatient
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedPatient={setSelectedPatient}
+                  selectedDoctorForPatient={selectedDoctorForPatient}
+                />
+              )}
+              {currentPage === 'receptionist_patient_details' && (
+                <ReceptionistPatientDetails
+                  currentUser={currentUser}
+                  selectedPatient={selectedPatient}
+                  setSelectedPatient={setSelectedPatient}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {(currentPage === 'receptionist_anassine' || currentPage === 'receptionist_unassigned' || currentPage === 'anassine') && (
+                <ReceptionistAnassine
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedPatient={setSelectedPatient}
+                  setSelectedDoctorForPatient={setSelectedDoctorForPatient}
+                />
+              )}
+              {(currentPage === 'receptionist_billing' || currentPage === 'billing') && (
+                <ReceptionistBilling
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  setSelectedPatient={setSelectedPatient}
+                />
+              )}
+              {(currentPage === 'receptionist_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('RECEPTION'))) && (
+                <ReceptionistSetting
+                  currentUser={currentUser}
+                  setCurrentUser={setCurrentUser}
+                  setCurrentPage={navigateToPage}
+                />
+              )}
+              {currentPage === 'patient_dashboard' && (
+                <PatientDashboard
+                  currentUser={currentUser}
                   setCurrentPage={navigateToPage}
                   isLoggedIn={isLoggedIn}
                   onLogout={handleLogout}
                 />
-              ) : (currentUser?.role || '').toString().toUpperCase().includes('DOCTOR') ? (
-                <DoctorNotifications currentUser={currentUser} />
-              ) : (currentUser?.role || '').toString().toUpperCase().includes('NURSE') ? (
-                <NurseNotifications currentUser={currentUser} />
-              ) : (currentUser?.role || '').toString().toUpperCase().includes('RECEPTION') ? (
-                <ReceptionistNotifications currentUser={currentUser} />
-              ) : null
-            )}
-            {(currentPage === 'chat' || currentPage === 'admin_chat' || currentPage === 'doctor_chat' || currentPage === 'nurse_chat' || currentPage === 'receptionist_chat') && (
-              isAdmin ? (
-                <AdminChat currentUser={currentUser} />
-              ) : (currentUser?.role || '').toString().toUpperCase().includes('DOCTOR') ? (
-                <DoctorChat currentUser={currentUser} />
-              ) : (currentUser?.role || '').toString().toUpperCase().includes('NURSE') ? (
-                <NurseChat currentUser={currentUser} />
-              ) : (currentUser?.role || '').toString().toUpperCase().includes('RECEPTION') ? (
-                <ReceptionistChat currentUser={currentUser} />
-              ) : null
-            )}
-          </>
-        )}
-      </main>
+              )}
+              {(currentPage === 'my_hestory' || currentPage === 'patient_my_hestory' || currentPage === 'my_history' || currentPage === 'patient_my_history' || currentPage === 'patient_discharge_history' || currentPage === 'discharge_history') && (
+                <MyHestory
+                  currentUser={currentUser}
+                  setCurrentPage={navigateToPage}
+                  isLoggedIn={isLoggedIn}
+                  onLogout={handleLogout}
+                />
+              )}
+              {(currentPage === 'patient_setting' || currentPage === 'patient_settings' || (currentPage === 'setting' && (currentUser?.role || '').toString().toUpperCase().includes('PATIENT'))) && (
+                <PatientSetting
+                  currentUser={currentUser}
+                  setCurrentUser={setCurrentUser}
+                  setCurrentPage={navigateToPage}
+                  isLoggedIn={isLoggedIn}
+                  onLogout={handleLogout}
+                />
+              )}
+              {currentPage === 'notifications' && (
+                isSuperAdmin ? (
+                  <SuperAdminNotifications currentUser={currentUser} />
+                ) : isAdmin ? (
+                  <AdminNotifications currentUser={currentUser} />
+                ) : isPatient ? (
+                  <PatientNotifications
+                    currentUser={currentUser}
+                    currentPage={currentPage}
+                    setCurrentPage={navigateToPage}
+                    isLoggedIn={isLoggedIn}
+                    onLogout={handleLogout}
+                  />
+                ) : (currentUser?.role || '').toString().toUpperCase().includes('DOCTOR') ? (
+                  <DoctorNotifications currentUser={currentUser} />
+                ) : (currentUser?.role || '').toString().toUpperCase().includes('NURSE') ? (
+                  <NurseNotifications currentUser={currentUser} />
+                ) : (currentUser?.role || '').toString().toUpperCase().includes('RECEPTION') ? (
+                  <ReceptionistNotifications currentUser={currentUser} />
+                ) : null
+              )}
+              {(currentPage === 'chat' || currentPage === 'admin_chat' || currentPage === 'doctor_chat' || currentPage === 'nurse_chat' || currentPage === 'receptionist_chat') && (
+                isAdmin ? (
+                  <AdminChat currentUser={currentUser} />
+                ) : (currentUser?.role || '').toString().toUpperCase().includes('DOCTOR') ? (
+                  <DoctorChat currentUser={currentUser} />
+                ) : (currentUser?.role || '').toString().toUpperCase().includes('NURSE') ? (
+                  <NurseChat currentUser={currentUser} />
+                ) : (currentUser?.role || '').toString().toUpperCase().includes('RECEPTION') ? (
+                  <ReceptionistChat currentUser={currentUser} />
+                ) : null
+              )}
+            </>
+          )}
+        </main>
 
-      {/* GLOBAL SCROLL TO TOP BUTTON & AUTO-SCROLL LISTENER */}
-      <ScrollToTop currentPage={currentPage} />
-    </div>
+        {/* GLOBAL SCROLL TO TOP BUTTON & AUTO-SCROLL LISTENER */}
+        <ScrollToTop currentPage={currentPage} />
+      </div>
     </Suspense>
   );
 };

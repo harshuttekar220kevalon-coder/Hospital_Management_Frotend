@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 // Helper: Safely extract array from diverse backend response shapes
 const extractArray = (resData) => {
@@ -555,23 +556,51 @@ const ReceptionistNurse = ({ currentUser, setCurrentPage }) => {
               <option value="OFF_DUTY">🔴 Off Duty ({offDutyCount})</option>
             </select>
           </div>
-
-          {(searchTerm || wardFilter !== 'ALL' || shiftFilter !== 'ALL' || roleFilter !== 'ALL' || dutyFilter !== 'ALL') && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchTerm('');
-                setWardFilter('ALL');
-                setShiftFilter('ALL');
-                setRoleFilter('ALL');
-                setDutyFilter('ALL');
-              }}
-              className="text-amber-700 hover:text-amber-800 font-bold text-xs hover:underline cursor-pointer self-start lg:self-center"
-            >
-              Reset Filters
-            </button>
-          )}
         </div>
+
+        {/* ACTIVE FILTER TAGS */}
+        <ActiveFilterTags
+          filters={[
+            {
+              key: 'searchTerm',
+              name: 'Search',
+              value: searchTerm,
+              onRemove: () => setSearchTerm('')
+            },
+            {
+              key: 'wardFilter',
+              name: 'Ward',
+              value: wardFilter,
+              onRemove: () => setWardFilter('ALL')
+            },
+            {
+              key: 'shiftFilter',
+              name: 'Shift',
+              value: shiftFilter,
+              onRemove: () => setShiftFilter('ALL')
+            },
+            {
+              key: 'roleFilter',
+              name: 'Role',
+              value: roleFilter,
+              onRemove: () => setRoleFilter('ALL')
+            },
+            {
+              key: 'dutyFilter',
+              name: 'Duty Status',
+              value: dutyFilter,
+              displayValue: dutyFilter === 'ON_DUTY' ? 'On Duty' : dutyFilter === 'OFF_DUTY' ? 'Off Duty' : dutyFilter,
+              onRemove: () => setDutyFilter('ALL')
+            }
+          ]}
+          onClearAll={() => {
+            setSearchTerm('');
+            setWardFilter('ALL');
+            setShiftFilter('ALL');
+            setRoleFilter('ALL');
+            setDutyFilter('ALL');
+          }}
+        />
 
         {/* RESULTS INFO BAR */}
         <div className="flex items-center justify-between text-xs text-slate-500 pb-1">
@@ -667,26 +696,34 @@ const ReceptionistNurse = ({ currentUser, setCurrentPage }) => {
 
                       {/* 3. WARD */}
                       <td className="py-3 px-3.5">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
-                          ward.toUpperCase().includes('ICU') || ward.toUpperCase().includes('NICU')
-                            ? 'bg-rose-50 text-rose-800 border-rose-200'
-                            : ward.toUpperCase().includes('EMERGENCY')
-                            ? 'bg-amber-50 text-amber-800 border-amber-200'
-                            : 'bg-slate-100 text-slate-700 border-slate-200'
-                        }`}>
-                          {ward}
-                        </span>
+                        {ward && ward !== '-' ? (
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                            ward.toUpperCase().includes('ICU') || ward.toUpperCase().includes('NICU')
+                              ? 'bg-rose-50 text-rose-800 border-rose-200'
+                              : ward.toUpperCase().includes('EMERGENCY')
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : 'bg-slate-100 text-slate-700 border-slate-200'
+                          }`}>
+                            {ward}
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 font-medium">-</span>
+                        )}
                       </td>
 
                       {/* 4. DESIGNATION */}
                       <td className="py-3 px-3.5">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold ${
-                          isHead
-                            ? 'bg-purple-50 text-purple-700 border border-purple-200 font-bold'
-                            : 'bg-slate-50 text-slate-700 border border-slate-200'
-                        }`}>
-                          {role}
-                        </span>
+                        {role && role !== '-' ? (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold ${
+                            isHead
+                              ? 'bg-purple-50 text-purple-700 border border-purple-200 font-bold'
+                              : 'bg-slate-50 text-slate-700 border border-slate-200'
+                          }`}>
+                            {role}
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 font-medium">-</span>
+                        )}
                       </td>
 
                       {/* 5. SHIFT TIMING */}

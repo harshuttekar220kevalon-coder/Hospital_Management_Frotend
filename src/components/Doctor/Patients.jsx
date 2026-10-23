@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL, extractArray } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const DoctorPatients = ({ currentUser, setCurrentPage }) => {
   const [loading, setLoading] = useState(true);
@@ -507,15 +508,15 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
       }
 
       const numericId = patient.id;
-      const apptId = patient.Appoment_id || patient.appoment_id || patient.appointment_id || patient.id;
+      const exactDbId = (patient?.id && !isNaN(Number(patient.id))) ? Number(patient.id) : null;
       const candidateIds = [
+        exactDbId,
         patient.appointment_pk,
+        patient.id && !isNaN(Number(patient.id)) ? Number(patient.id) : null,
         patient.appointment_id,
         patient.Appoment_id,
         patient.appoment_id,
-        numericId,
-        patient.id,
-        apptId,
+        apptId && !isNaN(Number(apptId)) ? Number(apptId) : null,
         typeof apptId === 'string' && apptId.startsWith('APT-') ? apptId.replace('APT-', '') : null,
         typeof apptId === 'string' ? apptId.replace(/\D/g, '') : null,
         typeof patient.id === 'string' ? patient.id.replace(/\D/g, '') : null
@@ -530,6 +531,12 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
       };
 
       if (targetStatus === 'Discharged') {
+        const currentHealthCare = patient.Health_Care || patient.health_care;
+        if (currentHealthCare !== 'Fully Recovered') {
+          alert('Cannot discharge patient! Discharge is only permitted once Nurse marks Health Care status as "Fully Recovered".');
+          setUpdatingPatientId(null);
+          return;
+        }
         patchPayload.discharge_status = 'Discharged';
         patchPayload.completed_at = nowIso;
       }
@@ -907,13 +914,13 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
             <p className="text-xs text-slate-500">View assigned patients, manage consultation status, and view patient details</p>
           </div>
 
-          <div className="w-full md:w-72">
+          <div className="flex items-center gap-2 w-full md:w-auto">
             <input
               type="text"
               placeholder="Search by UHID, name, phone, symptoms..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:border-teal-600 focus:bg-white transition"
+              className="w-full md:w-72 px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:border-teal-600 focus:bg-white transition"
             />
           </div>
         </div>
@@ -985,6 +992,42 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
           </button>
         </div>
 
+        {/* ACTIVE FILTER TAGS */}
+        <ActiveFilterTags
+          filters={[
+            {
+              key: 'searchTerm',
+              name: 'Search',
+              value: searchTerm,
+              onRemove: () => setSearchTerm('')
+            },
+            {
+              key: 'statusFilter',
+              name: 'Queue Status',
+              value: statusFilter,
+              displayValue: statusFilter === 'Today_Pending' ? "Today's Pending" :
+                            statusFilter === 'Checkup_Done' ? 'Checkup Done' :
+                            statusFilter === 'Admitted' ? 'Admitted (IPD)' :
+                            statusFilter === 'Discharged' ? 'Discharged' :
+                            statusFilter === 'Today_All' ? 'All Today' :
+                            statusFilter === 'Tomorrow' ? 'Tomorrow' : statusFilter,
+              onRemove: () => setStatusFilter('ALL')
+            },
+            {
+              key: 'hospitalFilter',
+              name: 'Hospital',
+              value: hospitalFilter,
+              displayValue: assignedHospitals.find(h => String(h.id) === String(hospitalFilter))?.Name,
+              onRemove: () => setHospitalFilter('ALL')
+            }
+          ]}
+          onClearAll={() => {
+            setSearchTerm('');
+            setStatusFilter('ALL');
+            setHospitalFilter('ALL');
+          }}
+        />
+
         <div className="overflow-x-auto w-full">
           <table className="w-full text-center text-xs text-slate-600 min-w-[750px]">
             <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
@@ -1037,16 +1080,6 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                           <span className="font-mono text-[10px] text-sky-700 font-bold bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 inline-block">
                             {apptIdDisplay}
                           </span>
-                          {patientIdDisplay && patientIdDisplay !== apptIdDisplay && (
-                            <span className="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 inline-block">
-                              {patientIdDisplay}
-                            </span>
-                          )}
-                          {pat.bed_number ? (
-                            <span className="text-[9px] font-mono font-bold bg-purple-100 text-purple-900 px-1.5 py-0.5 rounded border border-purple-300 inline-block">
-                              Bed #{pat.bed_number}
-                            </span>
-                          ) : null}
                         </div>
                       </td>
 
@@ -1118,11 +1151,28 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                             <option value="" disabled>-- Select (Admit / Discharge) --</option>
                           )}
                           <option value="Admitted">Admitted (IPD)</option>
-                          <option value="Discharged">Discharged</option>
+                          <option 
+                            value="Discharged"
+                            disabled={(pat.Health_Care || pat.health_care) !== 'Fully Recovered'}
+                            title={(pat.Health_Care || pat.health_care) !== 'Fully Recovered' ? 'Requires Nurse to mark Fully Recovered first' : ''}
+                          >
+                            Discharged {(pat.Health_Care || pat.health_care) !== 'Fully Recovered' ? '(Nurse Fully Recovered req.)' : ''}
+                          </option>
                           {(isAdmitStatus(pat.status) || isDischargedStatus(pat.status)) && (
                             <option value="Pending">Reset to Pending</option>
                           )}
                         </select>
+                        {(pat.Health_Care || pat.health_care) && (
+                          <div className="mt-1">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border inline-block ${
+                              (pat.Health_Care || pat.health_care) === 'Fully Recovered'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                            }`}>
+                              Nurse Care: {pat.Health_Care || pat.health_care}
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       {/* ACTION DETAILS */}
@@ -1294,7 +1344,13 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                         <option value="" disabled>-- Select (Admit / Discharge) --</option>
                       )}
                       <option value="Admitted">Admitted (IPD)</option>
-                      <option value="Discharged">Discharged</option>
+                      <option 
+                        value="Discharged"
+                        disabled={(selectedPatientModal.Health_Care || selectedPatientModal.health_care) !== 'Fully Recovered'}
+                        title={(selectedPatientModal.Health_Care || selectedPatientModal.health_care) !== 'Fully Recovered' ? 'Requires Nurse to mark Fully Recovered first' : ''}
+                      >
+                        Discharged {(selectedPatientModal.Health_Care || selectedPatientModal.health_care) !== 'Fully Recovered' ? '(Nurse Fully Recovered req.)' : ''}
+                      </option>
                       {(isAdmitStatus(selectedPatientModal.status) || isDischargedStatus(selectedPatientModal.status)) && (
                         <option value="Pending">Reset to Pending</option>
                       )}

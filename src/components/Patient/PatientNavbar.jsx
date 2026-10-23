@@ -7,16 +7,37 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [livePatient, setLivePatient] = useState(null);
   const dropdownRef = useRef(null);
+  const staffDropdownRef = useRef(null);
+  const mobileDropdownRef = useRef(null);
+  const mobileMenuBtnRef = useRef(null);
+  const mobileMenuDrawerRef = useRef(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      const isInsideProfile =
+        (dropdownRef.current && dropdownRef.current.contains(event.target)) ||
+        (staffDropdownRef.current && staffDropdownRef.current.contains(event.target)) ||
+        (mobileDropdownRef.current && mobileDropdownRef.current.contains(event.target));
+      if (!isInsideProfile) {
         setProfileDropdownOpen(false);
+      }
+
+      if (
+        mobileMenuDrawerRef.current &&
+        !mobileMenuDrawerRef.current.contains(event.target) &&
+        mobileMenuBtnRef.current &&
+        !mobileMenuBtnRef.current.contains(event.target)
+      ) {
+        setMobileMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   // Fetch live patient ID / UHID from backend (Patients table & Appointments table)
@@ -346,6 +367,7 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
             {isPatientLoggedIn ? (
               <div className="relative pl-2 border-l border-slate-200 shrink-0">
                 <div
+                  ref={dropdownRef}
                   className="relative z-[9999]"
                   onMouseEnter={() => setProfileDropdownOpen(true)}
                   onMouseLeave={() => setProfileDropdownOpen(false)}
@@ -436,7 +458,7 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
                 </div>
               </div>
             ) : isLoggedIn ? (
-              <div className="relative z-[9999] pl-2 border-l border-slate-200 shrink-0">
+              <div ref={staffDropdownRef} className="relative z-[9999] pl-2 border-l border-slate-200 shrink-0">
                 <button type="button" onClick={() => setProfileDropdownOpen(!profileDropdownOpen)} className="flex items-center gap-2 rounded-2xl px-2 py-1.5 hover:bg-slate-100 transition" aria-expanded={profileDropdownOpen} aria-label="Open user menu">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 via-teal-500 to-blue-600 text-white font-bold flex items-center justify-center text-[11px] shadow-xs shrink-0">
                     {getInitials(currentUser?.name || currentUser?.username || resolvedRole)}
@@ -466,7 +488,7 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
                         >
                           <span className="w-7 h-7 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center text-xs shrink-0">🏥</span>
                           <div>
-                            <p className="font-bold text-xs">Back to My Site</p>
+                            <p className="font-bold text-xs">Back to my dashboard</p>
                             <p className="text-[10px] text-slate-400 font-normal">Return to your dashboard portal</p>
                           </div>
                         </button>
@@ -516,7 +538,7 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
             {isLoggedIn ? (
               <>
                 {!isPatientLoggedIn && (
-                  <div className="relative z-[9999]">
+                  <div ref={mobileDropdownRef} className="relative z-[9999]">
                     <button type="button" onClick={() => setProfileDropdownOpen(!profileDropdownOpen)} className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 via-teal-500 to-blue-600 text-white font-bold flex items-center justify-center text-[11px] shadow-xs" title={`${currentUser?.name || currentUser?.username || resolvedRole} · ${resolvedRole}`} aria-label="Open user menu" aria-expanded={profileDropdownOpen}>
                       {getInitials(currentUser?.name || currentUser?.username || resolvedRole)}
                     </button>
@@ -540,7 +562,7 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
                             >
                               <span className="w-7 h-7 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center text-xs shrink-0">🏥</span>
                               <div>
-                                <p className="font-bold text-xs">Back to My Site</p>
+                                <p className="font-bold text-xs">Back to my dashboard</p>
                                 <p className="text-[10px] text-slate-400 font-normal">Return to your dashboard portal</p>
                               </div>
                             </button>
@@ -577,6 +599,7 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
             )}
 
             <button
+              ref={mobileMenuBtnRef}
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-1.5 sm:p-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition cursor-pointer"
@@ -597,7 +620,7 @@ const PatientNavbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, curr
 
       {/* 3. MOBILE DROPDOWN DRAWER */}
       {mobileMenuOpen && (
-        <div className="xl:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-5 space-y-2 shadow-lg animate-fadeIn">
+        <div ref={mobileMenuDrawerRef} className="xl:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-5 space-y-2 shadow-lg animate-fadeIn">
           {isPatientLoggedIn && (
             <div className="p-3 bg-teal-50 border border-teal-200 rounded-2xl flex items-center justify-between mb-3">
               <div className="flex items-center gap-2.5">

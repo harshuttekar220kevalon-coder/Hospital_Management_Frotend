@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelectedHospital }) => {
   const [nurses, setNurses] = useState([]);
@@ -387,6 +388,35 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
           </select>
         </div>
       </div>
+
+      {/* ACTIVE FILTER TAGS */}
+      <ActiveFilterTags
+        filters={[
+          {
+            key: 'searchTerm',
+            name: 'Search',
+            value: searchTerm,
+            onRemove: () => setSearchTerm('')
+          },
+          {
+            key: 'shiftFilter',
+            name: 'Shift',
+            value: shiftFilter,
+            onRemove: () => setShiftFilter('ALL')
+          },
+          {
+            key: 'statusFilter',
+            name: 'Status',
+            value: statusFilter,
+            onRemove: () => setStatusFilter('ALL')
+          }
+        ]}
+        onClearAll={() => {
+          setSearchTerm('');
+          setShiftFilter('ALL');
+          setStatusFilter('ALL');
+        }}
+      />
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto w-full">

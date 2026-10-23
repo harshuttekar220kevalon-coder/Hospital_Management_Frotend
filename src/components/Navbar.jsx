@@ -5,15 +5,29 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const mobileMenuBtnRef = useRef(null);
+  const mobileMenuDrawerRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setProfileDropdownOpen(false);
       }
+      if (
+        mobileMenuDrawerRef.current &&
+        !mobileMenuDrawerRef.current.contains(event.target) &&
+        mobileMenuBtnRef.current &&
+        !mobileMenuBtnRef.current.contains(event.target)
+      ) {
+        setIsMobileMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   const getRoleDetails = (role) => {
@@ -325,10 +339,11 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
 
           {/* Right Side: Profile Dropdown Pill */}
           {isLoggedIn && (
-            <div className="hidden xl:flex items-center gap-2 lg:gap-3 shrink-0 relative" ref={dropdownRef}>
+            <div className="hidden xl:flex items-center gap-2 lg:gap-3 shrink-0 relative">
               <NotificationBell currentUser={currentUser} setCurrentPage={handleNavClick} />
               <button type="button" onClick={onBackToWebsite || (() => handleNavClick('home'))} className="inline-flex items-center rounded-xl border border-teal-500/40 bg-teal-500/10 px-3 py-2 text-xs font-bold text-teal-200 transition hover:bg-teal-500/20">Back to Website</button>
               <div
+                ref={dropdownRef}
                 className="relative z-[9999]"
                 onMouseEnter={() => setProfileDropdownOpen(true)}
                 onMouseLeave={() => setProfileDropdownOpen(false)}
@@ -446,6 +461,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
             )}
 
             <button
+              ref={mobileMenuBtnRef}
               type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 focus:outline-none cursor-pointer"
@@ -466,7 +482,7 @@ const Navbar = ({ currentPage, setCurrentPage, isLoggedIn, onLogout, currentUser
       </div>
 
       {isMobileMenuOpen && isLoggedIn && (
-        <div className="xl:hidden border-t border-slate-800 bg-slate-900 px-4 pt-3 pb-4 space-y-2.5 shadow-lg animate-in fade-in slide-in-from-top-2 duration-150">
+        <div ref={mobileMenuDrawerRef} className="xl:hidden border-t border-slate-800 bg-slate-900 px-4 pt-3 pb-4 space-y-2.5 shadow-lg animate-in fade-in slide-in-from-top-2 duration-150">
           <button type="button" onClick={onBackToWebsite || (() => handleNavClick('home'))} className="w-full rounded-xl border border-teal-500/40 bg-teal-500/10 px-3 py-2.5 text-left text-sm font-bold text-teal-200 hover:bg-teal-500/20 sm:hidden">Back to Website</button>
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/80 border border-slate-700">
             <div

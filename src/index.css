@@ -13,6 +13,7 @@
    ======================================================== */
 html {
   scroll-behavior: smooth;
+  scrollbar-gutter: stable;
 }
 
 html,
@@ -170,4 +171,78 @@ tbody tr {
   select {
     touch-action: manipulation;
   }
+}
+
+/* ========================================================
+   MODAL & POP-UP FULL-SCREEN SCROLL LOCK & LAYOUT
+   ======================================================== */
+
+/* 1. Global Background Scroll Lock when any Modal / Pop-up Form is Open */
+html.modal-scroll-lock,
+body.modal-scroll-lock,
+html:has(.fixed.inset-0.z-50),
+html:has(.fixed.inset-0[class*="z-50"]),
+html:has(.fixed.inset-0[class*="z-["]),
+body:has(.fixed.inset-0.z-50),
+body:has(.fixed.inset-0[class*="z-50"]),
+body:has(.fixed.inset-0[class*="z-["]) {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
+/* 2. Full-Screen Modal Overlay Layout */
+.fixed.inset-0.z-50,
+.fixed.inset-0[class*="z-50"],
+.fixed.inset-0[class*="z-["] {
+  position: fixed !important;
+  z-index: 10000 !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  overscroll-behavior: contain !important;
+  overscroll-behavior-y: contain !important;
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 3. Centered Layout for Modal Popups */
+.fixed.inset-0.flex,
+.fixed.inset-0[class*="flex"] {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: clamp(0.75rem, 2.5vw, 1.5rem) !important;
+  overflow-y: auto !important;
+}
+
+/* 4. Structured Modal Card / Dialog Box Container */
+.fixed.inset-0.flex > div:not(aside),
+.fixed.inset-0.flex > form,
+.fixed.inset-0[class*="flex"] > div:not(aside),
+.fixed.inset-0[class*="flex"] > form {
+  position: relative;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: calc(100vh - 2rem) !important;
+  max-height: calc(100dvh - 2rem) !important;
+  overflow-y: auto !important;
+  margin-top: auto;
+  margin-bottom: auto;
+  overscroll-behavior: contain !important;
+  overscroll-behavior-y: contain !important;
+}
+
+/* 5. Scroll containment & smooth scrolling for inner modal content & forms */
+.fixed.inset-0 form,
+.fixed.inset-0 .overflow-y-auto,
+.fixed.inset-0 [class*="overflow-y-auto"] {
+  overscroll-behavior: contain !important;
+  overscroll-behavior-y: contain !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fixed.inset-0 * {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
 }

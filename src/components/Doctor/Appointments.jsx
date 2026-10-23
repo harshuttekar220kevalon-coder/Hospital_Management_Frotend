@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const extractArray = (payload) => (Array.isArray(payload) ? payload : payload?.results || payload?.data || []);
 
@@ -12,7 +13,7 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
   const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
-  const [dayFilter, setDayFilter] = useState('ALL');
+  const [dayFilter, setDayFilter] = useState('Today');
   
   // Selected patient for Checkup & Admission
   const [selectedPatientModal, setSelectedPatientModal] = useState(null);
@@ -439,12 +440,14 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
         removeCompletedTodayId(selectedPatientModal.id);
       }
 
+      const exactDbId = (selectedPatientModal?.id && !isNaN(Number(selectedPatientModal.id))) ? Number(selectedPatientModal.id) : null;
       const candidateIds = [
+        exactDbId,
         selectedPatientModal.appointment_pk,
+        selectedPatientModal.id && !isNaN(Number(selectedPatientModal.id)) ? Number(selectedPatientModal.id) : null,
         selectedPatientModal.appointment_id,
         selectedPatientModal.Appoment_id,
         selectedPatientModal.appoment_id,
-        selectedPatientModal.id,
         typeof selectedPatientModal.id === 'string' && selectedPatientModal.id.startsWith('APT-') ? selectedPatientModal.id.replace('APT-', '') : null,
         typeof selectedPatientModal.id === 'string' ? selectedPatientModal.id.replace(/\D/g, '') : null
       ].filter(Boolean);
@@ -707,13 +710,13 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
             <p className="text-xs text-slate-500">Rapid consultation, checkups, and admission dispatch for urgent patients</p>
           </div>
 
-          <div className="w-full md:w-72">
+          <div className="flex items-center gap-2 w-full md:w-auto">
             <input
               type="text"
               placeholder="Search emergency queue..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:border-rose-600 focus:bg-white transition"
+              className="w-full md:w-72 px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:border-rose-600 focus:bg-white transition"
             />
           </div>
         </div>
@@ -737,6 +740,43 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
             </button>
           ))}
         </div>
+
+        {/* ACTIVE FILTER TAGS */}
+        <ActiveFilterTags
+          filters={[
+            {
+              key: 'searchTerm',
+              name: 'Search',
+              value: searchTerm,
+              onRemove: () => setSearchTerm('')
+            },
+            {
+              key: 'filterType',
+              name: 'Condition',
+              value: filterType,
+              onRemove: () => setFilterType('ALL')
+            },
+            {
+              key: 'hospitalFilter',
+              name: 'Hospital',
+              value: hospitalFilter,
+              displayValue: assignedHospitals.find(h => String(h.id) === String(hospitalFilter))?.Name,
+              onRemove: () => setHospitalFilter('ALL')
+            },
+            {
+              key: 'dayFilter',
+              name: 'Schedule',
+              value: dayFilter,
+              onRemove: () => setDayFilter('ALL')
+            }
+          ]}
+          onClearAll={() => {
+            setSearchTerm('');
+            setFilterType('ALL');
+            setHospitalFilter('ALL');
+            setDayFilter('ALL');
+          }}
+        />
 
         <div className="overflow-x-auto w-full">
           <table className="w-full text-center text-xs text-slate-600 min-w-[780px]">
@@ -777,11 +817,6 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
                           <span className="font-mono text-[10px] text-sky-700 font-bold bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 inline-block">
                             {apptIdDisplay}
                           </span>
-                          {patientIdDisplay && patientIdDisplay !== apptIdDisplay && (
-                            <span className="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 inline-block">
-                              {patientIdDisplay}
-                            </span>
-                          )}
                         </div>
                       </td>
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatient, setSelectedAppointment }) => {
   const [appointments, setAppointments] = useState([]);
@@ -8,7 +9,7 @@ const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatien
   const [nursesList, setNursesList] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState('ALL');
+  const [activeTab, setActiveTab] = useState('TODAY');
   const [searchTerm, setSearchTerm] = useState('');
   const [hospitalFilter, setHospitalFilter] = useState('ALL');
   const [specializationFilter, setSpecializationFilter] = useState('ALL');
@@ -612,6 +613,9 @@ const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatien
         </div>
 
         {/* SEARCH & DROPDOWN FILTERS */}
+        <div className="flex items-center justify-between pb-1 mb-2 border-b border-slate-100">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Filters</span>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
           <div>
             <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Search Appointments</label>
@@ -667,6 +671,50 @@ const SuperAdminAppointments = ({ currentUser, setCurrentPage, setSelectedPatien
           </div>
         </div>
       </div>
+
+      {/* ACTIVE FILTER TAGS */}
+      <ActiveFilterTags
+        filters={[
+          {
+            key: 'activeTab',
+            name: 'Status',
+            value: activeTab,
+            onRemove: () => setActiveTab('ALL')
+          },
+          {
+            key: 'searchTerm',
+            name: 'Search',
+            value: searchTerm,
+            onRemove: () => setSearchTerm('')
+          },
+          {
+            key: 'hospitalFilter',
+            name: 'Hospital',
+            value: hospitalFilter,
+            displayValue: hospitalsList.find(h => String(h.id) === String(hospitalFilter))?.Name || hospitalsList.find(h => String(h.id) === String(hospitalFilter))?.name,
+            onRemove: () => setHospitalFilter('ALL')
+          },
+          {
+            key: 'specializationFilter',
+            name: 'Specialization',
+            value: specializationFilter,
+            onRemove: () => setSpecializationFilter('ALL')
+          },
+          {
+            key: 'severityFilter',
+            name: 'Triage Condition',
+            value: severityFilter,
+            onRemove: () => setSeverityFilter('ALL')
+          }
+        ]}
+        onClearAll={() => {
+          setActiveTab('ALL');
+          setSearchTerm('');
+          setHospitalFilter('ALL');
+          setSpecializationFilter('ALL');
+          setSeverityFilter('ALL');
+        }}
+      />
 
       {/* APPOINTMENTS TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">

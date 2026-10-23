@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const asArray = (value) => Array.isArray(value) ? value : (value?.results || value?.data || []);
 const shifts = ['Morning First Shift', 'Afternoon Second Shift', 'Evening Third Shift'];
@@ -175,6 +176,36 @@ const AdminDoctors = ({ currentUser, setCurrentPage, setSelectedDoctor, setSelec
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={inputClass + ' sm:w-auto'}><option value="ALL">All Duty Status</option><option value="On_Duty">On Duty</option><option value="Off_Duty">Off Duty</option></select>
         </div>
       </section>
+
+      {/* ACTIVE FILTER TAGS */}
+      <ActiveFilterTags
+        filters={[
+          {
+            key: 'search',
+            name: 'Search',
+            value: search,
+            onRemove: () => setSearch('')
+          },
+          {
+            key: 'shiftFilter',
+            name: 'Shift',
+            value: shiftFilter,
+            onRemove: () => setShiftFilter('ALL')
+          },
+          {
+            key: 'statusFilter',
+            name: 'Duty Status',
+            value: statusFilter,
+            displayValue: statusFilter === 'On_Duty' ? 'On Duty' : statusFilter === 'Off_Duty' ? 'Off Duty' : statusFilter,
+            onRemove: () => setStatusFilter('ALL')
+          }
+        ]}
+        onClearAll={() => {
+          setSearch('');
+          setShiftFilter('ALL');
+          setStatusFilter('ALL');
+        }}
+      />
 
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">

@@ -4,7 +4,7 @@ export const LIVE_API_URL = "https://hospital-management-backend-fo01.onrender.c
 
 // Switch between Live Render API and Local API:
 // Set to true to test the Render Live backend, or false for Local Django server
-export const USE_LIVE_API = true;
+export const USE_LIVE_API = false;
 
 // Active API Base URL with environment variable support and automatic fallback
 export const API_BASE_URL =
@@ -96,6 +96,41 @@ export const getChatEndpoint = (role) => {
     RECEPTIONISTS: '/receptionists/chats/',
   };
   return paths[roleKey] ? `${API_BASE_URL}${paths[roleKey]}` : '';
+};
+
+/**
+ * formatValue
+ * Formats any backend field value. If empty, null, undefined, or blank, returns '-'.
+ * Once real data is available, returns the real data string/number.
+ */
+export const formatValue = (val, fallback = '-') => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (
+      !trimmed ||
+      trimmed === 'null' ||
+      trimmed === 'undefined' ||
+      trimmed === 'None' ||
+      trimmed === 'nan' ||
+      trimmed === 'NaN' ||
+      trimmed === 'N/A' ||
+      trimmed === 'n/a'
+    ) {
+      return fallback;
+    }
+    return val;
+  }
+  if (typeof val === 'number') {
+    return isNaN(val) ? fallback : val;
+  }
+  if (Array.isArray(val)) {
+    return val.length > 0 ? val : fallback;
+  }
+  if (typeof val === 'object') {
+    return Object.keys(val).length > 0 ? val : fallback;
+  }
+  return val;
 };
 
 export default API_BASE_URL;

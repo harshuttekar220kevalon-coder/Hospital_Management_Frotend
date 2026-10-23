@@ -87,6 +87,7 @@ const AdminDoctorDetails = ({ currentUser, selectedDoctor, setSelectedDoctor, se
       Shifts: form.Shifts,
       phone: cleanPhone,
       email: form.email.trim(),
+      status: form.status,
       is_active: form.is_active,
       consultation_fee: form.consultation_fee || '0.00'
     };

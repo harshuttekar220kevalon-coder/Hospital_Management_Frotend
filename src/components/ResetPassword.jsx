@@ -28,13 +28,13 @@ const ResetPassword = ({ setCurrentPage }) => {
     setErrorMsg('');
     setSuccessMsg('');
 
-    const normalizedEmail = (formData.email || '').toLowerCase().trim();
+    const normalizedEmail = (formData.email || '').trim();
     const newPass = (formData.newPassword || '').trim();
     const confirmPass = (formData.confirmPassword || '').trim();
 
     // 1. Basic validation
-    if (!normalizedEmail || !normalizedEmail.endsWith('@gmail.com')) {
-      setErrorMsg('Please enter a valid registered @gmail.com address.');
+    if (!normalizedEmail) {
+      setErrorMsg('Please enter your registered email address or user ID.');
       return;
     }
 
@@ -51,18 +51,19 @@ const ResetPassword = ({ setCurrentPage }) => {
     setLoading(true);
 
     try {
+      const inputLower = normalizedEmail.toLowerCase();
       const isSuperAdmin =
-        normalizedEmail === 'superadmin@hospital.com' ||
-        normalizedEmail === 'admin@apexcare.com' ||
-        normalizedEmail === 'admin@hospital.com' ||
-        normalizedEmail === 'admin@gmail.com' ||
-        normalizedEmail === 'superadmin@gmail.com' ||
-        normalizedEmail === 'admin@admin.com' ||
-        normalizedEmail === 'admin@apexcare.org' ||
-        normalizedEmail === 'superadmin' ||
-        normalizedEmail === 'admin' ||
-        normalizedEmail.includes('superadmin') ||
-        normalizedEmail.includes('super_admin');
+        inputLower === 'superadmin@hospital.com' ||
+        inputLower === 'admin@apexcare.com' ||
+        inputLower === 'admin@hospital.com' ||
+        inputLower === 'admin@gmail.com' ||
+        inputLower === 'superadmin@gmail.com' ||
+        inputLower === 'admin@admin.com' ||
+        inputLower === 'admin@apexcare.org' ||
+        inputLower === 'superadmin' ||
+        inputLower === 'admin' ||
+        inputLower.includes('superadmin') ||
+        inputLower.includes('super_admin');
 
       // 1. Direct Backend user_reset_password Call
       let resetRes = await fetch(`${API_BASE_URL}/reset-password/`, {
@@ -70,6 +71,7 @@ const ResetPassword = ({ setCurrentPage }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: normalizedEmail,
+          username: normalizedEmail,
           password: newPass,
           new_password: newPass
         })
@@ -78,7 +80,7 @@ const ResetPassword = ({ setCurrentPage }) => {
       let resetData = resetRes ? await resetRes.json().catch(() => ({})) : null;
 
       if (resetRes && resetRes.ok) {
-        localStorage.setItem(`pwd_${normalizedEmail}`, newPass);
+        localStorage.setItem(`pwd_${inputLower}`, newPass);
         if (isSuperAdmin) {
           localStorage.setItem('superadmin_password', newPass);
         }
@@ -93,7 +95,13 @@ const ResetPassword = ({ setCurrentPage }) => {
       }
 
       if (resetRes && resetRes.status === 404) {
-        setErrorMsg(resetData?.message || `Email not found! No registered account exists with "${formData.email}".`);
+        setErrorMsg(resetData?.message || `Account not found! No registered account exists with "${formData.email}".`);
+        setLoading(false);
+        return;
+      }
+
+      if (resetRes && !resetRes.ok && resetRes.status !== 500) {
+        setErrorMsg(resetData?.message || 'Failed to reset password. Please check your details and try again.');
         setLoading(false);
         return;
       }
@@ -113,22 +121,22 @@ const ResetPassword = ({ setCurrentPage }) => {
       const adminList = adminsRes.status === 'fulfilled' && adminsRes.value.ok ? await adminsRes.value.json().catch(() => []) : [];
       const patList = patsRes.status === 'fulfilled' && patsRes.value.ok ? await patsRes.value.json().catch(() => []) : [];
 
-      const matchDoc = Array.isArray(docList) ? docList.find(d => (d.email || '').toLowerCase().trim() === normalizedEmail) : null;
-      const matchNurse = Array.isArray(nurseList) ? nurseList.find(n => (n.email || '').toLowerCase().trim() === normalizedEmail) : null;
-      const matchRec = Array.isArray(recList) ? recList.find(r => (r.email || '').toLowerCase().trim() === normalizedEmail) : null;
-      const matchAdmin = Array.isArray(adminList) ? adminList.find(a => (a.email || '').toLowerCase().trim() === normalizedEmail) : null;
-      const matchPat = Array.isArray(patList) ? patList.find(p => (p.email || '').toLowerCase().trim() === normalizedEmail) : null;
+      const matchDoc = Array.isArray(docList) ? docList.find(d => (d.email || '').toLowerCase().trim() === inputLower || (d.doctor_id || '').toLowerCase().trim() === inputLower) : null;
+      const matchNurse = Array.isArray(nurseList) ? nurseList.find(n => (n.email || '').toLowerCase().trim() === inputLower || (n.nurse_id || '').toLowerCase().trim() === inputLower) : null;
+      const matchRec = Array.isArray(recList) ? recList.find(r => (r.email || '').toLowerCase().trim() === inputLower || (r.receptionist_id || '').toLowerCase().trim() === inputLower) : null;
+      const matchAdmin = Array.isArray(adminList) ? adminList.find(a => (a.email || '').toLowerCase().trim() === inputLower || (a.employee_id || '').toLowerCase().trim() === inputLower) : null;
+      const matchPat = Array.isArray(patList) ? patList.find(p => (p.email || '').toLowerCase().trim() === inputLower || (p.patient_id || '').toLowerCase().trim() === inputLower) : null;
 
       const matchedUser = matchDoc || matchNurse || matchRec || matchAdmin || matchPat || (isSuperAdmin ? { email: normalizedEmail, name: 'Super Administrator' } : null);
 
       if (!matchedUser) {
-        setErrorMsg(`Email not found! No registered account exists with "${formData.email}". Please enter a valid registered email.`);
+        setErrorMsg(`Account not found! No registered account exists with "${formData.email}". Please enter a valid registered email or ID.`);
         setLoading(false);
         return;
       }
 
       // Persist to localStorage for immediate authentication
-      localStorage.setItem(`pwd_${normalizedEmail}`, newPass);
+      localStorage.setItem(`pwd_${inputLower}`, newPass);
       if (isSuperAdmin) {
         localStorage.setItem('superadmin_password', newPass);
       }
@@ -212,22 +220,20 @@ const ResetPassword = ({ setCurrentPage }) => {
         <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Registered Email Address *
+              Registered Email Address / User ID *
             </label>
             <input
-              type="email"
+              type="text"
               name="email"
               autoComplete="off"
               value={formData.email}
               onChange={handleChange}
-              placeholder="Enter registered email"
+              placeholder="Enter registered email or user ID"
               required
-              pattern="[a-zA-Z0-9._%+-]+@gmail\.com"
-              title="Email must be a valid @gmail.com address"
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50/50 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-600/20 transition duration-150"
             />
             <p className="text-[11px] text-slate-400 mt-1">
-              Email must be registered in the hospital system to reset password.
+              Enter the registered email address or user ID associated with your account.
             </p>
           </div>
 

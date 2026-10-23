@@ -3,7 +3,7 @@ import PatientNavbar from './PatientNavbar';
 import PatientFooter from './PatientFooter';
 import { API_BASE_URL } from '../Api/Api';
 
-const PatientHome = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => {
+const PatientHome = ({ setCurrentPage, isLoggedIn, currentUser, onLogout, setSelectedHospital }) => {
   const [hospitals, setHospitals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,6 +52,20 @@ const PatientHome = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => {
     }
     if (setCurrentPage) {
       setCurrentPage('appointment');
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+  };
+
+  const handleViewDetails = (hosp) => {
+    if (setSelectedHospital) {
+      setSelectedHospital(hosp);
+    }
+    try {
+      localStorage.setItem('selectedHospital', JSON.stringify(hosp));
+      sessionStorage.setItem('temp_selected_hospital_id', String(hosp.id));
+    } catch (e) {}
+    if (setCurrentPage) {
+      setCurrentPage('new_hospital');
     }
     window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
   };
@@ -247,14 +261,25 @@ const PatientHome = ({ setCurrentPage, isLoggedIn, currentUser, onLogout }) => {
                       </div>
                     </div>
 
-                    {/* ACTION BUTTON */}
-                    <div className="pt-2 border-t border-slate-100">
+                    {/* ACTION BUTTONS */}
+                    <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => handleViewDetails(hosp)}
+                        className="w-full sm:w-1/2 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-teal-50 text-slate-800 hover:text-teal-700 border border-slate-200 hover:border-teal-300 font-bold text-xs transition duration-150 text-center cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
+                      >
+                        <svg className="w-4 h-4 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Details</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => handleBookAtBranch(hosp.id)}
-                        className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm hover:shadow-md transition duration-200 text-center cursor-pointer flex items-center justify-center gap-2"
+                        className="w-full sm:w-1/2 py-2.5 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-2xs hover:shadow-xs transition duration-150 text-center cursor-pointer flex items-center justify-center gap-1.5"
                       >
-                        <span>Book Appointment at this Branch</span>
+                        <span>Book Visit</span>
                         <span>&rarr;</span>
                       </button>
                     </div>

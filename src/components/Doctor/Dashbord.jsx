@@ -45,6 +45,9 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
     return true;
   };
 
+  const isFullyRecovered = (patient) =>
+    (patient?.Health_Care || patient?.health_care || '').toString().trim().toLowerCase() === 'fully recovered';
+
   const isCompletedStatus = (status) => {
     return isDischargedStatus(status);
   };
@@ -505,15 +508,16 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
       }
 
       const numericId = patient.id;
-      const apptId = patient.Appoment_id || patient.appoment_id || patient.appointment_id || patient.id;
+      const apptId = patient.Appoment_id || patient.appoment_id || patient.appointment_id;
+      const exactDbId = (patient?.id && !isNaN(Number(patient.id))) ? Number(patient.id) : null;
       const candidateIds = [
+        exactDbId,
         patient.appointment_pk,
+        patient.id && !isNaN(Number(patient.id)) ? Number(patient.id) : null,
         patient.appointment_id,
         patient.Appoment_id,
         patient.appoment_id,
-        numericId,
-        patient.id,
-        apptId,
+        apptId && !isNaN(Number(apptId)) ? Number(apptId) : null,
         typeof apptId === 'string' && apptId.startsWith('APT-') ? apptId.replace('APT-', '') : null,
         typeof apptId === 'string' ? apptId.replace(/\D/g, '') : null,
         typeof patient.id === 'string' ? patient.id.replace(/\D/g, '') : null
@@ -528,8 +532,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
       };
 
       if (targetStatus === 'Discharged') {
-        patchPayload.discharge_status = 'Discharged';
-        patchPayload.completed_at = nowIso;
+        patchPayload.Discharge_DateTime = nowIso;
       }
       if (targetCheckupStatus === 'Checkup Done') {
         patchPayload.completed_at = nowIso;
@@ -592,6 +595,11 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
             }
           }
         } catch (e) {}
+      }
+
+      if (!isSuccess) {
+        alert('Unable to save appointment status. Please refresh and try again.');
+        return;
       }
 
       const updatedPat = {
@@ -1174,16 +1182,6 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                           <span className="font-mono text-[10px] text-sky-700 font-bold bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 inline-block">
                             {apptIdDisplay}
                           </span>
-                          {patientIdDisplay && patientIdDisplay !== apptIdDisplay && (
-                            <span className="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 inline-block">
-                              {patientIdDisplay}
-                            </span>
-                          )}
-                          {pat.bed_number ? (
-                            <span className="text-[9px] font-mono font-bold bg-purple-100 text-purple-900 px-1.5 py-0.5 rounded border border-purple-300 inline-block">
-                              Bed #{pat.bed_number}
-                            </span>
-                          ) : null}
                         </div>
                       </td>
 
@@ -1255,11 +1253,24 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                             <option value="" disabled>-- Select (Admit / Discharge) --</option>
                           )}
                           <option value="Admitted">Admitted (IPD)</option>
-                          <option value="Discharged">Discharged</option>
+                          <option value="Discharged" disabled={!isFullyRecovered(pat)}>
+                            Discharged{!isFullyRecovered(pat) ? ' (Nurse: Fully Recovered required)' : ''}
+                          </option>
                           {(isAdmitStatus(pat.status) || isDischargedStatus(pat.status)) && (
                             <option value="Pending">Reset to Pending</option>
                           )}
                         </select>
+                        {(pat.Health_Care || pat.health_care) && (
+                          <div className="mt-1">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border inline-block ${
+                              (pat.Health_Care || pat.health_care) === 'Fully Recovered'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                            }`}>
+                              Nurse Care: {pat.Health_Care || pat.health_care}
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       {/* ACTION DETAILS */}
@@ -1431,7 +1442,9 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                         <option value="" disabled>-- Select (Admit / Discharge) --</option>
                       )}
                       <option value="Admitted">Admitted (IPD)</option>
-                      <option value="Discharged">Discharged</option>
+                      <option value="Discharged" disabled={!isFullyRecovered(selectedPatientModal)}>
+                        Discharged{!isFullyRecovered(selectedPatientModal) ? ' (Nurse: Fully Recovered required)' : ''}
+                      </option>
                       {(isAdmitStatus(selectedPatientModal.status) || isDischargedStatus(selectedPatientModal.status)) && (
                         <option value="Pending">Reset to Pending</option>
                       )}

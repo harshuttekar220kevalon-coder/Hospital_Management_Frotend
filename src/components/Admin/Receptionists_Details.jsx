@@ -89,6 +89,7 @@ const AdminReceptionistDetails = ({ currentUser, selectedReceptionist, setSelect
       languages: form.languages.trim(),
       contact: cleanPhone,
       email: form.email.trim(),
+      status: form.status,
       is_active: Boolean(form.is_active)
     };
     const response = await fetch(`${API_BASE_URL}/super-admin/Receptionists/${receptionist.id}/`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => null);

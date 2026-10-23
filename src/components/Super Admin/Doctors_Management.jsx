@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
+import ActiveFilterTags from '../Common/ActiveFilterTags';
 
 const extractArray = (resData) => {
   if (!resData) return [];
@@ -377,13 +378,13 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
 
       {/* Filter and Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pb-3 border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pb-3 border-b border-slate-100 flex-wrap">
           <input
             type="text"
             placeholder="Search doctor by name, specialty..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3.5 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+            className="flex-1 min-w-[200px] px-3.5 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
           />
 
           <select
@@ -418,6 +419,32 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
             <option value="Off_Duty">Off Duty / On Leave</option>
           </select>
         </div>
+
+        {/* ACTIVE FILTER TAGS */}
+        <ActiveFilterTags
+          filters={[
+            { name: 'Search', value: searchTerm.trim(), onRemove: () => setSearchTerm('') },
+            {
+              name: 'Hospital',
+              value: hospitalFilter,
+              displayValue: hospitalsList.find((h) => String(h.id) === String(hospitalFilter))?.Name || hospitalFilter,
+              onRemove: () => setHospitalFilter('ALL'),
+            },
+            { name: 'Shift', value: shiftFilter, onRemove: () => setShiftFilter('ALL') },
+            {
+              name: 'Status',
+              value: statusFilter,
+              displayValue: statusFilter === 'On_Duty' ? 'On Duty' : statusFilter === 'Off_Duty' ? 'Off Duty / On Leave' : statusFilter,
+              onRemove: () => setStatusFilter('ALL'),
+            },
+          ]}
+          onClearAll={() => {
+            setSearchTerm('');
+            setHospitalFilter('ALL');
+            setShiftFilter('ALL');
+            setStatusFilter('ALL');
+          }}
+        />
 
         {/* Table */}
         {loading ? (
@@ -470,21 +497,29 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
                         </div>
                       </td>
                       <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
-                          {doc.specialization || '-'}
-                        </span>
+                        {doc.specialization && doc.specialization !== '-' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                            {doc.specialization}
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 font-medium">-</span>
+                        )}
                       </td>
                       <td className="py-3 px-3 text-slate-700">{hospName}</td>
                       <td className="py-3 px-3 text-slate-600">
                         {doc.Shifts || doc.shift || '-'}
                       </td>
                       <td className="py-3 px-3">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${
-                          isOff ? 'bg-rose-50 text-rose-700 border-rose-200' : isAvailable ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-200'
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${isOff ? 'bg-rose-500' : isAvailable ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
-                          {doctorStatus}
-                        </span>
+                        {doctorStatus && doctorStatus !== '-' ? (
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${
+                            isOff ? 'bg-rose-50 text-rose-700 border-rose-200' : isAvailable ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-200'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isOff ? 'bg-rose-500' : isAvailable ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                            {doctorStatus}
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 font-medium">-</span>
+                        )}
                       </td>
                       <td className="py-3 px-3 font-mono text-slate-600">
                         {doc.contact || doc.phone || doc.email || '-'}
