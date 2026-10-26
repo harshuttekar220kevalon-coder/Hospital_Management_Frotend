@@ -12,7 +12,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
   const [visibleCount, setVisibleCount] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Today_Pending');
-  
+
   // Selected patient for Details modal
   const [selectedPatientModal, setSelectedPatientModal] = useState(null);
   const [updatingPatientId, setUpdatingPatientId] = useState(null);
@@ -54,7 +54,13 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
 
   const isAdmitStatus = (status) => {
     const s = (status || '').toLowerCase().trim();
+    if (s.includes('not need')) return false;
     return s.includes('admit');
+  };
+
+  const isNotNeedAdmitStatus = (status) => {
+    const s = (typeof status === 'object' && status !== null ? (status.status || status.discharge_status || '') : (status || '')).toString().toLowerCase().trim();
+    return s.includes('not need');
   };
 
   const isCheckupDone = (checkupStatus) => {
@@ -174,7 +180,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
       };
     }
 
-    const rawDateStr = patient.visit_date_time || patient.appointment_time || patient.appointment_date || patient.visit_date || patient.created_at;
+    const rawDateStr = patient.visit_date_time || patient.Applied_at || patient.applied_at || patient.appointment_time || patient.appointment_date || patient.visit_date || patient.created_at;
 
     if (!rawDateStr) {
       return {
@@ -213,8 +219,8 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
 
     const now = new Date();
     const isToday = d.getFullYear() === now.getFullYear() &&
-                    d.getMonth() === now.getMonth() &&
-                    d.getDate() === now.getDate();
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate();
 
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const targetMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -322,7 +328,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
         if (docRes && docRes.ok) {
           const docs = await docRes.json();
           if (Array.isArray(docs)) {
-            currentDoc = docs.find(d => 
+            currentDoc = docs.find(d =>
               (d.email && d.email.toLowerCase().trim() === email) ||
               (docId && Number(d.id) === Number(docId)) ||
               (currentDocIdTag && d.doctor_id === currentDocIdTag) ||
@@ -365,7 +371,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
             const resData = await patRes.json().catch(() => []);
             allPats = extractArray(resData);
           }
-        } catch (e) {}
+        } catch (e) { }
 
         if (Array.isArray(allPats)) {
           const targetDocId = resolvedDoctor?.id || currentUser?.id;
@@ -508,6 +514,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
       }
 
       const numericId = patient.id;
+      const apptId = patient.Appoment_id || patient.appoment_id || patient.appointment_id || patient.id;
       const exactDbId = (patient?.id && !isNaN(Number(patient.id))) ? Number(patient.id) : null;
       const candidateIds = [
         exactDbId,
@@ -531,15 +538,30 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
       };
 
       if (targetStatus === 'Discharged') {
-        const currentHealthCare = patient.Health_Care || patient.health_care;
-        if (currentHealthCare !== 'Fully Recovered') {
-          alert('Cannot discharge patient! Discharge is only permitted once Nurse marks Health Care status as "Fully Recovered".');
-          setUpdatingPatientId(null);
-          return;
-        }
+        patchPayload.status = 'Discharged';
         patchPayload.discharge_status = 'Discharged';
+        patchPayload.Discharge_DateTime = nowIso;
         patchPayload.completed_at = nowIso;
+        patchPayload.checkup_status = 'Checkup Done';
+        patchPayload.Checkup_status = 'Checkup Done';
+      } else if (targetStatus === 'Not Need For Admitt') {
+        // Direct discharge workflow without admission (available directly to Doctor)
+        patchPayload.status = 'Not Need For Admitt';
+        patchPayload.discharge_status = 'Discharged';
+        patchPayload.Discharge_DateTime = nowIso;
+        patchPayload.completed_at = nowIso;
+        patchPayload.checkup_status = 'Checkup Done';
+        patchPayload.Checkup_status = 'Checkup Done';
+      } else if (targetStatus === 'Admitted') {
+        patchPayload.status = 'Admitted';
+        patchPayload.discharge_status = null;
+      } else {
+        patchPayload.status = targetStatus;
+        if (targetStatus === 'Pending' || targetStatus === 'Assigned') {
+          patchPayload.discharge_status = null;
+        }
       }
+
       if (targetCheckupStatus === 'Checkup Done') {
         patchPayload.completed_at = nowIso;
       }
@@ -559,7 +581,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
             backendUpdatedData = await res.json().catch(() => null);
             break;
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       if (!isSuccess) {
@@ -600,7 +622,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
               }
             }
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const updatedPat = {
@@ -609,7 +631,8 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
         status: targetStatus,
         checkup_status: targetCheckupStatus,
         Checkup_status: targetCheckupStatus,
-        completed_at: (targetCheckupStatus === 'Checkup Done' || targetStatus === 'Discharged' || targetStatus === 'Admitted') ? nowIso : patient.completed_at
+        discharge_status: (targetStatus === 'Discharged' || targetStatus === 'Not Need For Admitt') ? 'Discharged' : (targetStatus === 'Pending' || targetStatus === 'Assigned' || targetStatus === 'Admitted') ? null : patient.discharge_status,
+        completed_at: (targetCheckupStatus === 'Checkup Done' || targetStatus === 'Discharged' || targetStatus === 'Not Need For Admitt' || targetStatus === 'Admitted') ? nowIso : patient.completed_at
       };
 
       setPatients(prev => prev.map(p => (p.id === patient.id || p.Appoment_id === patient.Appoment_id) ? updatedPat : p));
@@ -643,8 +666,8 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
     const filterName = filterHosp?.Name?.toLowerCase().trim() || '';
 
     return patHospId === Number(hospitalFilter) ||
-           (filterName && patHospName === filterName) ||
-           patHospName === String(hospitalFilter).toLowerCase().trim();
+      (filterName && patHospName === filterName) ||
+      patHospName === String(hospitalFilter).toLowerCase().trim();
   });
 
   const isDateToday = (dateVal) => {
@@ -653,17 +676,19 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
     if (isNaN(d.getTime())) return false;
     const now = new Date();
     return d.getFullYear() === now.getFullYear() &&
-           d.getMonth() === now.getMonth() &&
-           d.getDate() === now.getDate();
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate();
   };
 
   const isCheckupDoneToday = (p) => {
     if (!isCheckupDone(p.checkup_status)) return false;
-    if (getAppointmentDateInfo(p).isToday) return true;
+    const dateInfo = getAppointmentDateInfo(p);
+    // If appointment is from a past date (e.g. 5d ago), it cannot be considered Today!
+    if (dateInfo.diffDays < 0) return false;
+    if (dateInfo.isToday) return true;
     if (p.completed_at && isDateToday(p.completed_at)) return true;
     if (p.checkup_date && isDateToday(p.checkup_date)) return true;
     if (p.checkup_completed_at && isDateToday(p.checkup_completed_at)) return true;
-    if (p.updated_at && isDateToday(p.updated_at)) return true;
 
     const todayCompletedList = getCompletedTodayIds();
     const candidateIds = [
@@ -681,11 +706,12 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
   };
 
   const isDischargedToday = (p) => {
-    if (!isDischargedStatus(p.status)) return false;
+    if (!isDischargedStatus(p.status) && !isNotNeedAdmitStatus(p.status)) return false;
+    const dateInfo = getAppointmentDateInfo(p);
+    if (dateInfo.diffDays < 0) return false;
     if (p.discharge_date && isDateToday(p.discharge_date)) return true;
     if (p.completed_at && isDateToday(p.completed_at)) return true;
-    if (p.updated_at && isDateToday(p.updated_at)) return true;
-    if (getAppointmentDateInfo(p).isToday) return true;
+    if (dateInfo.isToday) return true;
 
     const todayCompletedList = getCompletedTodayIds();
     const candidateIds = [p.id, String(p.id), Number(p.id), p.Appoment_id, p.appoment_id, p.appointment_id].filter(Boolean);
@@ -694,9 +720,10 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
 
   const isAdmittedToday = (p) => {
     if (!isAdmitStatus(p.status)) return false;
+    const dateInfo = getAppointmentDateInfo(p);
+    if (dateInfo.diffDays < 0) return false;
     if (p.admission_date && isDateToday(p.admission_date)) return true;
-    if (p.updated_at && isDateToday(p.updated_at)) return true;
-    if (getAppointmentDateInfo(p).isToday) return true;
+    if (dateInfo.isToday) return true;
 
     const todayCompletedList = getCompletedTodayIds();
     const candidateIds = [p.id, String(p.id), Number(p.id), p.Appoment_id, p.appoment_id, p.appointment_id].filter(Boolean);
@@ -705,20 +732,24 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
 
   // Day & status filtering
   const scheduledTodayPatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isToday);
-  const todayPendingPatients = scheduledTodayPatients.filter(p => !isCheckupDone(p.checkup_status) && !isAdmitStatus(p.status) && !isDischargedStatus(p.status));
-  const todayCheckupDonePatients = hospitalScopedPatients.filter(p => isCheckupDoneToday(p) && !isAdmitStatus(p.status) && !isDischargedStatus(p.status));
-  const admittedPatients = hospitalScopedPatients.filter(p => isAdmitStatus(p.status));
+  const todayPendingPatients = scheduledTodayPatients.filter(p => !isCheckupDone(p.checkup_status) && !isAdmitStatus(p.status) && !isDischargedStatus(p.status) && !isNotNeedAdmitStatus(p.status));
+  const todayCheckupDonePatients = hospitalScopedPatients.filter(p => isCheckupDoneToday(p) && !isAdmitStatus(p.status) && !isDischargedStatus(p.status) && !isNotNeedAdmitStatus(p.status));
+  const admittedPatients = hospitalScopedPatients.filter(p => isAdmitStatus(p.status) && !isDischargedStatus(p.status) && !isNotNeedAdmitStatus(p.status));
   const todayDischargedPatients = hospitalScopedPatients.filter(p => isDischargedToday(p));
-  const dischargedPatients = todayDischargedPatients;
+  // All discharged & 'Not Need For Admitt' patients belong exclusively to Discharged & History
+  const dischargedPatients = hospitalScopedPatients.filter(p => isDischargedStatus(p.status) || isNotNeedAdmitStatus(p.status));
 
-  // All Today includes: scheduled today OR checkup completed today OR discharged today OR admitted today
-  const allTodayPatients = hospitalScopedPatients.filter(p => 
-    getAppointmentDateInfo(p).isToday || isCheckupDoneToday(p) || isDischargedToday(p) || isAdmittedToday(p)
-  );
+  // All Today includes all relevant today's records
+  const allTodayPatients = hospitalScopedPatients.filter(p => {
+    const isDischarged = isDischargedStatus(p.status) || isNotNeedAdmitStatus(p.status);
+    if (isDischarged && !isDischargedToday(p)) return false;
+    const info = getAppointmentDateInfo(p);
+    return info.isToday || isCheckupDoneToday(p) || isAdmittedToday(p) || isDischargedToday(p);
+  });
   const todayPatients = allTodayPatients;
-  const tomorrowPatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isTomorrow);
-  const yesterdayPatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isYesterday && !isCheckupDoneToday(p) && !isDischargedToday(p));
-  const upcomingPatients = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isUpcoming && !getAppointmentDateInfo(p).isTomorrow);
+  const tomorrowPatients = hospitalScopedPatients.filter(p => !isDischargedStatus(p.status) && !isNotNeedAdmitStatus(p.status) && getAppointmentDateInfo(p).isTomorrow);
+  const yesterdayPatients = hospitalScopedPatients.filter(p => !isDischargedStatus(p.status) && !isNotNeedAdmitStatus(p.status) && getAppointmentDateInfo(p).isYesterday && !isCheckupDoneToday(p) && !isDischargedToday(p));
+  const upcomingPatients = hospitalScopedPatients.filter(p => !isDischargedStatus(p.status) && !isNotNeedAdmitStatus(p.status) && getAppointmentDateInfo(p).isUpcoming && !getAppointmentDateInfo(p).isTomorrow);
 
   const filteredPatients = hospitalScopedPatients.filter(p => {
     const term = searchTerm.toLowerCase().trim();
@@ -734,24 +765,29 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
     const dateInfo = getAppointmentDateInfo(p);
     const doneCheckup = isCheckupDone(p.checkup_status);
     const admitted = isAdmitStatus(p.status);
-    const discharged = isDischargedStatus(p.status);
+    const discharged = isDischargedStatus(p.status) || isNotNeedAdmitStatus(p.status);
 
     if (statusFilter === 'Today_Pending') {
       return dateInfo.isToday && !doneCheckup && !admitted && !discharged;
     } else if (statusFilter === 'Checkup_Done') {
       return isCheckupDoneToday(p) && !admitted && !discharged;
     } else if (statusFilter === 'Today_All') {
-      return dateInfo.isToday || isCheckupDoneToday(p) || isDischargedToday(p) || isAdmittedToday(p);
+      const isDischarged = isDischargedStatus(p.status) || isNotNeedAdmitStatus(p.status);
+      if (isDischarged && !isDischargedToday(p)) return false;
+      return dateInfo.isToday || isCheckupDoneToday(p) || isAdmittedToday(p) || isDischargedToday(p);
     } else if (statusFilter === 'Tomorrow') {
-      return dateInfo.isTomorrow;
+      return !discharged && dateInfo.isTomorrow;
     } else if (statusFilter === 'Admitted') {
-      return admitted;
-    } else if (statusFilter === 'Discharged' || statusFilter === 'Today_Completed' || statusFilter === 'Completed') {
-      return discharged && isDischargedToday(p);
+      return !discharged && admitted;
+    } else if (statusFilter === 'Discharged' || statusFilter === 'Today_Completed' || statusFilter === 'Completed' || statusFilter === 'History') {
+      return discharged;
     } else if (statusFilter === 'Yesterday') {
-      return dateInfo.isYesterday;
+      return !discharged && dateInfo.isYesterday;
     } else if (statusFilter === 'Upcoming') {
-      return dateInfo.isUpcoming;
+      return !discharged && dateInfo.isUpcoming;
+    } else if (statusFilter === 'ALL') {
+      // ALL ASSIGNED: Shows all patients of the table, whether completed or not, discharged or not
+      return true;
     }
     return true;
   }).sort((a, b) => {
@@ -800,11 +836,10 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                   <span
                     key={h.id}
                     onClick={() => setHospitalFilter(String(h.id))}
-                    className={`px-2.5 py-0.5 rounded-md text-xs font-bold border transition cursor-pointer flex items-center gap-1 ${
-                      hospitalFilter === String(h.id)
+                    className={`px-2.5 py-0.5 rounded-md text-xs font-bold border transition cursor-pointer flex items-center gap-1 ${hospitalFilter === String(h.id)
                         ? 'bg-teal-500 text-slate-900 border-teal-300 font-black shadow-xs'
                         : 'bg-teal-500/20 text-teal-300 border-teal-400/30 hover:bg-teal-500/30'
-                    }`}
+                      }`}
                   >
                     <span>{h.Name}</span>
                     <span className="text-[10px] opacity-80">({h.Branch_Code || `HOSP-${h.id}`})</span>
@@ -814,11 +849,10 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                   <button
                     type="button"
                     onClick={() => setHospitalFilter('ALL')}
-                    className={`px-2 py-0.5 rounded-md text-xs font-bold border transition cursor-pointer ${
-                      hospitalFilter === 'ALL'
+                    className={`px-2 py-0.5 rounded-md text-xs font-bold border transition cursor-pointer ${hospitalFilter === 'ALL'
                         ? 'bg-slate-100 text-slate-900 border-white'
                         : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:text-white'
-                    }`}
+                      }`}
                   >
                     All Branches
                   </button>
@@ -930,63 +964,56 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
           <button
             type="button"
             onClick={() => setStatusFilter('Today_Pending')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              statusFilter === 'Today_Pending' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${statusFilter === 'Today_Pending' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
           >
             Today's Pending ({todayPendingPatients.length})
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('Checkup_Done')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              statusFilter === 'Checkup_Done' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${statusFilter === 'Checkup_Done' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
           >
             Checkup Done ({todayCheckupDonePatients.length})
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('Admitted')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              statusFilter === 'Admitted' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${statusFilter === 'Admitted' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
           >
             Admitted Inpatients ({admittedPatients.length})
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('Discharged')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              statusFilter === 'Discharged' ? 'bg-teal-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${statusFilter === 'Discharged' ? 'bg-teal-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
           >
-            Discharged ({dischargedPatients.length})
+            Discharged & History ({dischargedPatients.length})
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('Today_All')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              statusFilter === 'Today_All' ? 'bg-slate-700 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${statusFilter === 'Today_All' ? 'bg-slate-700 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
           >
             All Today ({todayPatients.length})
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('Tomorrow')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              statusFilter === 'Tomorrow' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${statusFilter === 'Tomorrow' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
           >
             Tomorrow ({tomorrowPatients.length})
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('ALL')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              statusFilter === 'ALL' ? 'bg-slate-800 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${statusFilter === 'ALL' ? 'bg-slate-800 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
           >
             All Assigned ({hospitalScopedPatients.length})
           </button>
@@ -1006,11 +1033,11 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
               name: 'Queue Status',
               value: statusFilter,
               displayValue: statusFilter === 'Today_Pending' ? "Today's Pending" :
-                            statusFilter === 'Checkup_Done' ? 'Checkup Done' :
-                            statusFilter === 'Admitted' ? 'Admitted (IPD)' :
-                            statusFilter === 'Discharged' ? 'Discharged' :
-                            statusFilter === 'Today_All' ? 'All Today' :
-                            statusFilter === 'Tomorrow' ? 'Tomorrow' : statusFilter,
+                statusFilter === 'Checkup_Done' ? 'Checkup Done' :
+                  statusFilter === 'Admitted' ? 'Admitted (IPD)' :
+                    statusFilter === 'Discharged' ? 'Discharged' :
+                      statusFilter === 'Today_All' ? 'All Today' :
+                        statusFilter === 'Tomorrow' ? 'Tomorrow' : statusFilter,
               onRemove: () => setStatusFilter('ALL')
             },
             {
@@ -1056,8 +1083,8 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                     <div className="font-semibold text-slate-600">No patients found for this selection.</div>
                     <div className="text-xs text-slate-400 mt-0.5">
                       {statusFilter === 'Today_Pending' ? 'No pending consultations remaining for Today! All clear.' :
-                       statusFilter === 'Tomorrow' ? 'No upcoming appointments scheduled for Tomorrow!' :
-                       'Try selecting another day or filter tab.'}
+                        statusFilter === 'Tomorrow' ? 'No upcoming appointments scheduled for Tomorrow!' :
+                          'Try selecting another day or filter tab.'}
                     </div>
                   </td>
                 </tr>
@@ -1069,13 +1096,13 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                   const isAdmit = isAdmitStatus(pat.status);
                   const isUpdating = updatingPatientId === pat.id;
                   const dateInfo = getAppointmentDateInfo(pat);
-                  const condition = getPatientCondition(pat);
-                  const hospObj = assignedHospitals.find(h => Number(h.id) === Number(pat.hospital)) || { Name: pat.hospital_name || hospitalInfo?.Name || 'Branch' };
+                  const rawHospName = assignedHospitals.find(h => Number(h.id) === Number(pat.hospital))?.Name || pat.hospital_name || hospitalInfo?.Name || '-';
+                  const hospCleanName = rawHospName !== '-' ? rawHospName.replace(/[\s,.-]+(international|intl\.?|branch|campus)[\s,.-]*$/i, '').trim() || '-' : '-';
 
                   return (
                     <tr key={pat.id || idx} className={`transition ${isDone || isAdmit ? 'bg-slate-50/40 opacity-80' : 'hover:bg-slate-50/70'}`}>
                       <td className="py-3 px-3 text-center">
-                        <div className="font-bold text-slate-800">{pat.patient_Name || pat.patient_name || pat.name || 'Patient'}</div>
+                        <div className="font-bold text-slate-800">{pat.patient_Name || pat.patient_name || pat.name || '-'}</div>
                         <div className="flex items-center justify-center gap-1.5 flex-wrap mt-0.5">
                           <span className="font-mono text-[10px] text-sky-700 font-bold bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 inline-block">
                             {apptIdDisplay}
@@ -1085,7 +1112,7 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
 
                       <td className="py-3 px-3 text-center">
                         <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-semibold inline-block truncate max-w-[140px]">
-                          {hospObj.Name}
+                          {hospCleanName}
                         </span>
                       </td>
 
@@ -1108,12 +1135,11 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                         <span className="font-medium text-slate-800 block max-w-[180px] mx-auto truncate" title={pat.symptoms_diagnosis || pat.reason}>
                           {pat.symptoms_diagnosis || pat.reason || '-'}
                         </span>
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border inline-block mt-0.5 ${
-                          condition === 'Critical' ? 'bg-rose-100 text-rose-800 border-rose-300' :
-                          condition === 'Emergency' ? 'bg-red-100 text-red-800 border-red-300' :
-                          condition === 'Urgent' ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                          'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border inline-block mt-0.5 ${condition === 'Critical' ? 'bg-rose-100 text-rose-800 border-rose-300' :
+                            condition === 'Emergency' ? 'bg-red-100 text-red-800 border-red-300' :
+                              condition === 'Urgent' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                                'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}>
                           {condition}
                         </span>
                       </td>
@@ -1124,11 +1150,10 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                           value={pat.checkup_status === 'Checkup Done' ? 'Checkup Done' : 'Pending'}
                           onChange={(e) => handleUpdatePatientField(pat, 'checkup_status', e.target.value)}
                           disabled={isUpdating}
-                          className={`px-2 py-1 rounded-lg border text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50 transition ${
-                            pat.checkup_status === 'Checkup Done'
+                          className={`px-2 py-1 rounded-lg border text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50 transition ${pat.checkup_status === 'Checkup Done'
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                               : 'bg-amber-50 text-amber-800 border-amber-300'
-                          }`}
+                            }`}
                         >
                           <option value="Pending">Pending</option>
                           <option value="Checkup Done">Checkup Done</option>
@@ -1138,41 +1163,30 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                       {/* 2. ADMISSION / DISCHARGE STATUS DROPDOWN */}
                       <td className="py-3 px-3 text-center">
                         <select
-                          value={isAdmitStatus(pat.status) ? 'Admitted' : isDischargedStatus(pat.status) ? 'Discharged' : ''}
+                          value={
+                            isAdmitStatus(pat.status) ? 'Admitted' :
+                            isNotNeedAdmitStatus(pat.status) ? 'Not Need For Admitt' :
+                            (isDischargedStatus(pat.status) || (pat.status || '').toLowerCase().includes('discharg')) ? 'Discharged' :
+                            pat.status === 'Assigned' ? 'Assigned' :
+                            pat.status === 'Cancelled' ? 'Cancelled' :
+                            'Pending'
+                          }
                           onChange={(e) => handleUpdatePatientField(pat, 'status', e.target.value)}
                           disabled={isUpdating}
-                          className={`px-2.5 py-1 rounded-lg border text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50 transition ${
+                          className={`px-2 py-1 rounded-md border text-[11px] font-semibold max-w-[145px] w-full focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer disabled:opacity-50 transition truncate ${
                             isAdmitStatus(pat.status) ? 'bg-purple-50 text-purple-800 border-purple-300' :
-                            isDischargedStatus(pat.status) ? 'bg-teal-50 text-teal-800 border-teal-300' :
-                            'bg-slate-50 text-slate-700 border-slate-300'
+                            isNotNeedAdmitStatus(pat.status) ? 'bg-teal-50 text-teal-800 border-teal-300' :
+                            (isDischargedStatus(pat.status) || (pat.status || '').toLowerCase().includes('discharg')) ? 'bg-emerald-50 text-emerald-800 border-emerald-300' :
+                            pat.status === 'Assigned' ? 'bg-blue-50 text-blue-800 border-blue-300' :
+                            'bg-amber-50 text-amber-800 border-amber-300'
                           }`}
                         >
-                          {!isAdmitStatus(pat.status) && !isDischargedStatus(pat.status) && (
-                            <option value="" disabled>-- Select (Admit / Discharge) --</option>
-                          )}
-                          <option value="Admitted">Admitted (IPD)</option>
-                          <option 
-                            value="Discharged"
-                            disabled={(pat.Health_Care || pat.health_care) !== 'Fully Recovered'}
-                            title={(pat.Health_Care || pat.health_care) !== 'Fully Recovered' ? 'Requires Nurse to mark Fully Recovered first' : ''}
-                          >
-                            Discharged {(pat.Health_Care || pat.health_care) !== 'Fully Recovered' ? '(Nurse Fully Recovered req.)' : ''}
-                          </option>
-                          {(isAdmitStatus(pat.status) || isDischargedStatus(pat.status)) && (
-                            <option value="Pending">Reset to Pending</option>
-                          )}
+                          <option value="Pending">Pending</option>
+                          <option value="Assigned">Assigned</option>
+                          <option value="Admitted">Admitted</option>
+                          <option value="Not Need For Admitt">Not Need For Admitt</option>
+                          <option value="Discharged">Discharged</option>
                         </select>
-                        {(pat.Health_Care || pat.health_care) && (
-                          <div className="mt-1">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border inline-block ${
-                              (pat.Health_Care || pat.health_care) === 'Fully Recovered'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                                : 'bg-slate-100 text-slate-600 border-slate-200'
-                            }`}>
-                              Nurse Care: {pat.Health_Care || pat.health_care}
-                            </span>
-                          </div>
-                        )}
                       </td>
 
                       {/* ACTION DETAILS */}
@@ -1314,11 +1328,10 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                       value={selectedPatientModal.checkup_status === 'Checkup Done' ? 'Checkup Done' : 'Pending'}
                       onChange={(e) => handleUpdatePatientField(selectedPatientModal, 'checkup_status', e.target.value)}
                       disabled={updatingPatientId === selectedPatientModal.id}
-                      className={`w-full px-3 py-1.5 rounded-lg border text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50 transition ${
-                        selectedPatientModal.checkup_status === 'Checkup Done'
+                      className={`w-full px-3 py-1.5 rounded-lg border text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50 transition ${selectedPatientModal.checkup_status === 'Checkup Done'
                           ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                           : 'bg-amber-50 text-amber-800 border-amber-300'
-                      }`}
+                        }`}
                     >
                       <option value="Pending">Pending</option>
                       <option value="Checkup Done">Checkup Done</option>
@@ -1331,28 +1344,29 @@ const DoctorPatients = ({ currentUser, setCurrentPage }) => {
                       Admission / Discharge Status
                     </label>
                     <select
-                      value={isAdmitStatus(selectedPatientModal.status) ? 'Admitted' : isDischargedStatus(selectedPatientModal.status) ? 'Discharged' : ''}
+                      value={isAdmitStatus(selectedPatientModal.status) ? 'Admitted' : isNotNeedAdmitStatus(selectedPatientModal.status) ? 'Not Need For Admitt' : isDischargedStatus(selectedPatientModal.status) ? 'Discharged' : ''}
                       onChange={(e) => handleUpdatePatientField(selectedPatientModal, 'status', e.target.value)}
                       disabled={updatingPatientId === selectedPatientModal.id}
-                      className={`w-full px-3 py-1.5 rounded-lg border text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50 transition ${
-                        isAdmitStatus(selectedPatientModal.status) ? 'bg-purple-50 text-purple-800 border-purple-300' :
-                        isDischargedStatus(selectedPatientModal.status) ? 'bg-teal-50 text-teal-800 border-teal-300' :
-                        'bg-slate-50 text-slate-700 border-slate-300'
-                      }`}
+                      className={`w-full px-3 py-1.5 rounded-lg border text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-50 transition ${isAdmitStatus(selectedPatientModal.status) ? 'bg-purple-50 text-purple-800 border-purple-300' :
+                          isNotNeedAdmitStatus(selectedPatientModal.status) ? 'bg-teal-50 text-teal-800 border-teal-300' :
+                            isDischargedStatus(selectedPatientModal.status) ? 'bg-emerald-50 text-emerald-800 border-emerald-300' :
+                              'bg-slate-50 text-slate-700 border-slate-300'
+                        }`}
                     >
-                      {!isAdmitStatus(selectedPatientModal.status) && !isDischargedStatus(selectedPatientModal.status) && (
-                        <option value="" disabled>-- Select (Admit / Discharge) --</option>
+                      {!isAdmitStatus(selectedPatientModal.status) && !isNotNeedAdmitStatus(selectedPatientModal.status) && !isDischargedStatus(selectedPatientModal.status) && (
+                        <option value="" disabled>-- Select --</option>
                       )}
-                      <option value="Admitted">Admitted (IPD)</option>
-                      <option 
+                      <option value="Admitted">Admitted</option>
+                      <option value="Not Need For Admitt">Not Need For Admitt</option>
+                      <option
                         value="Discharged"
-                        disabled={(selectedPatientModal.Health_Care || selectedPatientModal.health_care) !== 'Fully Recovered'}
-                        title={(selectedPatientModal.Health_Care || selectedPatientModal.health_care) !== 'Fully Recovered' ? 'Requires Nurse to mark Fully Recovered first' : ''}
+                        disabled={!isAdmitStatus(selectedPatientModal.status) || (selectedPatientModal.Health_Care || selectedPatientModal.health_care) !== 'Fully Recovered'}
+                        title={!isAdmitStatus(selectedPatientModal.status) ? 'Only admitted patients with Nurse Fully Recovered can be discharged' : (selectedPatientModal.Health_Care || selectedPatientModal.health_care) !== 'Fully Recovered' ? 'Requires Nurse to mark Fully Recovered first' : ''}
                       >
-                        Discharged {(selectedPatientModal.Health_Care || selectedPatientModal.health_care) !== 'Fully Recovered' ? '(Nurse Fully Recovered req.)' : ''}
+                        Discharged
                       </option>
-                      {(isAdmitStatus(selectedPatientModal.status) || isDischargedStatus(selectedPatientModal.status)) && (
-                        <option value="Pending">Reset to Pending</option>
+                      {(isAdmitStatus(selectedPatientModal.status) || isNotNeedAdmitStatus(selectedPatientModal.status) || isDischargedStatus(selectedPatientModal.status)) && (
+                        <option value="Pending">Pending</option>
                       )}
                     </select>
                   </div>

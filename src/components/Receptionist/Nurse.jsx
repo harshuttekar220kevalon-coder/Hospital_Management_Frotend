@@ -665,12 +665,12 @@ const ReceptionistNurse = ({ currentUser, setCurrentPage }) => {
                 </tr>
               ) : (
                 filteredNurses.map((nurse, idx) => {
-                  const nurseId = nurse.nurse_id || (nurse.id ? `NUR-${nurse.id}` : `NUR-${idx + 1}`);
-                  const name = nurse.name || 'Staff Nurse';
-                  const ward = nurse.ward || 'General Ward';
-                  const role = nurse.role || nurse.nurse_role || 'Staff Nurse';
-                  const shift = nurse.shift || 'Morning First Shift';
-                  const qualification = nurse.qualification || 'B.Sc Nursing';
+                  const nurseId = nurse.nurse_id || (nurse.id ? `NUR-${nurse.id}` : '-');
+                  const name = nurse.name || '-';
+                  const ward = nurse.ward || '-';
+                  const role = nurse.role || nurse.nurse_role || '-';
+                  const shift = nurse.shift || '-';
+                  const qualification = nurse.qualification || '-';
                   const experience = nurse.experience ? `${nurse.experience} Y Exp` : '';
 
                   const isHead = role.toLowerCase().includes('head');
@@ -868,15 +868,15 @@ const ReceptionistNurse = ({ currentUser, setCurrentPage }) => {
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Ward / Unit</span>
-                  <p className="font-bold text-slate-800 text-xs mt-0.5">{selectedNurseModal.ward || 'General Ward'}</p>
+                  <p className="font-bold text-slate-800 text-xs mt-0.5">{selectedNurseModal.ward || '-'}</p>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Role / Designation</span>
-                  <p className="font-bold text-slate-800 text-xs mt-0.5">{selectedNurseModal.role || selectedNurseModal.nurse_role || 'Staff Nurse'}</p>
+                  <p className="font-bold text-slate-800 text-xs mt-0.5">{selectedNurseModal.role || selectedNurseModal.nurse_role || '-'}</p>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 col-span-2">
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Shift Timing</span>
-                  <p className="font-bold text-slate-800 text-xs mt-0.5">{selectedNurseModal.shift || 'Morning First Shift'}</p>
+                  <p className="font-bold text-slate-800 text-xs mt-0.5">{selectedNurseModal.shift || '-'}</p>
                 </div>
               </div>
 
@@ -891,7 +891,7 @@ const ReceptionistNurse = ({ currentUser, setCurrentPage }) => {
                       📞 {selectedNurseModal.contact || selectedNurseModal.phone}
                     </a>
                   ) : (
-                    <span className="text-slate-400">Not provided</span>
+                    <span className="text-slate-400">-</span>
                   )}
                 </div>
                 <div className="flex items-center justify-between">
@@ -904,16 +904,16 @@ const ReceptionistNurse = ({ currentUser, setCurrentPage }) => {
                       ✉️ {selectedNurseModal.email}
                     </a>
                   ) : (
-                    <span className="text-slate-400">Not provided</span>
+                    <span className="text-slate-400">-</span>
                   )}
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500">Qualification:</span>
-                  <span className="font-bold text-slate-800">{selectedNurseModal.qualification || 'B.Sc Nursing'}</span>
+                  <span className="font-bold text-slate-800">{selectedNurseModal.qualification || '-'}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500">Experience:</span>
-                  <span className="font-bold text-slate-800">{selectedNurseModal.experience ? `${selectedNurseModal.experience} Years` : 'Not specified'}</span>
+                  <span className="font-bold text-slate-800">{selectedNurseModal.experience ? `${selectedNurseModal.experience} Years` : '-'}</span>
                 </div>
               </div>
 

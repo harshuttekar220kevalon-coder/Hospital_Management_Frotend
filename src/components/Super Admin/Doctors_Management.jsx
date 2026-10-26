@@ -492,7 +492,7 @@ const Doctors_Management = ({ currentUser, setCurrentPage, setSelectedDoctor }) 
                         <div className="flex flex-col items-center gap-1">
                           <span>{doc.name || '-'}</span>
                           <span className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1 font-mono text-[10px] font-semibold text-sky-700">
-                            {doc.doctor_id || `#${doc.id}`}
+                            {doc.doctor_id || (doc.id ? `DOC-${doc.id}` : '-')}
                           </span>
                         </div>
                       </td>

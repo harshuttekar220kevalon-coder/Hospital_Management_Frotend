@@ -283,12 +283,33 @@ const ReceptionistDoctors = ({ currentUser, setCurrentPage, setSelectedDoctorFor
     };
   }, [currentUser]);
 
+  const cleanHospitalName = (name) => {
+    if (!name || typeof name !== 'string') return '-';
+    let cleaned = name
+      .replace(/[\s,.-]+(international|intl\.?|branch|campus|super speciality|super specialty)[\s,.-]*$/i, '')
+      .replace(/\b(international|intl\.?)\b/gi, '')
+      .replace(/\s+/g, ' ')
+      .replace(/[\s,.-]+$/, '')
+      .trim();
+    return cleaned || '-';
+  };
+
   const getHospitalName = (hospVal, doc) => {
-    if (doc?.hospital_name) return doc.hospital_name;
-    if (!hospVal) return hospitalInfo?.Name || hospitalInfo?.name || 'Assigned Branch';
-    const hospId = typeof hospVal === 'object' && hospVal !== null ? hospVal.id : hospVal;
-    const match = hospitalsList.find(h => Number(h.id) === Number(hospId));
-    return match?.Name || match?.name || (typeof hospVal === 'object' ? (hospVal.Name || hospVal.name) : '') || hospitalInfo?.Name || 'Assigned Branch';
+    let raw = '';
+    if (doc?.hospital_name) {
+      raw = doc.hospital_name;
+    } else if (doc?.hospital_names && Array.isArray(doc.hospital_names) && doc.hospital_names.length > 0) {
+      const first = doc.hospital_names[0];
+      raw = typeof first === 'object' && first !== null ? (first.name || first.Name || '') : String(first);
+    } else if (hospVal) {
+      const hospId = typeof hospVal === 'object' && hospVal !== null ? hospVal.id : hospVal;
+      const match = hospitalsList.find(h => Number(h.id) === Number(hospId));
+      raw = match?.Name || match?.name || (typeof hospVal === 'object' ? (hospVal.Name || hospVal.name) : '') || '';
+    }
+    if (!raw) {
+      raw = hospitalInfo?.Name || hospitalInfo?.name || currentUser?.hospital_name || '';
+    }
+    return cleanHospitalName(raw);
   };
 
   const filteredDoctors = doctors.filter((doc) => {
@@ -456,8 +477,6 @@ const ReceptionistDoctors = ({ currentUser, setCurrentPage, setSelectedDoctorFor
               <tr>
                 <th className="py-3 px-3">Doctor ID</th>
                 <th className="py-3 px-3">Doctor Name</th>
-                <th className="py-3 px-3">Department</th>
-                <th className="py-3 px-3">Specialization</th>
                 <th className="py-3 px-3">Assigned Hospital</th>
                 <th className="py-3 px-3">Consultation Fee</th>
                 <th className="py-3 px-3">Shift</th>
@@ -468,14 +487,14 @@ const ReceptionistDoctors = ({ currentUser, setCurrentPage, setSelectedDoctorFor
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
                     <div className="inline-block w-6 h-6 border-2 border-amber-600 border-t-transparent rounded-full animate-spin mb-2"></div>
                     <p>Loading doctors for {hospitalDisplayName}...</p>
                   </td>
                 </tr>
               ) : filteredDoctors.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400 font-semibold">
+                  <td colSpan={7} className="py-12 text-center text-slate-400 font-semibold">
                     {searchTerm
                       ? 'No doctors found matching search criteria.'
                       : `No doctors found assigned to ${hospitalDisplayName}. Only doctors of this hospital are displayed here.`}
@@ -484,36 +503,17 @@ const ReceptionistDoctors = ({ currentUser, setCurrentPage, setSelectedDoctorFor
               ) : (
                 filteredDoctors.map((doc, idx) => {
                   const hospName = getHospitalName(doc.hospital, doc);
-                  const dept = doc.department || doc.departments || doc.Department || doc.dept || '-';
-                  const specialty = doc.specialization || doc.specialty || '-';
                   const shift = doc.Shifts || doc.shift || doc.shift_time || doc.duty_shift || doc.opd_timings || '-';
-                  const fee = doc.consultation_fee ? `₹${Number(doc.consultation_fee).toFixed(0)}` : '-';
+                  const fee = doc.consultation_fee !== null && doc.consultation_fee !== undefined && doc.consultation_fee !== '' ? `₹${Number(doc.consultation_fee).toFixed(0)}` : '-';
                   const isOnDuty = !String(doc.status || doc.duty_status || '').toLowerCase().includes('off') && !String(doc.status || '').toLowerCase().includes('leave') && doc.is_active !== false;
 
                   return (
                     <tr key={doc.id || idx} className="hover:bg-slate-50/70 transition">
                       <td className="py-3 px-3 font-mono font-bold text-amber-800">
-                        {doc.id ? `DOC-${doc.id}` : '-'}
+                        {doc.doctor_id || (doc.id ? `DOC-${doc.id}` : '-')}
                       </td>
                       <td className="py-3 px-3 font-bold text-slate-800">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-lg bg-teal-50 border border-teal-200 text-teal-800 flex items-center justify-center font-bold text-[10px]">
-                            {(doc.name || 'D').replace('Dr. ', '').charAt(0)}
-                          </div>
-                          <span>{doc.name}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-slate-700">
-                        {dept}
-                      </td>
-                      <td className="py-3 px-3">
-                        {specialty && specialty !== '-' ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
-                            {specialty}
-                          </span>
-                        ) : (
-                          <span className="text-slate-600 font-medium">-</span>
-                        )}
+                        {doc.name || '-'}
                       </td>
                       <td className="py-3 px-3 font-semibold text-slate-700">
                         {hospName}
@@ -575,10 +575,10 @@ const ReceptionistDoctors = ({ currentUser, setCurrentPage, setSelectedDoctorFor
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-800">
-                    {selectedDoctorModal.name}
+                    {selectedDoctorModal.name || '-'}
                   </h3>
                   <p className="text-xs text-teal-600 font-semibold font-mono">
-                    {selectedDoctorModal.id ? `DOC-${selectedDoctorModal.id}` : ''}
+                    {selectedDoctorModal.doctor_id || (selectedDoctorModal.id ? `DOC-${selectedDoctorModal.id}` : '-')}
                   </p>
                 </div>
               </div>
@@ -613,7 +613,7 @@ const ReceptionistDoctors = ({ currentUser, setCurrentPage, setSelectedDoctorFor
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-slate-400 block font-medium">Consultation Fee:</span>
                 <span className="font-bold text-emerald-700 text-sm mt-0.5">
-                  {selectedDoctorModal.consultation_fee ? `₹${Number(selectedDoctorModal.consultation_fee).toFixed(0)}` : '-'}
+                  {selectedDoctorModal.consultation_fee !== null && selectedDoctorModal.consultation_fee !== undefined && selectedDoctorModal.consultation_fee !== '' ? `₹${Number(selectedDoctorModal.consultation_fee).toFixed(0)}` : '-'}
                 </span>
               </div>
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
@@ -642,6 +642,18 @@ const ReceptionistDoctors = ({ currentUser, setCurrentPage, setSelectedDoctorFor
                 <span className="text-slate-400 block font-medium">Email Address:</span>
                 <span className="font-bold text-slate-800 text-sm mt-0.5 truncate block" title={selectedDoctorModal.email}>
                   {selectedDoctorModal.email || '-'}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-slate-400 block font-medium">Qualification:</span>
+                <span className="font-bold text-slate-800 text-sm mt-0.5">
+                  {selectedDoctorModal.qualification || '-'}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-slate-400 block font-medium">Experience:</span>
+                <span className="font-bold text-slate-800 text-sm mt-0.5">
+                  {selectedDoctorModal.experience ? `${selectedDoctorModal.experience} Years` : '-'}
                 </span>
               </div>
             </div>

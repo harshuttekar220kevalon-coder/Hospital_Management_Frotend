@@ -421,27 +421,27 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
                   return (
                     <tr key={rec.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-bold text-slate-800 break-words">{rec.name || 'Not Provided'}</div>
+                        <div className="font-bold text-slate-800 break-words">{rec.name || '-'}</div>
                         <span className="font-mono text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
-                          {rec.receptionist_id || (rec.id ? `REC-${rec.id}` : 'Not Provided')}
+                          {rec.receptionist_id || (rec.id ? `REC-${rec.id}` : '-')}
                         </span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 inline-block">
-                          {rec.role || 'Not Provided'}
+                          {rec.role || '-'}
                         </span>
-                        <span className="text-[11px] text-slate-400 block mt-0.5">{rec.languages || 'Not Provided'}</span>
+                        <span className="text-[11px] text-slate-400 block mt-0.5">{rec.languages || '-'}</span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center font-medium text-slate-700">
-                        {rec.shift || 'Not Provided'}
+                        {rec.shift || '-'}
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-col items-center justify-center gap-0.5">
                           <span className="font-bold text-slate-800 text-xs">
-                            {rec.contact || rec.phone || 'Not Provided'}
+                            {rec.contact || rec.phone || '-'}
                           </span>
                           {emailLower ? (
                             <a
@@ -452,7 +452,7 @@ const AdminReceptionists = ({ currentUser, setCurrentPage, setSelectedReceptioni
                               {emailLower}
                             </a>
                           ) : (
-                            <span className="text-[11px] text-slate-400">Not Provided</span>
+                            <span className="text-[11px] text-slate-400 font-mono">-</span>
                           )}
                         </div>
                       </td>

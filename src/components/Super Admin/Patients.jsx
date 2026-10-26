@@ -216,8 +216,9 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
           email: item.email || '',
           address: item.address || '',
           symptoms_diagnosis: item.symptoms_diagnosis || item.reason_for_visit || 'General Consultation',
-          visit_date_time: item.visit_date_time || item.created_at || new Date().toISOString(),
-          created_at: item.created_at || item.visit_date_time || new Date().toISOString()
+          visit_date_time: item.visit_date_time || item.Applied_at || item.applied_at || item.created_at || null,
+          created_at: item.created_at || item.Applied_at || item.applied_at || item.visit_date_time || null,
+          applied_at: item.Applied_at || item.applied_at || item.created_at || item.visit_date_time || null
         };
       };
 
@@ -246,8 +247,25 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
               );
             });
 
+            // Extract the actual date from matched appointments or patient profile
+            let apptDate = null;
+            if (matchedAppts.length > 0) {
+              const sortedAppts = [...matchedAppts].sort((x, y) => {
+                const dx = new Date(x.Applied_at || x.applied_at || x.visit_date_time || x.created_at || 0).getTime();
+                const dy = new Date(y.Applied_at || y.applied_at || y.visit_date_time || y.created_at || 0).getTime();
+                return dy - dx;
+              });
+              const bestAppt = sortedAppts[0];
+              apptDate = bestAppt.Applied_at || bestAppt.applied_at || bestAppt.visit_date_time || bestAppt.created_at || null;
+            }
+
+            const effectiveDate = norm.created_at || norm.applied_at || norm.visit_date_time || apptDate || null;
+
             combined.push({
               ...norm,
+              created_at: effectiveDate,
+              applied_at: effectiveDate,
+              visit_date_time: norm.visit_date_time || apptDate || null,
               total_appointments: matchedAppts.length,
               appointment_history: matchedAppts
             });
@@ -329,12 +347,39 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
     }));
   };
 
-  const todayDateStr = new Date().toISOString().split('T')[0];
-
   const isAppliedToday = (item) => {
-    if (!item.applied_at && !item.created_at) return false;
-    const dateVal = item.applied_at || item.created_at;
-    return dateVal.includes(todayDateStr);
+    if (!item) return false;
+    const rawVal = item.applied_at || item.created_at || item.visit_date_time;
+    if (!rawVal) return false;
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const localTodayYMD = `${year}-${month}-${day}`;
+    const utcTodayYMD = now.toISOString().split('T')[0];
+
+    if (typeof rawVal === 'string') {
+      const trimmed = rawVal.trim();
+      if (trimmed.startsWith(localTodayYMD) || trimmed.startsWith(utcTodayYMD)) {
+        return true;
+      }
+    }
+
+    const d = new Date(rawVal);
+    if (!isNaN(d.getTime())) {
+      const isSameLocalDate = d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth() &&
+        d.getDate() === now.getDate();
+      if (isSameLocalDate) return true;
+
+      const isSameUtcDate = d.getUTCFullYear() === now.getUTCFullYear() &&
+        d.getUTCMonth() === now.getUTCMonth() &&
+        d.getUTCDate() === now.getUTCDate();
+      if (isSameUtcDate) return true;
+    }
+
+    return false;
   };
 
   const todayApplicationsCount = patients.filter(p => isAppliedToday(p)).length;
@@ -586,9 +631,11 @@ const Patients = ({ currentUser, setCurrentPage, setSelectedPatient }) => {
         Condation: bookFormData.condition || 'Normal',
         status: bookFormData.status || 'Pending',
         bed_number: parsedBed,
-        symptoms_diagnosis: bookFormData.symptoms_diagnosis.trim() || 'General Consultation',
-        reason_for_visit: bookFormData.symptoms_diagnosis.trim() || 'General Consultation',
-        visit_date_time: bookFormData.visit_date_time ? new Date(bookFormData.visit_date_time).toISOString() : new Date().toISOString()
+        Applied_at: new Date().toISOString(),
+        applied_at: new Date().toISOString(),
+        visit_date_time: new Date().toISOString(),
+        appointment_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`,
+        visit_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`
       };
 
       const res = await fetch(`${API_BASE_URL}/super-admin/appointments/`, {

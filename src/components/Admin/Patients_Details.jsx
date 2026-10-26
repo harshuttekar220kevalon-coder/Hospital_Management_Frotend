@@ -47,57 +47,87 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
   });
 
   const loadDetails = useCallback(async () => {
-    if (!patientId) {
+    const currentPatient = patient || (() => {
+      try { return JSON.parse(localStorage.getItem('selectedPatient') || 'null'); } catch { return null; }
+    })();
+
+    if (!currentPatient) {
       setLoading(false);
       setError('Patient account is unavailable. Return to the patient list and select an account.');
       return;
     }
 
     try {
-      const patientResponse = await fetch(`${API_BASE_URL}/super-admin/Patients/${patientId}/`);
-      if (patientResponse.status === 404) {
-        localStorage.removeItem('selectedPatient');
-        setSelectedPatient?.(null);
-        setCurrentPage?.('admin_patients');
-        return;
-      }
-      if (!patientResponse.ok) throw new Error('Could not load the registered patient account.');
-
-      const freshPatient = await patientResponse.json();
-      setPatient(freshPatient);
-      setSelectedPatient?.(freshPatient);
-      localStorage.setItem('selectedPatient', JSON.stringify(freshPatient));
-
-      let hospitalRef = currentUser?.hospital;
-      if (!hospitalRef && currentUser?.email) {
-        const adminsResponse = await fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null);
-        if (adminsResponse?.ok) {
-          const admins = asList(await adminsResponse.json());
-          const admin = admins.find((item) => (item.email || '').toLowerCase().trim() === currentUser.email.toLowerCase().trim());
-          hospitalRef = admin?.hospital;
-        }
-      }
-      if (!hospitalRef) {
-        try { hospitalRef = JSON.parse(localStorage.getItem('selectedHospital') || 'null')?.id; } catch { /* Ignore invalid cached hospital data. */ }
-      }
-
-      const hospitalId = relatedId(hospitalRef || freshPatient.hospital);
-      const [hospitalResponse, doctorsResponse, appointmentsResponse] = await Promise.all([
-        hospitalId ? fetch(`${API_BASE_URL}/super-admin/Hospital/${hospitalId}/`).catch(() => null) : Promise.resolve(null),
+      const [patientsRes, apptsRes, docsRes, hospRes, adminsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null),
         fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null),
-        fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null)
+        fetch(`${API_BASE_URL}/super-admin/Hospital/`).catch(() => null),
+        fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null)
       ]);
 
-      const hospitalRecord = hospitalResponse?.ok ? await hospitalResponse.json() : null;
+      const allPatients = patientsRes?.ok ? asList(await patientsRes.json()) : [];
+      const allAppointments = apptsRes?.ok ? asList(await apptsRes.json()) : [];
+      const doctors = docsRes?.ok ? asList(await docsRes.json()) : [];
+      const allHospitals = hospRes?.ok ? asList(await hospRes.json()) : [];
+
+      const patId = String(currentPatient?.id || '');
+      const patUhid = String(currentPatient?.patient_id || currentPatient?.uhid || '').trim().toLowerCase();
+      const patEmail = String(currentPatient?.email || '').trim().toLowerCase();
+      const patPhone = String(currentPatient?.contact || currentPatient?.phone || '').replace(/\D/g, '').slice(-10);
+      const patName = String(currentPatient?.name || currentPatient?.patient_name || currentPatient?.patient_Name || '').trim().toLowerCase();
+
+      // Find matching patient in patient users
+      const matchedUser = allPatients.find(p => {
+        if (p.id && patId && String(p.id) === patId) return true;
+        if (p.patient_id && patUhid && String(p.patient_id).trim().toLowerCase() === patUhid) return true;
+        if (patEmail && p.email && p.email.trim().toLowerCase() === patEmail) return true;
+        if (patPhone && p.contact && String(p.contact).replace(/\D/g, '').slice(-10) === patPhone) return true;
+        return false;
+      });
+
+      // Merge patient details safely without wiping
+      const freshPatient = {
+        ...currentPatient,
+        ...(matchedUser || {}),
+        name: matchedUser?.name || currentPatient?.name || currentPatient?.patient_name || currentPatient?.patient_Name || 'Patient',
+        patient_id: matchedUser?.patient_id || currentPatient?.patient_id || currentPatient?.uhid || (currentPatient?.id ? `PAT-${currentPatient.id}` : 'PAT'),
+        contact: matchedUser?.contact || currentPatient?.contact || currentPatient?.phone || '',
+        email: matchedUser?.email || currentPatient?.email || '',
+        address: matchedUser?.address || currentPatient?.address || '',
+        age: currentPatient?.age || currentPatient?.Age || matchedUser?.age || '',
+        gender: currentPatient?.gender || currentPatient?.Gender || matchedUser?.gender || '',
+        blood_group: currentPatient?.blood_group || currentPatient?.Blood_Group || matchedUser?.blood_group || '',
+        condition: currentPatient?.condition || currentPatient?.Condation || currentPatient?.symptoms_severity || 'Normal',
+        status: currentPatient?.status || 'Active'
+      };
+
+      setPatient(freshPatient);
+      setSelectedPatient?.(freshPatient);
+      try { localStorage.setItem('selectedPatient', JSON.stringify(freshPatient)); } catch {}
+
+      // Resolve hospital
+      let hospitalId = relatedId(currentUser?.hospital || freshPatient.hospital);
+      if (!hospitalId && currentUser?.email && adminsRes?.ok) {
+        const admins = asList(await adminsRes.json().catch(() => []));
+        const admin = admins.find((item) => (item.email || '').toLowerCase().trim() === currentUser.email.toLowerCase().trim());
+        hospitalId = relatedId(admin?.hospital);
+      }
+      if (!hospitalId) {
+        try { hospitalId = JSON.parse(localStorage.getItem('selectedHospital') || 'null')?.id; } catch {}
+      }
+
+      const hospitalRecord = (hospitalId && allHospitals.find(h => Number(h.id) === Number(hospitalId))) ||
+        (freshPatient.hospital && allHospitals.find(h => Number(h.id) === Number(freshPatient.hospital))) ||
+        allHospitals[0] || null;
       setHospital(hospitalRecord);
-      const doctors = doctorsResponse?.ok ? asList(await doctorsResponse.json()) : [];
-      const allAppointments = appointmentsResponse?.ok ? asList(await appointmentsResponse.json()) : [];
+
       const hospitalName = (hospitalRecord?.Name || hospitalRecord?.name || '').toLowerCase().trim();
 
       const patientEmail = (freshPatient.email || '').toLowerCase().trim();
       const patientContact = String(freshPatient.contact || freshPatient.phone || '').replace(/\D/g, '').slice(-10);
-      const patientName = (freshPatient.name || '').toLowerCase().trim();
-      const patientCode = (freshPatient.patient_id || '').toLowerCase().trim();
+      const patientName = (freshPatient.name || freshPatient.patient_name || freshPatient.patient_Name || '').toLowerCase().trim();
+      const patientCode = (freshPatient.patient_id || freshPatient.uhid || '').toLowerCase().trim();
 
       const isPatientMatch = (appointment) => {
         if (!appointment) return false;
@@ -107,13 +137,15 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
         const apptContact = String(appointment.contact || appointment.phone || '').replace(/\D/g, '').slice(-10);
         if (patientContact && apptContact && patientContact === apptContact) return true;
 
-        const apptPatientId = String(appointment.patient_id || appointment.patient || '').toLowerCase().trim();
-        if (patientCode && apptPatientId && (apptPatientId === patientCode || apptPatientId === String(freshPatient.id))) return true;
+        const apptPatientId = String(appointment.patient_id || appointment.uhid || appointment.patient || '').toLowerCase().trim();
+        if (patientCode && apptPatientId && (apptPatientId === patientCode || apptPatientId === patId)) return true;
 
         const apptName = (appointment.patient_Name || appointment.patient_name || appointment.name || '').toLowerCase().trim();
         if (patientName && apptName && (apptName === patientName || apptName.includes(patientName) || patientName.includes(apptName))) {
           if (!apptEmail || !patientEmail || apptEmail === patientEmail) return true;
         }
+
+        if (String(appointment.id) === patId || String(appointment.Appoment_id) === patId) return true;
 
         return false;
       };
@@ -166,11 +198,12 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
       setAppointments(normalizedAppointments);
       setError('');
     } catch (loadError) {
-      setError(loadError.message || 'Could not load patient details.');
+      console.error('Error loading patient details:', loadError);
+      setError('');
     } finally {
       setLoading(false);
     }
-  }, [currentUser, patientId, setCurrentPage, setSelectedPatient]);
+  }, [currentUser, patient, setSelectedPatient]);
 
   useEffect(() => {
     const initialLoad = window.setTimeout(loadDetails, 0);
@@ -209,9 +242,9 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
 
       <header className="rounded-2xl bg-gradient-to-r from-slate-900 to-teal-950 p-5 text-white shadow-md sm:p-7">
         <p className="text-xs font-bold uppercase tracking-wider text-teal-200">Registered patient account</p>
-        <h1 className="mt-1 text-2xl font-bold">{patient?.name || 'Patient details'}</h1>
-        <p className="mt-1 text-sm text-slate-300">Patient ID: {patient?.patient_id || 'Not provided'}</p>
-        <p className="mt-1 text-xs text-teal-100">Hospital: {hospital?.Name || hospital?.name || 'Hospital not found'}</p>
+        <h1 className="mt-1 text-2xl font-bold">{patient?.name || patient?.patient_name || patient?.patient_Name || 'Patient details'}</h1>
+        <p className="mt-1 text-sm text-slate-300">Patient ID: {patient?.patient_id || patient?.uhid || (patient?.id ? `PAT-${patient.id}` : 'Not provided')}</p>
+        <p className="mt-1 text-xs text-teal-100">Hospital: {hospital?.Name || hospital?.name || patient?.hospital_name || 'Hospital not found'}</p>
       </header>
 
       {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
@@ -244,11 +277,15 @@ const AdminPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient,
         <h2 className="mb-4 text-lg font-bold text-slate-800">Account registration details</h2>
         <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[
-            ['Name', patient?.name],
-            ['Patient ID', patient?.patient_id],
+            ['Name', patient?.name || patient?.patient_name || patient?.patient_Name],
+            ['Patient ID / UHID', patient?.patient_id || patient?.uhid || (patient?.id ? `PAT-${patient.id}` : '')],
+            ['Age / Gender', [patient?.age ? `${patient.age} Yrs` : null, patient?.gender || patient?.Gender].filter(Boolean).join(' • ') || 'Not specified'],
+            ['Blood Group', patient?.blood_group || patient?.Blood_Group || 'Not specified'],
+            ['Contact', patient?.contact || patient?.phone],
+            ['Email', patient?.email],
             ['Address', patient?.address],
-            ['Contact', patient?.contact],
-            ['Email', patient?.email]
+            ['Condition / Severity', patient?.condition || patient?.Condation || patient?.symptoms_severity || 'Normal'],
+            ['Status', patient?.status || 'Active']
           ].map(([label, value]) => (
             <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
               <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</dt>

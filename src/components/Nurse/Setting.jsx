@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
+// Helper to clean hospital name: strip suffixes like "International", "Branch", "Campus", etc.
+export const cleanHospitalName = (name) => {
+  if (!name || typeof name !== 'string') return '';
+  return name
+    .replace(/[\s,.-]+(international|intl\.?|branch|campus)[\s,.-]*$/i, '')
+    .trim();
+};
+
 const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHospital, setSelectedHospital }) => {
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
@@ -465,7 +473,7 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                   <div className="flex justify-between items-center py-1 text-slate-600">
                     <span className="text-slate-400">Hospital:</span>
                     <span className="font-bold text-emerald-900 truncate max-w-[140px]">
-                      {hospitalData?.Name || hospitalData?.name || 'Not Provided'}
+                      {cleanHospitalName(hospitalData?.Name || hospitalData?.name || 'Not Provided')}
                     </span>
                   </div>
                 </div>
@@ -696,7 +704,7 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                       </div>
                       <input
                         type="text"
-                        value={hospitalData?.Name || hospitalData?.name || nurseData?.hospital_name || currentUser?.hospital_name || 'Assigned Hospital'}
+                        value={cleanHospitalName(hospitalData?.Name || hospitalData?.name || nurseData?.hospital_name || currentUser?.hospital_name || 'Assigned Hospital')}
                         disabled
                         readOnly
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm font-semibold text-slate-700 cursor-not-allowed select-none"

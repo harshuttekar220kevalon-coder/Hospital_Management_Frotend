@@ -616,17 +616,17 @@ const NurseDashboard = ({ currentUser, setCurrentPage }) => {
                               ? 'bg-teal-100 text-teal-900 border border-teal-300' 
                               : 'bg-slate-100 text-slate-700 border border-slate-200'
                           }`}>
-                            {patientBed ? `Bed #${patientBed}` : 'Unassigned'}
+                            {patientBed ? `Bed #${patientBed}` : '-'}
                           </span>
                           <span className="text-[10px] text-slate-500 font-medium">{floorText}</span>
                         </div>
                       </td>
 
                       {/* 3. AGE / GENDER */}
-                      <td className="py-3 px-3">{p.age ? `${p.age} Y` : 'Adult'} / {p.Gender || p.gender || 'Not Specified'}</td>
+                      <td className="py-3 px-3">{p.age ? `${p.age} Y` : '-'} / {p.Gender || p.gender || '-'}</td>
 
                       {/* 4. CONDITION / DIAGNOSIS */}
-                      <td className="py-3 px-3 font-medium text-slate-700">{p.symptoms_diagnosis || p.reason || 'General Inpatient'}</td>
+                      <td className="py-3 px-3 font-medium text-slate-700">{p.symptoms_diagnosis || p.reason || '-'}</td>
 
                       {/* 5. HEALTH CARE (NURSE UPDATE ONLY) */}
                       <td className="py-3 px-3">

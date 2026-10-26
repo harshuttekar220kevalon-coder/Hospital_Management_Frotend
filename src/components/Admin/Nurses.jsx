@@ -454,25 +454,25 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
                   return (
                     <tr key={nurse.id} className="hover:bg-slate-50/70 transition">
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-bold text-slate-800 break-words">{nurse.name || 'Not Provided'}</div>
+                        <div className="font-bold text-slate-800 break-words">{nurse.name || '-'}</div>
                         <span className="font-mono text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
-                          {nurse.nurse_id || (nurse.id ? `NUR-${nurse.id}` : 'Not Provided')}
+                          {nurse.nurse_id || (nurse.id ? `NUR-${nurse.id}` : '-')}
                         </span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-semibold text-slate-800">{nurse.role || nurse.nurse_role || 'Not Provided'}</div>
-                        <span className="text-[11px] text-slate-500 block mt-0.5">{nurse.ward || 'Not Provided'}</span>
+                        <div className="font-semibold text-slate-800">{nurse.role || nurse.nurse_role || '-'}</div>
+                        <span className="text-[11px] text-slate-500 block mt-0.5">{nurse.ward || '-'}</span>
                       </td>
 
                       <td className="py-3.5 px-4 text-center font-medium text-slate-700">
-                        {nurse.shift || 'Not Provided'}
+                        {nurse.shift || '-'}
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-col items-center justify-center gap-0.5">
                           <span className="font-bold text-slate-800 text-xs">
-                            {nurse.contact || nurse.phone || 'Not Provided'}
+                            {nurse.contact || nurse.phone || '-'}
                           </span>
                           {emailLower ? (
                             <a
@@ -483,7 +483,7 @@ const AdminNurses = ({ currentUser, setCurrentPage, setSelectedNurse, setSelecte
                               {emailLower}
                             </a>
                           ) : (
-                            <span className="text-[11px] text-slate-400">Not Provided</span>
+                            <span className="text-[11px] text-slate-400 font-mono">-</span>
                           )}
                         </div>
                       </td>

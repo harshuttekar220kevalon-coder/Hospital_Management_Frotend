@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
+// Helper to clean hospital name: strip suffixes like "International", "Branch", "Campus", etc.
+export const cleanHospitalName = (name) => {
+  if (!name || typeof name !== 'string') return '';
+  return name
+    .replace(/[\s,.-]+(international|intl\.?|branch|campus)[\s,.-]*$/i, '')
+    .trim();
+};
+
 const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHospital, setSelectedHospital }) => {
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
@@ -394,7 +402,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                   <div className="flex justify-between items-center py-1 text-slate-600">
                     <span className="text-slate-400">Hospital:</span>
                     <span className="font-bold text-teal-900 truncate max-w-[140px]">
-                      {hospitalData?.Name || hospitalData?.name || 'Not Provided'}
+                      {cleanHospitalName(hospitalData?.Name || hospitalData?.name || 'Not Provided')}
                     </span>
                   </div>
                 </div>
@@ -403,7 +411,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
               {/* HOSPITAL CARD */}
               <div className="bg-gradient-to-br from-slate-900 to-teal-950 text-white rounded-2xl p-5 shadow-sm border border-slate-800">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-teal-400">Assigned Hospital</p>
-                <h4 className="text-base font-bold mt-1 text-slate-100">{hospitalData?.Name || hospitalData?.name || 'Not Provided'}</h4>
+                <h4 className="text-base font-bold mt-1 text-slate-100">{cleanHospitalName(hospitalData?.Name || hospitalData?.name || 'Not Provided')}</h4>
                 <p className="text-xs text-slate-300 mt-1">{hospitalData?.Address || hospitalData?.address || 'Not Provided'}</p>
                 <div className="mt-3 pt-3 border-t border-teal-800/60 flex items-center justify-between text-xs text-teal-200">
                   <span>Helpline:</span>
@@ -504,7 +512,7 @@ const AdminSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
                       </div>
                       <input
                         type="text"
-                        value={hospitalData?.Name || hospitalData?.name || (editFormData.hospital ? (hospitalsList.find(h => Number(h.id) === Number(editFormData.hospital))?.Name || hospitalsList.find(h => Number(h.id) === Number(editFormData.hospital))?.name) : '') || 'Assigned Hospital'}
+                        value={cleanHospitalName(hospitalData?.Name || hospitalData?.name || (editFormData.hospital ? (hospitalsList.find(h => Number(h.id) === Number(editFormData.hospital))?.Name || hospitalsList.find(h => Number(h.id) === Number(editFormData.hospital))?.name) : '') || 'Assigned Hospital')}
                         disabled
                         readOnly
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm font-semibold text-slate-700 cursor-not-allowed select-none"

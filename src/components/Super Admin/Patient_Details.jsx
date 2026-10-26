@@ -471,9 +471,11 @@ const Patient_Details = ({ currentUser, selectedPatient, setSelectedPatient, set
         Condation: bookFormData.condition || 'Normal',
         status: bookFormData.status || 'Pending',
         bed_number: parsedBed,
-        symptoms_diagnosis: bookFormData.symptoms_diagnosis.trim() || 'General Consultation',
-        reason_for_visit: bookFormData.symptoms_diagnosis.trim() || 'General Consultation',
-        visit_date_time: bookFormData.visit_date_time ? new Date(bookFormData.visit_date_time).toISOString() : new Date().toISOString()
+        Applied_at: new Date().toISOString(),
+        applied_at: new Date().toISOString(),
+        visit_date_time: new Date().toISOString(),
+        appointment_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`,
+        visit_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`
       };
 
       const res = await fetch(`${API_BASE_URL}/super-admin/appointments/`, {

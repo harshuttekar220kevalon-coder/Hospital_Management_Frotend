@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
+// Helper to clean hospital name: strip suffixes like "International", "Branch", "Campus", etc.
+export const cleanHospitalName = (name) => {
+  if (!name || typeof name !== 'string') return '';
+  return name
+    .replace(/[\s,.-]+(international|intl\.?|branch|campus)[\s,.-]*$/i, '')
+    .trim();
+};
+
 const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) => {
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
@@ -48,8 +56,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
     'Admission Receptionist',
     'Billing Receptionist',
     'Emergency Receptionist',
-    'General Receptionist',
-    'Receptionist'
+    'General Receptionist'
   ];
 
   const statusChoices = [
@@ -421,7 +428,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                   <div className="flex justify-between items-center py-1 text-slate-600">
                     <span className="text-slate-400">Hospital:</span>
                     <span className="font-bold text-sky-900 truncate max-w-[140px]">
-                      {hospitalData?.Name || hospitalData?.name || currentUser?.hospital_name || 'Hospital Reception'}
+                      {cleanHospitalName(hospitalData?.Name || hospitalData?.name || currentUser?.hospital_name || 'Hospital Reception')}
                     </span>
                   </div>
                 </div>
@@ -587,7 +594,7 @@ const ReceptionistSetting = ({ currentUser, setCurrentUser, setCurrentPage }) =>
                       </div>
                       <input
                         type="text"
-                        value={hospitalData?.Name || hospitalData?.name || (editFormData.hospital ? (hospitalsList.find(h => Number(h.id) === Number(editFormData.hospital))?.Name || hospitalsList.find(h => Number(h.id) === Number(editFormData.hospital))?.name) : '') || receptionistData?.hospital_name || currentUser?.hospital_name || 'Assigned Hospital'}
+                        value={cleanHospitalName(hospitalData?.Name || hospitalData?.name || (editFormData.hospital ? (hospitalsList.find(h => Number(h.id) === Number(editFormData.hospital))?.Name || hospitalsList.find(h => Number(h.id) === Number(editFormData.hospital))?.name) : '') || receptionistData?.hospital_name || currentUser?.hospital_name || 'Assigned Hospital')}
                         disabled
                         readOnly
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm font-semibold text-slate-700 cursor-not-allowed select-none"

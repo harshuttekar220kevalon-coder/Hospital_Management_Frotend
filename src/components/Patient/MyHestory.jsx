@@ -27,47 +27,65 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedHospitalFilter, setSelectedHospitalFilter] = useState('ALL');
 
-  const isDischargedStatus = (itemOrStatus, checkupStatus, paymentStatus) => {
+  const isBillingPaid = (item) => {
+    if (!item) return false;
+    const s = (item.status || item.Status || '').toString().toLowerCase().trim();
+    if (s.includes('cancel') || s.includes('reject')) return false;
+
+    const b = (item.payment_status || item.Payment_status || item.Payment_Status || item.billing_status || '').toString().toLowerCase().trim();
+    if (b === 'paid') return true;
+
+    const id = item.id || item.appointment_id || item.Appoment_id || item.appoment_id;
+    if (id && (localStorage.getItem(`receptionist_billed_${id}`) === 'true' || (item.Appoment_id && localStorage.getItem(`receptionist_billed_${item.Appoment_id}`) === 'true'))) {
+      return true;
+    }
+
+    const docFee = Number(item.consultation_fee ?? item.Consultation_Fee ?? item.consultancy_fee ?? 0);
+    const hospCharges = Number(item.hospitals_charges ?? item.Hospitals_Chargies ?? item.hospital_charges ?? 0);
+    const total = docFee + hospCharges;
+    const paid = Number(item.amount_paid ?? item.Amount_Paid ?? 0);
+    if (total > 0 && paid >= total) return true;
+
+    return false;
+  };
+
+  const isDischargedStatus = (itemOrStatus) => {
     let s = '';
-    let c = '';
-    let b = '';
+    let ds = '';
     if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
-      s = (itemOrStatus.status || itemOrStatus.discharge_status || '').toString().toLowerCase().trim();
-      c = (itemOrStatus.checkup_status || itemOrStatus.Checkup_status || '').toString().toLowerCase().trim();
-      b = (itemOrStatus.payment_status || itemOrStatus.Payment_status || itemOrStatus.billing_status || '').toString().toLowerCase().trim();
+      if (isBillingPaid(itemOrStatus)) return true;
+      s = (itemOrStatus.status || itemOrStatus.Status || '').toString().toLowerCase().trim();
+      ds = (itemOrStatus.discharge_status || itemOrStatus.Discharge_status || itemOrStatus.Discharge_Status || '').toString().toLowerCase().trim();
     } else {
       s = (itemOrStatus || '').toString().toLowerCase().trim();
-      c = (checkupStatus || '').toString().toLowerCase().trim();
-      b = (paymentStatus || '').toString().toLowerCase().trim();
     }
 
-    // If status is Pending or contains pending / unassign / admit / in progress -> NOT discharged
-    if (s.includes('pending') || s.includes('unassign') || s.includes('admit') || s.includes('progress') || s.includes('cancel') || s === '') {
+    // Never classify cancelled or rejected appointments as discharged
+    if (s.includes('cancel') || s.includes('reject')) {
       return false;
     }
 
-    // Must explicitly contain discharged or completed
-    if (!s.includes('discharg') && s !== 'completed') {
+    // Active stages (pending, in-consultation, active triage, admission) must NOT show in history unless billing paid
+    if (
+      s.includes('pending') ||
+      s.includes('unassign') ||
+      s.includes('admit') ||
+      s.includes('progress') ||
+      s.includes('consult') ||
+      s.includes('triage') ||
+      s === ''
+    ) {
       return false;
     }
 
-    // Checkup status must NOT be pending
-    if (c && (c.includes('pending') || c.includes('wait') || c === 'under checkup')) {
-      return false;
-    }
-
-    // Billing / Payment status must NOT be pending / unpaid
-    if (b && (b === 'pending' || b.includes('pending') || b === 'unpaid' || b === 'due')) {
-      return false;
-    }
-
-    return true;
+    // Must strictly be Discharged
+    return s === 'discharged' || s.includes('discharg') || ds === 'discharged' || ds.includes('discharg');
   };
 
   const isCancelledStatus = (itemOrStatus) => {
     let s = '';
     if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
-      s = (itemOrStatus.status || '').toString().toLowerCase().trim();
+      s = (itemOrStatus.status || itemOrStatus.Status || '').toString().toLowerCase().trim();
     } else {
       s = (itemOrStatus || '').toString().toLowerCase().trim();
     }
@@ -77,10 +95,17 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
   const loadHistoryData = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      const email = (currentUser?.email || '').toLowerCase().trim();
-      const patId = currentUser?.id;
-      const patPhone = (currentUser?.contact || currentUser?.phone || '').replace(/\D/g, '');
-      const userUhid = (currentUser?.patient_id || currentUser?.uhid || '').toLowerCase().trim();
+      let activeUser = currentUser || {};
+      try {
+        const storedUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+        activeUser = { ...storedUser, ...activeUser };
+      } catch (e) {}
+
+      const email = (activeUser?.email || '').toLowerCase().trim();
+      const patId = activeUser?.id;
+      const patPhone = (activeUser?.contact || activeUser?.phone || '').replace(/\D/g, '');
+      const userUhid = (activeUser?.patient_id || activeUser?.uhid || '').toLowerCase().trim();
+      const userName = (activeUser?.name || activeUser?.patient_name || '').toLowerCase().trim();
 
       // 1. Fetch metadata (Patients, Doctors, Hospitals) in parallel
       const [patRes, docRes, hospRes] = await Promise.allSettled([
@@ -97,7 +122,10 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
           if (email) foundPatientRecord = patsArr.find(p => (p.email || '').toLowerCase().trim() === email);
           if (!foundPatientRecord && userUhid) foundPatientRecord = patsArr.find(p => (p.patient_id || p.uhid || '').toLowerCase().trim() === userUhid);
           if (!foundPatientRecord && patId && !isNaN(Number(patId)) && Number(patId) > 0) foundPatientRecord = patsArr.find(p => Number(p.id) === Number(patId));
-          if (!foundPatientRecord && patPhone && patPhone.length >= 10) foundPatientRecord = patsArr.find(p => (p.contact || p.phone || '').replace(/\D/g, '') === patPhone);
+          if (!foundPatientRecord && patPhone && patPhone.length >= 10) foundPatientRecord = patsArr.find(p => (p.contact || p.phone || '').replace(/\D/g, '').slice(-10) === patPhone.slice(-10));
+          if (!foundPatientRecord && userName && userName.length > 1) {
+            foundPatientRecord = patsArr.find(p => (p.name || p.patient_name || '').toLowerCase().trim() === userName);
+          }
         }
       }
 
@@ -115,7 +143,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
         setHospitalsList(hosps);
       }
 
-      setPatientProfile(foundPatientRecord || currentUser);
+      setPatientProfile(foundPatientRecord || activeUser);
 
       // 2. Fetch all appointments from backend
       let rawAppointments = [];
@@ -131,6 +159,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
       const patientUhid = (foundPatientRecord?.patient_id || foundPatientRecord?.uhid || userUhid || '').toLowerCase().trim();
       const patientEmail = (foundPatientRecord?.email || email || '').toLowerCase().trim();
       const patientPhone = (foundPatientRecord?.contact || foundPatientRecord?.phone || patPhone || '').replace(/\D/g, '');
+      const patientFullName = (foundPatientRecord?.name || foundPatientRecord?.patient_name || userName || '').toLowerCase().trim();
 
       // 3. Filter all appointments belonging to this patient
       const userAppointments = rawAppointments.filter(a => {
@@ -139,12 +168,14 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
         const aContact = (a.contact || a.phone || (typeof a.patient === 'object' ? a.patient?.contact : '') || '').replace(/\D/g, '');
         const aUhid = (a.patient_id || a.uhid || (typeof a.patient === 'object' ? a.patient?.patient_id : '') || '').toLowerCase().trim();
         const aApptId = String(a.Appoment_id || a.appoment_id || a.id || '').toLowerCase().trim();
+        const aName = (a.patient_name || a.patient_Name || a.name || '').toLowerCase().trim();
 
         if (patientEmail && aEmail && aEmail === patientEmail) return true;
         if (patientUhid && aUhid && aUhid === patientUhid) return true;
         if (patientUhid && aApptId && (patientUhid === aApptId || patientUhid === `apt-${aApptId}` || patientUhid === `apt${aApptId}`)) return true;
         if (patientPk && aPatId && Number(aPatId) === Number(patientPk)) return true;
-        if (patientPhone && patientPhone.length >= 10 && aContact && aContact === patientPhone) return true;
+        if (patientPhone && patientPhone.length >= 10 && aContact && (patientPhone.slice(-10) === aContact.slice(-10))) return true;
+        if (patientFullName && aName && patientFullName === aName && patientPhone && aContact && (patientPhone.slice(-10) === aContact.slice(-10))) return true;
 
         return false;
       });
@@ -174,7 +205,24 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
         } catch (e) {}
       }
 
-      const combinedAppts = [...userAppointments];
+      // Merge backend and local appointments safely so appointments booked from account are fully included
+      const combinedApptsMap = new Map();
+      userAppointments.forEach(a => {
+        const key = String(a.id || a.Appoment_id || a.appoment_id || a.appointment_id);
+        combinedApptsMap.set(key, a);
+      });
+
+      localAppts.forEach(la => {
+        const key = String(la.id || la.Appoment_id || la.appoment_id || la.appointment_id);
+        if (combinedApptsMap.has(key)) {
+          const existing = combinedApptsMap.get(key);
+          combinedApptsMap.set(key, { ...la, ...existing });
+        } else if (backendIds.has(key) || !rawAppointments.length) {
+          combinedApptsMap.set(key, la);
+        }
+      });
+
+      const combinedAppts = Array.from(combinedApptsMap.values());
 
       // Helper to format ISO date and time
       const formatCustomDateTime = (rawIsoOrDate, rawTime) => {
@@ -219,6 +267,19 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
         const paid = isCancelled ? 0 : Number(item.amount_paid ?? item.Amount_Paid ?? (item.payment_status === 'Paid' ? total : 0));
         const due = Math.max(0, total - paid);
 
+        // 1. Applied At (Exact booking timestamp when patient booked from their account)
+        const rawAppliedAt = item.Applied_at || item.applied_at || item.created_at || null;
+        const formattedAppliedAt = rawAppliedAt ? formatCustomDateTime(rawAppliedAt) : '-';
+
+        // 2. Visit Date & Time (Set by receptionist upon doctor assignment)
+        const rawVisitDateTime = item.visit_date_time || null;
+        let formattedVisitDateTime = '-';
+        if (rawVisitDateTime) {
+          formattedVisitDateTime = formatCustomDateTime(rawVisitDateTime);
+        } else if (item.appointment_date) {
+          formattedVisitDateTime = formatCustomDateTime(item.appointment_date, item.appointment_time);
+        }
+
         // Booking / Visit Date & Time from backend
         const rawBookingDate = item.appointment_date || item.visit_date_time || item.created_at || null;
         const rawBookingTime = item.appointment_time || (item.visit_date_time ? new Date(item.visit_date_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : null);
@@ -231,6 +292,11 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
 
         // Proper separation of Patient ID vs Appointment ID
         const resolvedPatUhid = foundPatientRecord?.patient_id || foundPatientRecord?.uhid || item.patient_uhid || (typeof item.patient_id === 'string' && !item.patient_id.startsWith('APT-') ? item.patient_id : null) || item.uhid || (typeof item.patient === 'object' ? (item.patient?.patient_id || item.patient?.uhid || (item.patient?.id ? `PAT-${item.patient.id}` : '')) : (item.patient ? `PAT-${item.patient}` : '')) || (foundPatientRecord?.id ? `PAT-${foundPatientRecord.id}` : (currentUser?.id ? `PAT-${currentUser.id}` : '-'));
+
+        const isExplicitBilled = localStorage.getItem(`receptionist_billed_${id}`) === 'true' || localStorage.getItem(`receptionist_billed_${apptId}`) === 'true';
+        const isBilledPaid = ((item.payment_status || item.Payment_status || item.billing_status || '').toString().toLowerCase().trim() === 'paid') || isExplicitBilled || (!isCancelled && paid >= total && total > 0);
+        const resolvedDischargeDt = rawDischargeDateTime || (isBilledPaid ? (item.settled_at || item.visit_date_time || item.appointment_date || new Date().toISOString()) : null);
+        const finalFormattedDischargeDt = formattedDischargeDateTime !== '-' ? formattedDischargeDateTime : (resolvedDischargeDt ? formatCustomDateTime(resolvedDischargeDt) : '-');
 
         return {
           ...item,
@@ -253,21 +319,25 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
           consultation_fee: docFee,
           hospitals_charges: hospCharge,
           total_bill: total,
-          amount_paid: paid,
-          due_balance: due,
-          payment_status: ((item.payment_status || item.Payment_status || item.billing_status || '').toString().toLowerCase().trim() === 'paid' || (!isCancelled && paid >= total && total > 0)) ? 'Paid' : 'Pending',
+          amount_paid: isBilledPaid && paid === 0 && total > 0 ? total : paid,
+          due_balance: isBilledPaid ? 0 : due,
+          payment_status: isBilledPaid ? 'Paid' : 'Pending',
           payment_method: item.payment_method || 'Cash',
           bed_number: item.bed_number ? Number(item.bed_number) : null,
           floor: item.bed_number ? `Floor ${Math.floor((Number(item.bed_number) - 1) / 100) + 1}` : '-',
+          applied_at: rawAppliedAt,
+          applied_at_formatted: formattedAppliedAt,
+          visit_date_time: rawVisitDateTime,
+          visit_date_time_formatted: formattedVisitDateTime,
           visit_date_formatted: formattedVisitDate,
           visit_time_formatted: formattedVisitTime,
           symptoms: item.symptoms_diagnosis || item.reason_for_visit || item.symptoms || '-',
           condition_severity: item.condition || item.Condation || 'Normal',
-          Discharge_DateTime: rawDischargeDateTime,
-          discharge_date: rawDischargeDateTime,
-          discharge_datetime_formatted: formattedDischargeDateTime,
+          Discharge_DateTime: resolvedDischargeDt,
+          discharge_date: resolvedDischargeDt,
+          discharge_datetime_formatted: finalFormattedDischargeDt,
           is_cancelled: isCancelled,
-          status: isCancelled ? 'Cancelled' : (item.status || 'Discharged')
+          status: isCancelled ? 'Cancelled' : ((item.status && item.status !== 'Pending') ? item.status : 'Discharged')
         };
       });
 
@@ -705,7 +775,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                     <th className="py-3.5 px-4">Appointment ID</th>
                     <th className="py-3.5 px-4">Doctor & Specialization</th>
                     <th className="py-3.5 px-4">Hospital</th>
-                    <th className="py-3.5 px-4">Visit Date & Time</th>
+                    <th className="py-3.5 px-4">Applied & Visit Schedule</th>
                     <th className="py-3.5 px-4">Chief Symptoms / Diagnosis</th>
                     <th className="py-3.5 px-4">Ward / Bed</th>
                     <th className="py-3.5 px-4 text-center">Bill Status</th>
@@ -746,10 +816,32 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                           </div>
                         </td>
 
-                        {/* 4. Visit Date & Time */}
+                        {/* 4. Applied At & Visit Date/Time */}
                         <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="font-semibold text-slate-800">{item.visit_date_formatted}</div>
-                          <div className="text-[11px] text-slate-500">🕒 {item.visit_time_formatted}</div>
+                          {item.visit_date_time_formatted && item.visit_date_time_formatted !== '-' ? (
+                            <div>
+                              <div className="font-semibold text-slate-800">
+                                📅 {item.visit_date_time_formatted}
+                              </div>
+                              <div className="text-[10px] text-teal-700 font-medium mt-0.5">
+                                Visit Scheduled
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="font-semibold text-slate-800">
+                                {item.visit_date_formatted}
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                🕒 {item.visit_time_formatted}
+                              </div>
+                            </div>
+                          )}
+                          {item.applied_at_formatted && item.applied_at_formatted !== '-' && (
+                            <div className="text-[10px] text-slate-400 mt-1">
+                              Applied: {item.applied_at_formatted}
+                            </div>
+                          )}
                         </td>
 
                         {/* 5. Diagnosis / Symptoms */}
@@ -766,7 +858,9 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                               Bed #{item.bed_number}
                             </span>
                           ) : (
-                            <span className="text-slate-500 text-[11px]">OPD / Daycare</span>
+                            <span className="text-slate-500 text-[11px]">
+                              {String(item.status || '').toLowerCase().includes('not need') ? 'No Need (OPD)' : 'OPD / Daycare'}
+                            </span>
                           )}
                         </td>
 
@@ -834,8 +928,78 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
 
       {/* FULL JOURNEY DETAILS POPUP MODAL */}
       {isDetailsModalOpen && selectedRecord && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-3xl w-full p-5 sm:p-7 space-y-5 my-auto animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
+        <div id="history-journey-modal-overlay" className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          {/* PRINT-ONLY ISOLATION & VERTICAL CENTERING CSS RULES */}
+          <style>{`
+            @media print {
+              @page {
+                size: A4 portrait;
+                margin: 0mm;
+              }
+              html, body {
+                background: #ffffff !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                min-height: 100vh !important;
+                max-height: 100vh !important;
+                overflow: hidden !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              body * {
+                visibility: hidden !important;
+              }
+              #history-journey-modal-card,
+              #history-journey-modal-card * {
+                visibility: visible !important;
+              }
+              #history-journey-modal-card {
+                position: fixed !important;
+                left: 50% !important;
+                top: 50% !important;
+                transform: translate(-50%, -50%) !important;
+                width: 90% !important;
+                max-width: 720px !important;
+                margin: 0 !important;
+                padding: 24px 28px !important;
+                border: 2px solid #0f172a !important;
+                border-radius: 16px !important;
+                background: #ffffff !important;
+                box-shadow: none !important;
+                z-index: 99999999 !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+              }
+              #history-journey-modal-overlay {
+                background: transparent !important;
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+              }
+              button,
+              button *,
+              nav,
+              header,
+              footer,
+              aside,
+              .print\\:hidden,
+              .print\\:hidden *,
+              .no-print,
+              #history-modal-actions,
+              #history-modal-actions * {
+                display: none !important;
+                visibility: hidden !important;
+                height: 0 !important;
+                width: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+              }
+            }
+          `}</style>
+          <div id="history-journey-modal-card" className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-3xl w-full p-5 sm:p-7 space-y-5 my-auto animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
             {/* MODAL HEADER */}
             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
               <div>
@@ -866,7 +1030,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
               <button
                 type="button"
                 onClick={handleCloseDetails}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center transition cursor-pointer text-sm shrink-0"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center transition cursor-pointer text-sm shrink-0 print:hidden"
                 title="Close"
               >
                 ✕
@@ -884,20 +1048,21 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                   <span className="w-5 h-5 rounded-full bg-teal-600 text-white font-bold text-[10px] flex items-center justify-center mb-1.5">
                     1
                   </span>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Initial Booking</p>
-                  <p className="font-bold text-slate-900 text-xs mt-0.5">{selectedRecord.visit_date_formatted || '-'}</p>
-                  <p className="text-[11px] text-slate-500">{selectedRecord.visit_time_formatted && selectedRecord.visit_time_formatted !== '-' ? selectedRecord.visit_time_formatted : ''}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Applied At (Booking)</p>
+                  <p className="font-bold text-slate-900 text-xs mt-0.5">{selectedRecord.applied_at_formatted && selectedRecord.applied_at_formatted !== '-' ? selectedRecord.applied_at_formatted : selectedRecord.visit_date_formatted || '-'}</p>
                   <p className="text-[10px] font-mono text-teal-700 font-semibold mt-0.5">ID: {selectedRecord.tracking_id}</p>
                 </div>
 
-                {/* 2. Doctor Care */}
+                {/* 2. Doctor Care & Visit Time */}
                 <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs">
                   <span className="w-5 h-5 rounded-full bg-teal-600 text-white font-bold text-[10px] flex items-center justify-center mb-1.5">
                     2
                   </span>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Doctor Care</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Doctor & Visit Schedule</p>
                   <p className="font-bold text-slate-900 text-xs mt-0.5">{selectedRecord.doctor_name || '-'}</p>
-                  <p className="text-[11px] text-slate-500">{selectedRecord.doctor_specialization || '-'}</p>
+                  <p className="text-[11px] text-teal-700 font-medium">
+                    {selectedRecord.visit_date_time_formatted && selectedRecord.visit_date_time_formatted !== '-' ? `🕒 ${selectedRecord.visit_date_time_formatted}` : `🕒 ${selectedRecord.visit_date_formatted || ''}`}
+                  </p>
                 </div>
 
                 {/* 3. Ward/Bed */}
@@ -973,6 +1138,14 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
                   <div className="col-span-2">
                     <span className="text-slate-400 text-[10px]">Contact Phone / Email:</span>
                     <p className="font-semibold text-slate-800">{selectedRecord.contact || selectedRecord.phone || '-'} • {selectedRecord.email || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px]">Applied At (Booking):</span>
+                    <p className="font-semibold text-slate-800">{selectedRecord.applied_at_formatted || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px]">Hospital Visit Date & Time:</span>
+                    <p className="font-semibold text-teal-700">{selectedRecord.visit_date_time_formatted || '-'}</p>
                   </div>
                 </div>
               </div>
@@ -1058,7 +1231,7 @@ const MyHestory = ({ currentUser, setCurrentPage, isLoggedIn = true, onLogout })
             </div>
 
             {/* MODAL FOOTER ACTIONS */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
+            <div id="history-modal-actions" className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 print:hidden">
               <button
                 type="button"
                 onClick={handleCloseDetails}

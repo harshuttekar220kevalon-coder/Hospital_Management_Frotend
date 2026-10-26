@@ -96,11 +96,12 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
           }
 
           // 3. Fetch Doctors assigned to this hospital
+          let branchDocs = [];
           const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
           if (docRes && docRes.ok) {
             const rawDocs = await docRes.json();
             const allDocs = extractArray(rawDocs);
-            const branchDocs = allDocs.filter(d => {
+            branchDocs = allDocs.filter(d => {
               if (Array.isArray(d.hospitals)) {
                 return d.hospitals.some(h => {
                   const id = typeof h === 'object' && h !== null ? h.id : h;
@@ -160,17 +161,123 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
             setDepartmentsList([]);
           }
 
-          // 7. Fetch Patients for this Hospital Branch
-          const patRes = await fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null);
+          // 7. Fetch Patients & Visits for this Hospital Branch
+          const [patRes, apptRes] = await Promise.all([
+            fetch(`${API_BASE_URL}/super-admin/Patients/`).catch(() => null),
+            fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null)
+          ]);
+
+          let rawPats = [];
           if (patRes && patRes.ok) {
-            const rawPats = await patRes.json();
-            const allPats = extractArray(rawPats);
-            const branchPats = allPats.filter(p => {
-              const hospId = typeof p.hospital === 'object' && p.hospital !== null ? p.hospital.id : p.hospital;
-              return Number(hospId) === Number(selectedHospital.id);
-            });
-            setPatientsList(branchPats);
+            const rawPatsData = await patRes.json().catch(() => []);
+            rawPats = extractArray(rawPatsData);
           }
+
+          let rawAppts = [];
+          if (apptRes && apptRes.ok) {
+            const rawApptsData = await apptRes.json().catch(() => []);
+            rawAppts = extractArray(rawApptsData);
+          }
+
+          const targetHospId = Number(selectedHospital.id);
+          const targetHospName = (selectedHospital.Name || selectedHospital.name || '').toLowerCase().trim();
+
+          const branchDocIdSet = new Set(
+            (branchDocs || []).map(d => Number(d.id)).filter(id => !isNaN(id) && id > 0)
+          );
+
+          const getCleanPhone = (ph) => {
+            const digits = String(ph || '').replace(/\D/g, '');
+            return digits.length >= 10 ? digits.slice(-10) : digits;
+          };
+
+          const accountByEmail = new Map();
+          const accountByPhone = new Map();
+          const accountByName = new Map();
+          rawPats.forEach(p => {
+            if (p.email) accountByEmail.set(String(p.email).toLowerCase().trim(), p);
+            const ph = getCleanPhone(p.contact || p.phone);
+            if (ph) accountByPhone.set(ph, p);
+            if (p.name) accountByName.set(String(p.name).toLowerCase().trim(), p);
+          });
+
+          const branchAppointments = rawAppts.filter(a => {
+            if (!a) return false;
+            const aHosp = a.hospital ?? a.hospital_id;
+            const aHospId = typeof aHosp === 'object' && aHosp !== null ? aHosp.id : aHosp;
+            if (aHospId && Number(aHospId) === targetHospId) return true;
+
+            const aHospName = a.hospital_name || (typeof aHosp === 'object' ? (aHosp?.Name || aHosp?.name) : '');
+            if (targetHospName && aHospName && String(aHospName).toLowerCase().trim() === targetHospName) return true;
+
+            const docId = Number(typeof a.doctor === 'object' && a.doctor !== null ? a.doctor.id : a.doctor);
+            if (docId && branchDocIdSet.has(docId)) return true;
+
+            return false;
+          });
+
+          const branchPatsMap = new Map();
+
+          branchAppointments.forEach(a => {
+            const emailKey = (a.email || '').toLowerCase().trim();
+            const phoneKey = getCleanPhone(a.contact || a.phone);
+            const nameKey = (a.patient_Name || a.patient_name || a.name || '').toLowerCase().trim();
+
+            const matchedPat = (emailKey && accountByEmail.get(emailKey)) ||
+                               (phoneKey && accountByPhone.get(phoneKey)) ||
+                               (nameKey && accountByName.get(nameKey)) || null;
+
+            const pName = matchedPat?.name || a.patient_Name || a.patient_name || a.name || 'Patient';
+            const pId = matchedPat?.patient_id || matchedPat?.uhid || a.patient_uhid || a.patient_id || (a.Appoment_id ? `APT-${a.Appoment_id}` : `PAT-${a.id}`);
+            const uniqueKey = emailKey || phoneKey || (matchedPat ? `pat_${matchedPat.id}` : `appt_${a.id}`);
+
+            if (!branchPatsMap.has(uniqueKey)) {
+              branchPatsMap.set(uniqueKey, {
+                id: matchedPat?.id || a.id,
+                appointment_id: a.id || a.Appoment_id,
+                name: pName,
+                patient_name: pName,
+                patient_Name: pName,
+                patient_id: pId,
+                uhid: pId,
+                contact: matchedPat?.contact || matchedPat?.phone || a.contact || a.phone || '-',
+                phone: matchedPat?.contact || matchedPat?.phone || a.contact || a.phone || '-',
+                email: matchedPat?.email || a.email || '',
+                status: a.status || matchedPat?.status || 'Confirmed',
+                condition: a.condition || a.Condation || matchedPat?.condition || 'Normal',
+                visit_date_time: a.visit_date_time || a.Applied_at || null,
+                address: matchedPat?.address || a.address || ''
+              });
+            }
+          });
+
+          rawPats.forEach(p => {
+            const hospId = typeof p.hospital === 'object' && p.hospital !== null ? p.hospital.id : p.hospital;
+            if (hospId && Number(hospId) === targetHospId) {
+              const emailKey = (p.email || '').toLowerCase().trim();
+              const phoneKey = getCleanPhone(p.contact || p.phone);
+              const uniqueKey = emailKey || phoneKey || `pat_${p.id}`;
+              if (!branchPatsMap.has(uniqueKey)) {
+                branchPatsMap.set(uniqueKey, {
+                  id: p.id,
+                  name: p.name || 'Patient',
+                  patient_name: p.name || 'Patient',
+                  patient_Name: p.name || 'Patient',
+                  patient_id: p.patient_id || p.uhid || `PAT-${p.id}`,
+                  uhid: p.uhid || p.patient_id,
+                  contact: p.contact || p.phone || '-',
+                  phone: p.contact || p.phone || '-',
+                  email: p.email || '',
+                  status: p.status || 'Active',
+                  condition: p.condition || 'Normal',
+                  visit_date_time: p.visit_date_time || p.created_at || null,
+                  address: p.address || ''
+                });
+              }
+            }
+          });
+
+          setPatientsList(Array.from(branchPatsMap.values()));
 
         } catch (error) {
           console.error('Error fetching branch details:', error);
@@ -428,7 +535,9 @@ const Hospital_Details = ({ currentUser, selectedHospital, setSelectedHospital, 
   const filteredReceptionists = receptionistsList;
   const filteredPatients = patientsList.filter(pat => {
     return (pat.name || '').toLowerCase().includes(patientSearch.toLowerCase()) ||
-      (pat.patient_id || pat.uhid || '').toLowerCase().includes(patientSearch.toLowerCase());
+      (pat.patient_id || pat.uhid || '').toLowerCase().includes(patientSearch.toLowerCase()) ||
+      (pat.contact || pat.phone || '').toLowerCase().includes(patientSearch.toLowerCase()) ||
+      (pat.email || '').toLowerCase().includes(patientSearch.toLowerCase());
   });
 
   const filteredDepts = departmentsList.filter(dept => {

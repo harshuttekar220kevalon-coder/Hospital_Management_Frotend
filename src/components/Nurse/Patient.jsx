@@ -862,7 +862,7 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
                       {/* 1. PATIENT NAME & APPOINTMENT ID */}
                       <td className="py-3 px-3">
                         <div className="font-bold text-slate-800 text-sm">
-                          {patient.patient_name || patient.patient_Name || patient.name || 'Patient'}
+                          {patient.patient_name || patient.patient_Name || patient.name || '-'}
                         </div>
                         <div className="font-mono text-[10px] text-teal-700 font-bold">
                           {formatAppointmentId(patient)}
@@ -875,9 +875,9 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
                           <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${
                             patientBed 
                               ? 'bg-teal-100 text-teal-900 border border-teal-300' 
-                              : 'bg-rose-50 text-rose-700 border border-rose-200'
+                              : 'bg-slate-100 text-slate-600 border border-slate-200'
                           }`}>
-                            {patientBed ? `Bed #${patientBed}` : 'Unassigned'}
+                            {patientBed ? `Bed #${patientBed}` : '-'}
                           </span>
                           <span className="text-[10px] text-slate-500 font-sans font-medium">{floorText}</span>
                         </div>
@@ -885,7 +885,7 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
 
                       {/* 3. AGE / GENDER */}
                       <td className="py-3 px-3 font-medium text-slate-700">
-                        {patient.age ? `${patient.age} Yrs` : 'Adult'} • {patient.Gender || patient.gender || 'Not Specified'}
+                        {patient.age ? `${patient.age} Yrs` : '-'} • {patient.Gender || patient.gender || '-'}
                       </td>
 
                       {/* 4. CONDITION & TRIAGE */}

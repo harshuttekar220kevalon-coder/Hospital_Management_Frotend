@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
+// Helper to clean hospital name: strip suffixes like "International", "Branch", "Campus", etc.
+export const cleanHospitalName = (name) => {
+  if (!name || typeof name !== 'string') return '';
+  return name
+    .replace(/[\s,.-]+(international|intl\.?|branch|campus)[\s,.-]*$/i, '')
+    .trim();
+};
+
 const DoctorSettings = ({
   currentUser,
   setCurrentUser,
@@ -15,11 +23,13 @@ const DoctorSettings = ({
   const [hospitalsList, setHospitalsList] = useState([]);
   const [hospitalData, setHospitalData] = useState(null);
 
-  // Dynamic backend lists for Specialization & Department
-  const [backendSpecializations, setBackendSpecializations] = useState([]);
-  const [backendDepartments, setBackendDepartments] = useState([]);
-  const [isCustomSpec, setIsCustomSpec] = useState(false);
-  const [isCustomDept, setIsCustomDept] = useState(false);
+  // Custom & Unlimited Specializations state (100% free/custom input by doctor, independent of hospital/departments)
+  const [selectedSpecializations, setSelectedSpecializations] = useState([]);
+  const [customSpecInput, setCustomSpecInput] = useState('');
+
+  // Hospital-Specific Department Multi-Select state (strictly from selected hospital backend)
+  const [selectedDepartments, setSelectedDepartments] = useState([]);
+  const [departmentSearch, setDepartmentSearch] = useState('');
 
   // Complete Doctor Model Form State
   const [editFormData, setEditFormData] = useState({
@@ -66,91 +76,26 @@ const DoctorSettings = ({
     'Evening Third Shift'
   ];
 
-  // Helper to extract unique departments from backend data
-  const extractDepartmentsFromBackend = (hospitals, doctors, extraDepts = []) => {
-    const deptSet = new Set();
-
-    if (Array.isArray(extraDepts)) {
-      extraDepts.forEach(d => {
-        const name = typeof d === 'string' ? d : (d.name || d.department_name || d.title || '');
-        if (name && name.trim()) deptSet.add(name.trim());
-      });
+  // Helper to parse comma/semicolon/array values into clean string array
+  const parseList = (val) => {
+    if (!val) return [];
+    if (Array.isArray(val)) {
+      return val
+        .map(item => typeof item === 'string' ? item.trim() : (item?.name || item?.department_name || item?.specialization_name || item?.title || ''))
+        .filter(Boolean);
     }
-
-    if (Array.isArray(hospitals)) {
-      hospitals.forEach(h => {
-        const raw = h.departments || h.department;
-        if (Array.isArray(raw)) {
-          raw.forEach(d => {
-            const name = typeof d === 'string' ? d : (d.name || '');
-            if (name && name.trim()) deptSet.add(name.trim());
-          });
-        } else if (typeof raw === 'string' && raw.trim()) {
-          raw.split(',').forEach(d => {
-            const name = d.trim();
-            if (name) deptSet.add(name);
-          });
-        }
-      });
-    }
-
-    if (Array.isArray(doctors)) {
-      doctors.forEach(doc => {
-        if (doc.department && typeof doc.department === 'string' && doc.department.trim()) {
-          deptSet.add(doc.department.trim());
-        }
-      });
-    }
-
-    if (deptSet.size === 0) {
-      ['General Medicine', 'Cardiology', 'Neurology', 'Orthopedics', 'Pediatrics', 'General Surgery', 'Gynecology', 'Emergency / OPD'].forEach(d => deptSet.add(d));
-    }
-
-    return Array.from(deptSet).sort();
+    return String(val)
+      .split(/[,;\n]+/)
+      .map(s => s.trim().replace(/^['"\[\]]+|['"\[\]]+$/g, '').trim())
+      .filter(Boolean);
   };
 
-  // Helper to extract unique specializations from backend data
-  const extractSpecializationsFromBackend = (doctors, hospitals, extraSpecs = []) => {
-    const specSet = new Set();
-
-    if (Array.isArray(extraSpecs)) {
-      extraSpecs.forEach(s => {
-        const name = typeof s === 'string' ? s : (s.name || s.specialization_name || s.title || '');
-        if (name && name.trim()) specSet.add(name.trim());
-      });
-    }
-
-    if (Array.isArray(doctors)) {
-      doctors.forEach(doc => {
-        const s = doc.specialization || doc.specialty;
-        if (s && typeof s === 'string' && s.trim()) {
-          specSet.add(s.trim());
-        }
-      });
-    }
-
-    if (Array.isArray(hospitals)) {
-      hospitals.forEach(h => {
-        const raw = h.departments || h.department;
-        if (typeof raw === 'string' && raw.trim()) {
-          raw.split(',').forEach(d => {
-            const name = d.trim();
-            if (name) specSet.add(name);
-          });
-        } else if (Array.isArray(raw)) {
-          raw.forEach(d => {
-            const name = typeof d === 'string' ? d : (d.name || '');
-            if (name && name.trim()) specSet.add(name.trim());
-          });
-        }
-      });
-    }
-
-    if (specSet.size === 0) {
-      ['General Medicine', 'Cardiology', 'Neurology', 'Orthopedics', 'Pediatrics', 'Dermatology', 'Gynecology', 'Oncology', 'Psychiatry', 'General Surgery'].forEach(s => specSet.add(s));
-    }
-
-    return Array.from(specSet).sort();
+  // Helper to extract departments ONLY from the doctor's selected hospital
+  const getHospitalDepartments = (hospital) => {
+    if (!hospital) return [];
+    const raw = hospital.departments || hospital.department || '';
+    const list = parseList(raw);
+    return Array.from(new Set(list)).sort();
   };
 
   const fetchDoctorProfile = async () => {
@@ -190,50 +135,56 @@ const DoctorSettings = ({
         console.error('Error fetching doctor record:', e);
       }
 
-      // 3. Attempt direct backend departments & specializations endpoints if available
-      let directDepts = [];
-      let directSpecs = [];
-      try {
-        const deptRes = await fetch(`${API_BASE_URL}/super-admin/departments/`).catch(() => null)
-          || await fetch(`${API_BASE_URL}/super-admin/Department/`).catch(() => null);
-        if (deptRes && deptRes.ok) {
-          directDepts = await deptRes.json().catch(() => []);
-        }
-      } catch (e) {}
-
-      try {
-        const specRes = await fetch(`${API_BASE_URL}/super-admin/specializations/`).catch(() => null)
-          || await fetch(`${API_BASE_URL}/super-admin/Specialization/`).catch(() => null);
-        if (specRes && specRes.ok) {
-          directSpecs = await specRes.json().catch(() => []);
-        }
-      } catch (e) {}
-
-      // Extract dynamic backend lists
-      let extractedDepts = extractDepartmentsFromBackend(loadedHospitals, allDocs, directDepts);
-      let extractedSpecs = extractSpecializationsFromBackend(allDocs, loadedHospitals, directSpecs);
-
       const activeDoctor = matchedDoctor || currentUser || {};
       setDoctorData(activeDoctor);
 
-      const currentSpec = activeDoctor.specialization || currentUser?.specialization || '';
-      const currentDept = activeDoctor.department || currentUser?.department || '';
+      // Determine selected hospital ID for this doctor
+      const targetHospId = (
+        selectedHospital?.id
+        || (typeof activeDoctor.hospital === 'object' && activeDoctor.hospital !== null ? activeDoctor.hospital.id : activeDoctor.hospital)
+        || (typeof currentUser?.hospital === 'object' && currentUser?.hospital !== null ? currentUser?.hospital.id : currentUser?.hospital)
+        || ''
+      );
 
-      if (currentSpec && !extractedSpecs.includes(currentSpec)) {
-        extractedSpecs.push(currentSpec);
-        extractedSpecs.sort();
+      // Fetch the specific hospital record from backend to ensure accurate departments
+      let resolvedHospital = null;
+      if (targetHospId) {
+        try {
+          const singleRes = await fetch(`${API_BASE_URL}/super-admin/Hospital/${targetHospId}/`).catch(() => null);
+          if (singleRes && singleRes.ok) {
+            resolvedHospital = await singleRes.json().catch(() => null);
+          }
+        } catch (e) {}
       }
-      if (currentDept && !extractedDepts.includes(currentDept)) {
-        extractedDepts.push(currentDept);
-        extractedDepts.sort();
+
+      if (!resolvedHospital && targetHospId && Array.isArray(loadedHospitals)) {
+        resolvedHospital = loadedHospitals.find(h => Number(h.id) === Number(targetHospId));
+      }
+      if (!resolvedHospital && selectedHospital) {
+        resolvedHospital = (Array.isArray(loadedHospitals) ? loadedHospitals.find(h => Number(h.id) === Number(selectedHospital.id)) : null) || selectedHospital;
+      }
+      if (!resolvedHospital) {
+        try {
+          const saved = localStorage.getItem('selectedHospital');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            resolvedHospital = (Array.isArray(loadedHospitals) ? loadedHospitals.find(h => Number(h.id) === Number(parsed.id)) : null) || parsed;
+          }
+        } catch {}
+      }
+      if (resolvedHospital) {
+        setHospitalData(resolvedHospital);
       }
 
-      setBackendSpecializations(extractedSpecs);
-      setBackendDepartments(extractedDepts);
+      // Specializations: Purely custom/free input by doctor (load existing saved tags)
+      const currentSpecRaw = activeDoctor.specialization || currentUser?.specialization || '';
+      const initialSpecs = parseList(currentSpecRaw);
+      setSelectedSpecializations(initialSpecs);
 
-      const targetHospId = activeDoctor.hospital
-        ? (typeof activeDoctor.hospital === 'object' ? activeDoctor.hospital.id : activeDoctor.hospital)
-        : (currentUser?.hospital || '');
+      // Departments: Multi-select loaded from doctor profile
+      const currentDeptRaw = activeDoctor.department || currentUser?.department || '';
+      const initialDepts = parseList(currentDeptRaw);
+      setSelectedDepartments(initialDepts);
 
       const docShift = activeDoctor.shift || activeDoctor.Shifts || activeDoctor.opd_timings || currentUser?.shift || '';
       const docStatus = activeDoctor.status || activeDoctor.duty_status || currentUser?.status || '';
@@ -244,8 +195,8 @@ const DoctorSettings = ({
         email: activeDoctor.email || currentUser?.email || '',
         contact: activeDoctor.contact || activeDoctor.phone || currentUser?.contact || currentUser?.phone || '',
         phone: activeDoctor.phone || activeDoctor.contact || currentUser?.phone || currentUser?.contact || '',
-        specialization: currentSpec,
-        department: currentDept,
+        specialization: initialSpecs.join(', '),
+        department: initialDepts.join(', '),
         qualification: activeDoctor.qualification || currentUser?.qualification || '',
         experience: activeDoctor.experience || currentUser?.experience || '',
         shift: docShift,
@@ -263,13 +214,6 @@ const DoctorSettings = ({
         ...prev,
         email: activeDoctor.email || currentUser?.email || ''
       }));
-
-      if (targetHospId && Array.isArray(loadedHospitals)) {
-        const found = loadedHospitals.find(h => Number(h.id) === Number(targetHospId));
-        if (found) setHospitalData(found);
-      } else if (selectedHospital) {
-        setHospitalData(selectedHospital);
-      }
     } finally {
       setLoading(false);
     }
@@ -278,6 +222,95 @@ const DoctorSettings = ({
   useEffect(() => {
     fetchDoctorProfile();
   }, [currentUser]);
+
+  // Always resolve the doctor's selected hospital
+  const activeHospital = (hospitalsList.length > 0 && (hospitalData?.id || editFormData.hospital || selectedHospital?.id || currentUser?.hospital))
+    ? hospitalsList.find(h => Number(h.id) === Number(hospitalData?.id || editFormData.hospital || selectedHospital?.id || currentUser?.hospital)) || hospitalData || selectedHospital
+    : hospitalData || selectedHospital;
+
+  // STRICT RULE 1: Only departments fetched from the backend for the doctor's selected hospital!
+  const availableHospitalDepts = getHospitalDepartments(activeHospital);
+  const filteredHospitalDepts = departmentSearch.trim()
+    ? availableHospitalDepts.filter(d => d.toLowerCase().includes(departmentSearch.toLowerCase().trim()))
+    : availableHospitalDepts;
+
+  // RULE 2: Add custom specialization (unlimited & free input by doctor, independent of hospital/departments)
+  const handleAddSpecialization = (specToAdd) => {
+    const raw = (specToAdd !== undefined ? specToAdd : customSpecInput) || '';
+    const parts = parseList(raw);
+    if (parts.length === 0) return;
+
+    setSelectedSpecializations(prev => {
+      const next = [...prev];
+      parts.forEach(part => {
+        if (!next.some(s => s.toLowerCase() === part.toLowerCase())) {
+          next.push(part);
+        }
+      });
+      setEditFormData(f => ({ ...f, specialization: next.join(', ') }));
+      return next;
+    });
+
+    setCustomSpecInput('');
+    if (saveErrorMsg) setSaveErrorMsg('');
+  };
+
+  // Remove custom specialization tag
+  const handleRemoveSpecialization = (specToRemove) => {
+    setSelectedSpecializations(prev => {
+      const next = prev.filter(s => s.toLowerCase() !== specToRemove.toLowerCase());
+      setEditFormData(f => ({ ...f, specialization: next.join(', ') }));
+      return next;
+    });
+    if (saveErrorMsg) setSaveErrorMsg('');
+  };
+
+  // Clear all specializations
+  const handleClearSpecializations = () => {
+    setSelectedSpecializations([]);
+    setEditFormData(f => ({ ...f, specialization: '' }));
+  };
+
+  // Toggle department in multi-select (strictly from selected hospital backend)
+  const handleToggleDepartment = (dept) => {
+    setSelectedDepartments(prev => {
+      const exists = prev.includes(dept);
+      const next = exists ? prev.filter(d => d !== dept) : [...prev, dept];
+      setEditFormData(f => ({ ...f, department: next.join(', ') }));
+      return next;
+    });
+    if (saveErrorMsg) setSaveErrorMsg('');
+  };
+
+  // Select all departments available in selected hospital
+  const handleSelectAllDepartments = () => {
+    setSelectedDepartments(availableHospitalDepts);
+    setEditFormData(f => ({ ...f, department: availableHospitalDepts.join(', ') }));
+    if (saveErrorMsg) setSaveErrorMsg('');
+  };
+
+  // Clear all selected departments
+  const handleClearDepartments = () => {
+    setSelectedDepartments([]);
+    setEditFormData(f => ({ ...f, department: '' }));
+  };
+
+  // Switch affiliated branch and fetch its specific backend record
+  const handleSwitchBranch = async (hosp) => {
+    if (!hosp) return;
+    setHospitalData(hosp);
+    if (setSelectedHospital) setSelectedHospital(hosp);
+    localStorage.setItem('selectedHospital', JSON.stringify(hosp));
+    try {
+      const res = await fetch(`${API_BASE_URL}/super-admin/Hospital/${hosp.id}/`).catch(() => null);
+      if (res && res.ok) {
+        const fresh = await res.json().catch(() => null);
+        if (fresh) {
+          setHospitalData(fresh);
+        }
+      }
+    } catch {}
+  };
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -323,6 +356,11 @@ const DoctorSettings = ({
       setSaveErrorMsg("Email must be a valid @gmail.com address.");
       return;
     }
+    if (selectedSpecializations.length === 0) {
+      setSaveErrorMsg("Please add at least one specialization.");
+      return;
+    }
+
     try {
       setSavingProfile(true);
       setSaveSuccessMsg('');
@@ -332,14 +370,17 @@ const DoctorSettings = ({
       const rawName = editFormData.name.trim();
       const formattedName = rawName.startsWith('Dr.') ? rawName : `Dr. ${rawName.replace(/^Dr\.\s*/i, '')}`;
 
+      const specString = selectedSpecializations.join(', ');
+      const deptString = selectedDepartments.join(', ');
+
       const payload = {
         name: formattedName,
         doctor_id: editFormData.doctor_id,
         email: editFormData.email.trim(),
         contact: cleanPhone,
         phone: cleanPhone,
-        specialization: editFormData.specialization.trim(),
-        department: editFormData.department.trim(),
+        specialization: specString,
+        department: deptString,
         qualification: editFormData.qualification.trim(),
         experience: editFormData.experience.trim(),
         shift: editFormData.shift,
@@ -388,14 +429,6 @@ const DoctorSettings = ({
       };
       setDoctorData(updatedDoctor);
 
-      // Keep dynamic backend choices updated
-      if (payload.specialization && !backendSpecializations.includes(payload.specialization)) {
-        setBackendSpecializations(prev => [...prev, payload.specialization].sort());
-      }
-      if (payload.department && !backendDepartments.includes(payload.department)) {
-        setBackendDepartments(prev => [...prev, payload.department].sort());
-      }
-
       // Update current user state for live session sync
       const updatedCurrentUser = {
         ...currentUser,
@@ -403,8 +436,8 @@ const DoctorSettings = ({
         email: payload.email,
         contact: payload.contact,
         phone: payload.contact,
-        specialization: payload.specialization,
-        department: payload.department,
+        specialization: specString,
+        department: deptString,
         qualification: payload.qualification,
         experience: payload.experience,
         shift: payload.shift,
@@ -420,6 +453,12 @@ const DoctorSettings = ({
         setCurrentUser(updatedCurrentUser);
       }
       localStorage.setItem('currentUser', JSON.stringify(updatedCurrentUser));
+
+      setEditFormData(prev => ({
+        ...prev,
+        specialization: specString,
+        department: deptString
+      }));
 
       if (payload.password) {
         localStorage.setItem(`pwd_${payload.email.toLowerCase()}`, payload.password);
@@ -595,7 +634,8 @@ const DoctorSettings = ({
                   {editFormData.name ? (editFormData.name.startsWith('Dr.') ? editFormData.name : `Dr. ${editFormData.name}`) : 'Dr. Doctor'}
                 </h3>
                 <p className="text-xs text-teal-700 font-semibold mt-0.5">
-                  {editFormData.specialization || 'Specialization not set'}{editFormData.department ? ` • ${editFormData.department}` : ''}
+                  {(selectedSpecializations.length > 0 ? selectedSpecializations.join(', ') : editFormData.specialization) || 'Specialization not set'}
+                  {(selectedDepartments.length > 0 ? ` • ${selectedDepartments.join(', ')}` : (editFormData.department ? ` • ${editFormData.department}` : ''))}
                 </p>
 
                 <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2 text-xs">
@@ -640,7 +680,7 @@ const DoctorSettings = ({
                   <div className="flex justify-between items-center py-1 text-slate-600">
                     <span className="text-slate-400">Hospital:</span>
                     <span className="font-bold text-teal-900 truncate max-w-[140px]">
-                      {hospitalData?.Name || hospitalData?.name || 'Hospital Branch'}
+                      {cleanHospitalName(hospitalData?.Name || hospitalData?.name || 'Hospital Branch')}
                     </span>
                   </div>
                 </div>
@@ -654,7 +694,7 @@ const DoctorSettings = ({
                     <div className="flex flex-wrap gap-1">
                       {assignedHospitalsList.map(h => (
                         <span key={h.id} className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                          {h.Name || h.name}
+                          {cleanHospitalName(h.Name || h.name)}
                         </span>
                       ))}
                     </div>
@@ -742,112 +782,244 @@ const DoctorSettings = ({
                       />
                     </div>
 
-                    {/* 5. SPECIALIZATION (FROM BACKEND) */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                          Specialization <span className="text-rose-500">*</span>
-                        </label>
-                        <span className="text-[10px] text-teal-700 font-semibold bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
-                          From Backend ({backendSpecializations.length})
-                        </span>
-                      </div>
-                      <div className="space-y-1.5">
-                        <select
-                          name="specialization"
-                          value={backendSpecializations.includes(editFormData.specialization) && !isCustomSpec ? editFormData.specialization : 'CUSTOM'}
-                          onChange={(e) => {
-                            if (e.target.value === 'CUSTOM') {
-                              setIsCustomSpec(true);
-                            } else {
-                              setIsCustomSpec(false);
-                              setEditFormData(prev => ({ ...prev, specialization: e.target.value }));
-                            }
-                          }}
-                          required
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 font-semibold focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition cursor-pointer"
-                        >
-                          <option value="">-- Select Specialization from Backend --</option>
-                          {backendSpecializations.map(spec => (
-                            <option key={spec} value={spec}>{spec}</option>
-                          ))}
-                          <option value="CUSTOM">+ Add / Custom Specialization</option>
-                        </select>
-                        {(isCustomSpec || (!backendSpecializations.includes(editFormData.specialization) && editFormData.specialization)) && (
-                          <div className="flex items-center gap-1.5 animate-in fade-in">
-                            <input
-                              type="text"
-                              name="specialization"
-                              value={editFormData.specialization}
-                              onChange={(e) => setEditFormData(prev => ({ ...prev, specialization: e.target.value }))}
-                              placeholder="Type custom specialization..."
-                              className="w-full px-3.5 py-2 rounded-xl border border-teal-500 bg-teal-50/40 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
-                            />
+                    {/* 5. SPECIALIZATIONS: CUSTOM & UNLIMITED FREE INPUT BY DOCTOR */}
+                    <div className="sm:col-span-2 space-y-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                            Doctor Specialization(s) <span className="text-rose-500">*</span>
+                          </label>
+                          <p className="text-[11px] text-slate-500">
+                            Custom & free input by doctor (independent of hospital / backend departments)
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                            ✨ Custom & Free Input ({selectedSpecializations.length})
+                          </span>
+                          {selectedSpecializations.length > 0 && (
                             <button
                               type="button"
-                              onClick={() => setIsCustomSpec(false)}
-                              className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold cursor-pointer"
-                              title="Back to list"
+                              onClick={handleClearSpecializations}
+                              className="text-[10px] text-rose-600 hover:text-rose-700 font-bold underline cursor-pointer"
+                            >
+                              Clear All
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Custom Input + Add Button */}
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            value={customSpecInput}
+                            onChange={(e) => setCustomSpecInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ',') {
+                                e.preventDefault();
+                                handleAddSpecialization();
+                              }
+                            }}
+                            placeholder="Type any custom specialization (e.g. Cardiologist, Diabetology, Critical Care) & press Enter..."
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition placeholder:text-slate-400"
+                          />
+                          {customSpecInput && (
+                            <button
+                              type="button"
+                              onClick={() => setCustomSpecInput('')}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
                             >
                               ✕
                             </button>
-                          </div>
-                        )}
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleAddSpecialization()}
+                          disabled={!customSpecInput.trim()}
+                          className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-xs shrink-0"
+                        >
+                          <span>+</span>
+                          <span>Add Specialization</span>
+                        </button>
                       </div>
+
+                      {/* Selected Tags Display */}
+                      {selectedSpecializations.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 p-2.5 bg-slate-50 border border-slate-200 rounded-xl min-h-[46px] items-center">
+                          {selectedSpecializations.map((spec) => (
+                            <span
+                              key={spec}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200 shadow-2xs group"
+                            >
+                              <span>{spec}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSpecialization(spec)}
+                                className="text-teal-600 hover:text-rose-600 rounded-full w-4 h-4 inline-flex items-center justify-center font-bold text-xs transition cursor-pointer"
+                                title={`Remove ${spec}`}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-center text-xs text-slate-400">
+                          No specializations added yet. Doctor can freely type and add any custom specializations above.
+                        </div>
+                      )}
                     </div>
 
-                    {/* 6. DEPARTMENT (FROM BACKEND) */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
+                    {/* 6. DEPARTMENTS: HOSPITAL-SPECIFIC FILTERING (MULTI-SELECT) */}
+                    <div className="sm:col-span-2 space-y-2">
+                      <div className="flex items-center justify-between mb-1">
                         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                          Department <span className="text-rose-500">*</span>
+                          Hospital Department(s) <span className="text-rose-500">*</span>
                         </label>
-                        <span className="text-[10px] text-teal-700 font-semibold bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
-                          From Backend ({backendDepartments.length})
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                            Multi-Select ({selectedDepartments.length} / {availableHospitalDepts.length})
+                          </span>
+                          {availableHospitalDepts.length > 0 && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={handleSelectAllDepartments}
+                                className="text-[10px] text-teal-700 hover:text-teal-800 font-bold underline cursor-pointer"
+                              >
+                                Select All
+                              </button>
+                              <span className="text-slate-300">•</span>
+                              <button
+                                type="button"
+                                onClick={handleClearDepartments}
+                                className="text-[10px] text-rose-600 hover:text-rose-700 font-bold underline cursor-pointer"
+                              >
+                                Clear All
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="space-y-1.5">
-                        <select
-                          name="department"
-                          value={backendDepartments.includes(editFormData.department) && !isCustomDept ? editFormData.department : 'CUSTOM'}
-                          onChange={(e) => {
-                            if (e.target.value === 'CUSTOM') {
-                              setIsCustomDept(true);
-                            } else {
-                              setIsCustomDept(false);
-                              setEditFormData(prev => ({ ...prev, department: e.target.value }));
-                            }
-                          }}
-                          required
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-800 font-semibold focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 transition cursor-pointer"
-                        >
-                          <option value="">-- Select Department from Backend --</option>
-                          {backendDepartments.map(dept => (
-                            <option key={dept} value={dept}>{dept}</option>
+
+
+                      {/* Multi-hospital affiliated branches switcher if doctor belongs to multiple */}
+                      {assignedHospitalsList.length > 1 && (
+                        <div className="flex items-center gap-1.5 flex-wrap py-1">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">Affiliated Branches:</span>
+                          {assignedHospitalsList.map((h) => {
+                            const isCurrent = Number(h.id) === Number(activeHospital?.id);
+                            return (
+                              <button
+                                key={h.id}
+                                type="button"
+                                onClick={() => handleSwitchBranch(h)}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                                  isCurrent
+                                    ? 'bg-teal-600 text-white border-teal-600 shadow-2xs'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                }`}
+                              >
+                                {cleanHospitalName(h.Name || h.name)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Selected Departments Preview Badges */}
+                      {selectedDepartments.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl items-center">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase px-1">Selected:</span>
+                          {selectedDepartments.map((dept) => (
+                            <span
+                              key={dept}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-teal-100 text-teal-900 border border-teal-300 shadow-2xs"
+                            >
+                              <span>{dept}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleDepartment(dept)}
+                                className="text-teal-700 hover:text-rose-600 font-bold cursor-pointer"
+                                title={`Deselect ${dept}`}
+                              >
+                                ×
+                              </button>
+                            </span>
                           ))}
-                          <option value="CUSTOM">+ Add / Custom Department</option>
-                        </select>
-                        {(isCustomDept || (!backendDepartments.includes(editFormData.department) && editFormData.department)) && (
-                          <div className="flex items-center gap-1.5 animate-in fade-in">
-                            <input
-                              type="text"
-                              name="department"
-                              value={editFormData.department}
-                              onChange={(e) => setEditFormData(prev => ({ ...prev, department: e.target.value }))}
-                              placeholder="Type custom department..."
-                              className="w-full px-3.5 py-2 rounded-xl border border-teal-500 bg-teal-50/40 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
-                            />
+                        </div>
+                      )}
+
+                      {/* Search Filter for Hospital Departments */}
+                      {availableHospitalDepts.length > 4 && (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={departmentSearch}
+                            onChange={(e) => setDepartmentSearch(e.target.value)}
+                            placeholder="Filter this hospital's departments..."
+                            className="w-full px-3 py-2 pl-8 rounded-xl border border-slate-200 bg-white text-xs text-slate-700 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                          />
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+                          {departmentSearch && (
                             <button
                               type="button"
-                              onClick={() => setIsCustomDept(false)}
-                              className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold cursor-pointer"
-                              title="Back to list"
+                              onClick={() => setDepartmentSearch('')}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
                             >
                               ✕
                             </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Checkbox Grid (Hospital-Specific Departments) */}
+                      {availableHospitalDepts.length === 0 ? (
+                        <div className="p-4 rounded-xl border border-dashed border-amber-300 bg-amber-50/70 text-center text-xs text-amber-900">
+                          <div className="font-bold mb-0.5">⚠️ No departments configured for this hospital branch.</div>
+                          <div className="text-[11px] text-amber-700">
+                            Please contact your Hospital Administrator to configure clinical departments for {activeHospital?.Name || activeHospital?.name || 'this hospital'}.
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 max-h-56 overflow-y-auto">
+                          {filteredHospitalDepts.length === 0 ? (
+                            <div className="col-span-full py-4 text-center text-xs text-slate-400">
+                              No departments match "{departmentSearch}" in this hospital.
+                            </div>
+                          ) : (
+                            filteredHospitalDepts.map((dept) => {
+                              const isChecked = selectedDepartments.includes(dept);
+                              return (
+                                <label
+                                  key={dept}
+                                  className={`flex items-center gap-2.5 p-2 rounded-xl border text-xs font-semibold cursor-pointer transition select-none ${
+                                    isChecked
+                                      ? 'bg-teal-50/90 border-teal-500 text-teal-950 shadow-2xs ring-1 ring-teal-500/20'
+                                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleToggleDepartment(dept)}
+                                    className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-slate-300 cursor-pointer accent-teal-600"
+                                  />
+                                  <span className="truncate flex-1">{dept}</span>
+                                  {isChecked && (
+                                    <span className="text-[10px] text-teal-700 font-bold bg-teal-100 px-1.5 py-0.5 rounded">
+                                      Selected
+                                    </span>
+                                  )}
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* 7. QUALIFICATION */}

@@ -19,13 +19,6 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
     { value: 'Critical', label: 'Critical' }
   ];
 
-  const getBackgroundVisitDateTime = () => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    d.setHours(10, 0, 0, 0);
-    return d.toISOString();
-  };
-
   const [formData, setFormData] = useState(() => {
     let preselectedHosp = '';
     try {
@@ -292,7 +285,10 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
       const docName = 'Awaiting Receptionist Assignment';
       const docSpecialty = 'Triage / General OPD';
 
-      const visitIsoString = getBackgroundVisitDateTime();
+      const now = new Date();
+      const bookingAppliedAt = now.toISOString();
+      const todayYMD = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const currentTimeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 
       const ageVal = formData.age ? String(formData.age).trim() : '25';
       const phoneVal = (formData.contact || '').trim() || '9876543210';
@@ -315,7 +311,13 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
         email: finalEmail,
         address: addrVal,
         hospital: selectedHospId,
-        visit_date_time: visitIsoString,
+        Applied_at: bookingAppliedAt,
+        applied_at: bookingAppliedAt,
+        visit_date_time: bookingAppliedAt,
+        appointment_date: todayYMD,
+        visit_date: todayYMD,
+        appointment_time: currentTimeStr,
+        visit_time: currentTimeStr,
         symptoms_diagnosis: formData.symptoms_diagnosis.trim(),
         reason_for_visit: formData.symptoms_diagnosis.trim(),
         blood_group: formData.blood_group,
@@ -422,8 +424,14 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
         hospitalCity: hospCity,
         doctorName: docName,
         doctorSpecialty: docSpecialty,
-        visit_date_time: visitIsoString,
-        visitDateTime: visitIsoString,
+        Applied_at: bookingAppliedAt,
+        applied_at: bookingAppliedAt,
+        visit_date_time: bookingAppliedAt,
+        visitDateTime: bookingAppliedAt,
+        appointment_date: todayYMD,
+        visit_date: todayYMD,
+        appointment_time: currentTimeStr,
+        visit_time: currentTimeStr,
         blood_group: formData.blood_group,
         bloodGroup: formData.blood_group,
         condition: formData.condition,
@@ -476,19 +484,21 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased print:min-h-0 print:bg-white print:block">
       {/* PATIENT NAVBAR */}
-      <PatientNavbar
-        currentPage="appointment"
-        setCurrentPage={setCurrentPage}
-        isLoggedIn={isLoggedIn}
-        onLogout={onLogout}
-        currentUser={currentUser}
-      />
+      <div className="print:hidden">
+        <PatientNavbar
+          currentPage="appointment"
+          setCurrentPage={setCurrentPage}
+          isLoggedIn={isLoggedIn}
+          onLogout={onLogout}
+          currentUser={currentUser}
+        />
+      </div>
 
-      <main className="flex-1 space-y-6 sm:space-y-8 pb-16">
+      <main className="flex-1 space-y-6 sm:space-y-8 pb-16 print:p-0 print:m-0 print:space-y-0 print:pb-0 print:block">
         {/* HEADER HERO */}
-        <section className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white py-10 sm:py-14 px-4 sm:px-8 lg:px-12 shadow-md">
+        <section className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white py-10 sm:py-14 px-4 sm:px-8 lg:px-12 shadow-md print:hidden">
           <div className="max-w-4xl mx-auto text-center space-y-3">
             <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold border border-teal-400/30 uppercase tracking-wider">
               <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
@@ -549,24 +559,92 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
           </section>
         ) : confirmedBooking ? (
           /* ================= CONFIRMATION RECEIPT & SLIP ================= */
-          <section className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="bg-white rounded-3xl border-2 border-teal-600 p-6 sm:p-8 shadow-xl space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-                <div>
+          <section className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 print:max-w-none print:w-full print:p-0 print:m-0">
+            {/* PRINT-ONLY ISOLATION CSS RULES */}
+            <style>{`
+              @media print {
+                @page {
+                  size: A4 portrait;
+                  margin: 0mm;
+                }
+                html, body {
+                  background: #ffffff !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  width: 100vw !important;
+                  height: 100vh !important;
+                  min-height: 100vh !important;
+                  max-height: 100vh !important;
+                  overflow: hidden !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                body * {
+                  visibility: hidden !important;
+                }
+                #appointment-booking-slip,
+                #appointment-booking-slip * {
+                  visibility: visible !important;
+                }
+                #appointment-booking-slip {
+                  position: fixed !important;
+                  left: 50% !important;
+                  top: 50% !important;
+                  transform: translate(-50%, -50%) !important;
+                  width: 90% !important;
+                  max-width: 660px !important;
+                  margin: 0 !important;
+                  padding: 24px 28px !important;
+                  border: 2px solid #0d9488 !important;
+                  border-radius: 16px !important;
+                  box-shadow: none !important;
+                  background: #ffffff !important;
+                  z-index: 99999999 !important;
+                  page-break-inside: avoid !important;
+                  break-inside: avoid !important;
+                }
+                button,
+                button *,
+                nav,
+                header,
+                footer,
+                aside,
+                .print\\:hidden,
+                .print\\:hidden *,
+                .no-print,
+                .slip-action-buttons,
+                .slip-action-buttons * {
+                  display: none !important;
+                  visibility: hidden !important;
+                  height: 0 !important;
+                  width: 0 !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
+              }
+            `}</style>
+            <div id="appointment-booking-slip" className="bg-white rounded-3xl border-2 border-teal-600 p-6 sm:p-8 shadow-xl space-y-6 print:border-2 print:border-teal-600 print:rounded-2xl print:p-6 print:shadow-none">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b border-slate-200 pb-4 gap-4">
+                <div className="min-w-0 flex-1 pr-0 sm:pr-3">
                   <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block">
                     Appointment Booking Slip
                   </span>
-                  <h3 className="text-xl font-extrabold text-slate-900">
+                  <h3 className="text-xl font-extrabold text-slate-900 leading-tight">
                     {confirmedBooking.hospitalName}
                   </h3>
-                  <p className="text-xs text-slate-500">{confirmedBooking.hospitalAddress} {confirmedBooking.hospitalCity ? `• ${confirmedBooking.hospitalCity}` : ''}</p>
+                  <p className="text-xs text-slate-500 mt-1 break-words leading-relaxed">
+                    {confirmedBooking.hospitalAddress} {confirmedBooking.hospitalCity ? `• ${confirmedBooking.hospitalCity}` : ''}
+                  </p>
                 </div>
 
-                <div className="text-right">
-                  <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-bold uppercase">
-                    ✓ Saved in Database
+                <div className="shrink-0 flex flex-col items-start sm:items-end">
+                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-bold uppercase tracking-wider whitespace-nowrap shadow-xs">
+                    <svg className="w-3.5 h-3.5 text-emerald-700 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Saved in Database</span>
                   </span>
-                  <p className="font-mono text-[11px] text-slate-400 mt-1">
+                  <p className="font-mono text-[11px] text-slate-400 mt-1.5 whitespace-nowrap">
                     {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </p>
                 </div>
@@ -604,34 +682,40 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
                   </p>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5 min-w-0 overflow-hidden">
                   <span className="text-[10px] uppercase font-bold text-slate-400">Contact & Email</span>
-                  <p className="font-bold text-slate-900 text-sm">{confirmedBooking.contact || confirmedBooking.phone || 'Not Provided'}</p>
+                  <p className="font-bold text-slate-900 text-sm break-words">{confirmedBooking.contact || confirmedBooking.phone || 'Not Provided'}</p>
                   <p className="text-slate-500 text-[11px] truncate">{confirmedBooking.email || 'No email provided'}</p>
-                  {confirmedBooking.address && <p className="text-slate-500 text-[11px] truncate">🏠 {confirmedBooking.address}</p>}
+                  {confirmedBooking.address && <p className="text-slate-500 text-[11px] break-words break-all">🏠 {confirmedBooking.address}</p>}
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5 min-w-0">
                   <span className="text-[10px] uppercase font-bold text-slate-400">Consulting Doctor</span>
                   <p className="font-bold text-slate-900 text-sm">{confirmedBooking.doctorName}</p>
                   <p className="text-slate-500 text-[11px]">{confirmedBooking.doctorSpecialty}</p>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5 min-w-0">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Appointment Date</span>
+                  <p className="font-bold text-teal-900 text-sm">Today, {new Date(confirmedBooking.visit_date_time || confirmedBooking.Applied_at || new Date()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                  <p className="text-slate-500 text-[11px]">Submission Date (Confirmed)</p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5 min-w-0">
                   <span className="text-[10px] uppercase font-bold text-slate-400">Status</span>
                   <p className="font-bold text-teal-900 text-sm">{confirmedBooking.status || 'Pending'}</p>
                   <p className="text-slate-500 text-[11px]">OPD Consultation</p>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5 min-w-0">
                   <span className="text-[10px] uppercase font-bold text-slate-400">Hospital Branch</span>
                   <p className="font-bold text-slate-900 text-sm">{confirmedBooking.hospitalName}</p>
                   <p className="text-slate-500 text-[11px]">{confirmedBooking.hospitalCity || 'Hospital Campus'}</p>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 sm:col-span-2 space-y-0.5">
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 sm:col-span-2 space-y-0.5 min-w-0 overflow-hidden">
                   <span className="text-[10px] uppercase font-bold text-slate-400">Chief Symptoms / Reason</span>
-                  <p className="text-slate-800 text-xs font-medium">{confirmedBooking.symptoms_diagnosis}</p>
+                  <p className="text-slate-800 text-xs font-medium break-words break-all">{confirmedBooking.symptoms_diagnosis}</p>
                 </div>
 
                 {confirmedBooking.fileName && (
@@ -646,7 +730,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
               </div>
 
               {/* ACTION BUTTONS */}
-              <div className="flex flex-wrap gap-3 justify-center pt-2">
+              <div className="flex flex-wrap gap-3 justify-center pt-2 slip-action-buttons print:hidden">
                 <button
                   type="button"
                   onClick={() => setCurrentPage && setCurrentPage('patient_dashboard')}
@@ -1012,7 +1096,9 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
       </main>
 
       {/* PATIENT FOOTER */}
-      <PatientFooter setCurrentPage={setCurrentPage} isLoggedIn={isLoggedIn} currentUser={currentUser} />
+      <div className="print:hidden">
+        <PatientFooter setCurrentPage={setCurrentPage} isLoggedIn={isLoggedIn} currentUser={currentUser} />
+      </div>
     </div>
   );
 };

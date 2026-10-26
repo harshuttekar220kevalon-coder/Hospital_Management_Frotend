@@ -390,7 +390,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
                         <div className="flex flex-col items-center gap-1">
                           <span className="font-semibold text-slate-800">{nurse.name || '-'}</span>
                           <span className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1 font-mono text-[11px] font-semibold text-sky-700">
-                            {nurse.nurse_id || `#${nurse.id}`}
+                            {nurse.nurse_id || (nurse.id ? `NUR-${nurse.id}` : '-')}
                           </span>
                         </div>
                       </td>

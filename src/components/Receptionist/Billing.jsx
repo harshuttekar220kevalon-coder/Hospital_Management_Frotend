@@ -31,8 +31,8 @@ const isAppointmentInHospital = (item, targetHospId, targetHospName = '', hospLi
   if (!targetId && !targetName) return true;
 
   // 2. Resolve Appointment's Hospital ID & Name
-  const rawHosp = typeof item.hospital === 'object' && item.hospital !== null 
-    ? (item.hospital.id || item.hospital.hospital_id || item.hospital.Name || item.hospital.name) 
+  const rawHosp = typeof item.hospital === 'object' && item.hospital !== null
+    ? (item.hospital.id || item.hospital.hospital_id || item.hospital.Name || item.hospital.name)
     : item.hospital;
   const rawHospName = item.hospital_name || (typeof item.hospital === 'object' && item.hospital !== null ? (item.hospital.Name || item.hospital.name) : '') || '';
 
@@ -117,7 +117,7 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
   const [patients, setPatients] = useState([]);
   const [hospitalInfo, setHospitalInfo] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [billingFilter, setBillingFilter] = useState('ALL');
+  const [billingFilter, setBillingFilter] = useState('PAID');
   const [visibleCount, setVisibleCount] = useState(10);
 
   // Modals
@@ -160,8 +160,8 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
       return false;
     }
 
-    // Must be discharged or completed
-    return s.includes('discharg') || s === 'completed';
+    // Must be discharged or completed or not need for admitt
+    return s.includes('discharg') || s === 'completed' || s.includes('not need');
   };
 
   const loadBillingData = async (silent = false) => {
@@ -244,7 +244,7 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
           const aJson = await aRes.json().catch(() => []);
           rawAppointments = extractArray(aJson);
         }
-      } catch (e) {}
+      } catch (e) { }
 
       // Helper to normalize patient & resolve doctor names & fees safely from backend
       const normalizeDischargedPatient = (item) => {
@@ -255,7 +255,7 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
         const hosp = typeof item.hospital === 'object' ? item.hospital?.id : item.hospital;
         const docId = typeof item.doctor === 'object' ? item.doctor?.id : item.doctor;
         const docObj = docId ? doctorsList.find(d => Number(d.id) === Number(docId)) : null;
-        const docName = item.doctor_name || (docObj ? (docObj.name.startsWith('Dr.') ? docObj.name : `Dr. ${docObj.name}`) : (docId ? `Dr. ID ${docId}` : 'Consulting Doctor'));
+        const docName = item.doctor_name || docObj?.name || (docId ? String(docId) : 'Consulting Doctor');
 
         // Backend Doctor Consultation Fee resolution
         let backendDocFee = 0;
@@ -278,8 +278,46 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
           }
         }
 
-        const backendHospCharges = Number(item.hospitals_charges ?? item.Hospitals_Chargies ?? item.hospital_charges ?? 0);
-        const amountPaid = Number(item.amount_paid ?? item.Amount_Paid ?? 0);
+        const apptKey = String(apptId || id);
+        // 1. First priority: Real saved hospital charges from backend database
+        let backendHospCharges = 0;
+        const rawHospCharges = item.hospitals_charges ?? item.Hospitals_Chargies ?? item.hospital_charges;
+        if (rawHospCharges !== undefined && rawHospCharges !== null && rawHospCharges !== '') {
+          const parsed = Number(rawHospCharges);
+          if (!isNaN(parsed) && parsed > 0) {
+            backendHospCharges = parsed;
+          }
+        }
+
+        // 2. Second priority: If backend is 0, check localStorage cache from this session
+        if (backendHospCharges <= 0) {
+          const storedCharges = localStorage.getItem(`receptionist_hosp_charges_${apptKey}`) ?? localStorage.getItem(`receptionist_hosp_charges_${id}`);
+          if (storedCharges !== null && storedCharges !== undefined && storedCharges !== '') {
+            const parsedStored = Number(storedCharges);
+            if (!isNaN(parsedStored) && parsedStored > 0) {
+              backendHospCharges = parsedStored;
+            }
+          }
+        }
+
+        // 3. Check if custom doctor fee was saved in localStorage
+        const storedDocFee = localStorage.getItem(`receptionist_doc_fee_${apptKey}`) ?? localStorage.getItem(`receptionist_doc_fee_${id}`);
+        if (storedDocFee !== null && storedDocFee !== undefined && storedDocFee !== '') {
+          const parsedStoredDocFee = Number(storedDocFee);
+          if (!isNaN(parsedStoredDocFee) && parsedStoredDocFee > 0) {
+            backendDocFee = parsedStoredDocFee;
+          }
+        }
+
+        const storedPayStatus = localStorage.getItem(`receptionist_payment_status_${apptKey}`) ?? localStorage.getItem(`receptionist_payment_status_${id}`);
+        const resolvedPayStatus = storedPayStatus || item.payment_status || 'Pending';
+
+        const storedAmtPaid = localStorage.getItem(`receptionist_amount_paid_${apptKey}`) ?? localStorage.getItem(`receptionist_amount_paid_${id}`);
+        let resolvedAmtPaid = Number(item.amount_paid ?? item.Amount_Paid ?? 0);
+        if (storedAmtPaid !== null && storedAmtPaid !== undefined && storedAmtPaid !== '') {
+          const parsed = Number(storedAmtPaid);
+          if (!isNaN(parsed) && (resolvedAmtPaid <= 0 || storedPayStatus)) resolvedAmtPaid = parsed;
+        }
 
         const resolvedPatUhid = item.patient_uhid || (typeof item.patient_id === 'string' && !item.patient_id.startsWith('APT-') ? item.patient_id : null) || item.uhid || (typeof item.patient === 'object' ? (item.patient?.patient_id || item.patient?.uhid || (item.patient?.id ? `PAT-${item.patient.id}` : '')) : (item.patient ? `PAT-${item.patient}` : '')) || (id ? `PAT-${id}` : '-');
         const rawDischargeDt = item.Discharge_DateTime || item.discharge_datetime || item.Discharge_datetime || item.discharge_date || item.Discharge_Date || item.completed_at || null;
@@ -305,12 +343,14 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
           hospitals_charges: backendHospCharges,
           Hospitals_Chargies: backendHospCharges,
           hospital_charges: backendHospCharges,
-          amount_paid: amountPaid,
+          amount_paid: resolvedAmtPaid,
+          Amount_Paid: resolvedAmtPaid,
           bed_number: item.bed_number ? Number(item.bed_number) : null,
           gender: item.Gender || item.gender || 'Not Specified',
           Gender: item.Gender || item.gender || 'Not Specified',
           contact: item.contact || item.phone || '',
-          payment_status: item.payment_status || 'Pending',
+          payment_status: resolvedPayStatus,
+          Payment_Status: resolvedPayStatus,
           payment_method: item.payment_method || 'Cash',
           Discharge_DateTime: rawDischargeDt,
           discharge_date: rawDischargeDt
@@ -367,9 +407,65 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
     const hospCharges = Number(p.hospitals_charges ?? p.Hospitals_Chargies ?? p.hospital_charges ?? 0);
     const total = docFee + hospCharges;
     const paid = Number(p.amount_paid ?? p.Amount_Paid ?? 0);
-    const due = Math.max(0, total - paid);
-    const isPaid = (p.payment_status === 'Paid') || (paid >= total && total > 0);
-    return { docFee, hospCharges, total, paid, due, isPaid };
+
+    const rawStatus = (p.payment_status || p.Payment_Status || '').toString().trim();
+    let isPaid = false;
+    let status = 'Pending';
+
+    if (rawStatus.toLowerCase() === 'paid') {
+      isPaid = true;
+      status = 'Paid';
+    } else if (rawStatus.toLowerCase() === 'partial') {
+      isPaid = false;
+      status = 'Partial';
+    } else if (rawStatus.toLowerCase() === 'pending') {
+      isPaid = false;
+      status = 'Pending';
+    } else {
+      if (paid >= total && total > 0) {
+        isPaid = true;
+        status = 'Paid';
+      } else if (paid > 0 && total > paid) {
+        isPaid = false;
+        status = 'Partial';
+      } else {
+        isPaid = false;
+        status = 'Pending';
+      }
+    }
+
+    const due = isPaid ? 0 : Math.max(0, total - paid);
+    return { docFee, hospCharges, total, paid, due, isPaid, status };
+  };
+
+  // Helper to strictly check if patient was discharged today
+  const isDischargedToday = (p) => {
+    const rawVal = p.Discharge_DateTime || p.discharge_datetime || p.discharge_date || p.Discharge_Date || p.visit_date_time || p.Applied_at;
+    if (!rawVal) return false;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const localTodayYMD = `${year}-${month}-${day}`;
+    const utcTodayYMD = now.toISOString().split('T')[0];
+
+    if (typeof rawVal === 'string') {
+      const trimmed = rawVal.trim();
+      if (trimmed.startsWith(localTodayYMD) || trimmed.startsWith(utcTodayYMD)) return true;
+    }
+
+    const d = new Date(rawVal);
+    if (!isNaN(d.getTime())) {
+      const isSameLocal = d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth() &&
+        d.getDate() === now.getDate();
+      if (isSameLocal) return true;
+      const isSameUtc = d.getUTCFullYear() === now.getUTCFullYear() &&
+        d.getUTCMonth() === now.getUTCMonth() &&
+        d.getUTCDate() === now.getUTCDate();
+      if (isSameUtc) return true;
+    }
+    return false;
   };
 
   // Filtered by Search & Tab Status (Strictly for Receptionist's Hospital)
@@ -385,7 +481,9 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
     if (!matchesSearch) return false;
 
     const { isPaid } = calculatePatientBill(p);
-    if (billingFilter === 'PENDING') {
+    if (billingFilter === 'TODAY') {
+      return isDischargedToday(p);
+    } else if (billingFilter === 'PENDING') {
       return !isPaid;
     } else if (billingFilter === 'PAID') {
       return isPaid;
@@ -397,6 +495,7 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
   const totalDischargedCount = patients.length;
   const pendingPaymentPatients = patients.filter(p => !calculatePatientBill(p).isPaid);
   const paidSettledPatients = patients.filter(p => calculatePatientBill(p).isPaid);
+  const todayDischargedCount = patients.filter(p => isDischargedToday(p)).length;
 
   const totalOutstandingDue = pendingPaymentPatients.reduce((sum, p) => sum + calculatePatientBill(p).due, 0);
   const totalRevenueCollected = patients.reduce((sum, p) => sum + calculatePatientBill(p).paid, 0);
@@ -408,9 +507,7 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
 
     // Preserve existing paid amount or 0 if pending
     const currentPaid = Number(patient.amount_paid ?? bill.paid ?? 0);
-    const initialPaymentStatus = bill.isPaid
-      ? 'Paid'
-      : (currentPaid > 0 ? 'Partial' : (patient.payment_status || 'Pending'));
+    const initialPaymentStatus = bill.status;
 
     const existingDischargeDt = patient.Discharge_DateTime || patient.discharge_datetime || patient.discharge_date || patient.Discharge_Date || '';
     let defaultDischargeLocal = '';
@@ -424,10 +521,27 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
       defaultDischargeLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     }
 
+    const docFeeVal = bill.docFee > 0 ? String(bill.docFee) : (patient.consultation_fee ? String(patient.consultation_fee) : '');
+
+    // Hospital charges pre-fill: Always pre-fill with saved hospital charges so it NEVER resets to 0
+    const existingHospCharges = bill.hospCharges > 0 
+      ? bill.hospCharges 
+      : Number(patient.hospitals_charges ?? patient.Hospitals_Chargies ?? patient.hospital_charges ?? 0);
+    const hospChargesVal = existingHospCharges > 0 ? String(existingHospCharges) : '';
+
+    let initialAmountPaid = 0;
+    if (initialPaymentStatus === 'Paid') {
+      initialAmountPaid = currentPaid > 0 ? currentPaid : (bill.total > 0 ? bill.total : '');
+    } else if (initialPaymentStatus === 'Partial') {
+      initialAmountPaid = currentPaid > 0 ? currentPaid : (bill.total > 0 ? Math.round(bill.total / 2) : '');
+    } else {
+      initialAmountPaid = 0;
+    }
+
     setPaymentForm({
-      consultation_fee: bill.docFee > 0 ? String(bill.docFee) : (patient.consultation_fee ? String(patient.consultation_fee) : '0'),
-      hospital_charges: bill.hospCharges > 0 ? String(bill.hospCharges) : (patient.hospitals_charges ? String(patient.hospitals_charges) : '0'),
-      amount_paid: currentPaid,
+      consultation_fee: docFeeVal,
+      hospital_charges: hospChargesVal, // PRE-FILLED WITH SAVED CHARGES
+      amount_paid: initialAmountPaid,
       payment_method: patient.payment_method || 'Cash',
       payment_status: initialPaymentStatus,
       Discharge_DateTime: defaultDischargeLocal,
@@ -450,38 +564,51 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
       setErrorBanner('');
 
       const totalAmount = currentModalTotalBill;
-      const amountPaid = Number(paymentForm.amount_paid) || 0;
-      const isFullSettled = (amountPaid >= totalAmount && totalAmount > 0) || paymentForm.payment_status === 'Paid';
-      const finalStatus = paymentForm.payment_status || (isFullSettled ? 'Paid' : (amountPaid > 0 ? 'Partial' : 'Pending'));
+      let amountPaid = Number(paymentForm.amount_paid) || 0;
+      let finalStatus = paymentForm.payment_status || 'Pending';
+
+      if (finalStatus === 'Paid') {
+        if (amountPaid <= 0 || amountPaid < totalAmount) {
+          amountPaid = totalAmount;
+        }
+      } else if (finalStatus === 'Pending') {
+        amountPaid = 0;
+      }
 
       const numDocFee = Number(paymentForm.consultation_fee) || 0;
       const numHospCharges = Number(paymentForm.hospital_charges) || 0;
-      const dischargeIso = paymentForm.Discharge_DateTime ? new Date(paymentForm.Discharge_DateTime).toISOString() : (selectedBillingPatient.Discharge_DateTime || new Date().toISOString());
+      const dischargeIso = paymentForm.Discharge_DateTime
+        ? new Date(paymentForm.Discharge_DateTime).toISOString()
+        : (selectedBillingPatient.Discharge_DateTime || new Date().toISOString());
 
-      // 1. Prepare concise, valid billing patch payload
+      let validPaymentMethod = paymentForm.payment_method || 'Cash';
+      if (validPaymentMethod === 'Debit Card') validPaymentMethod = 'Credit Card';
+
+      // 1. Prepare concise, valid billing patch payload with exact model fields
       const patchPayload = {
+        hospitals_charges: Number(numHospCharges).toFixed(2),
+        hospital_charges: Number(numHospCharges).toFixed(2),
+        Hospitals_Chargies: Number(numHospCharges).toFixed(2),
         consultation_fee: Number(numDocFee).toFixed(2),
         Consultation_Fee: Number(numDocFee).toFixed(2),
         consultancy_fee: Number(numDocFee).toFixed(2),
-        hospital_charges: Number(numHospCharges).toFixed(2),
-        hospitals_charges: Number(numHospCharges).toFixed(2),
-        Hospitals_Chargies: Number(numHospCharges).toFixed(2),
         amount_paid: Number(amountPaid).toFixed(2),
         Amount_Paid: Number(amountPaid).toFixed(2),
-        payment_method: paymentForm.payment_method || 'Cash',
-        Payment_Method: paymentForm.payment_method || 'Cash',
+        payment_method: validPaymentMethod,
+        Payment_Method: validPaymentMethod,
         payment_status: finalStatus,
         Payment_Status: finalStatus,
+        status: 'Discharged',
+        discharge_status: 'Discharged',
+        checkup_status: 'Checkup Done',
+        Health_Care: 'Fully Recovered',
+        health_care: 'Fully Recovered',
         Discharge_DateTime: dischargeIso,
         discharge_datetime: dischargeIso,
         discharge_date: dischargeIso,
         Discharge_Date: dischargeIso,
         completed_at: dischargeIso
       };
-
-      if (selectedBillingPatient.status) {
-        patchPayload.status = selectedBillingPatient.status;
-      }
 
       const targetId = selectedBillingPatient.Appoment_id || selectedBillingPatient.appoment_id || selectedBillingPatient.appointment_id || selectedBillingPatient.id;
       const numericId = selectedBillingPatient.id;
@@ -506,19 +633,29 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
       let isSavedBackend = false;
       let backendData = null;
 
-      for (const tid of uniqueCandidateIds) {
-        try {
-          const res = await fetch(`${API_BASE_URL}/super-admin/appointments/${tid}/`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(patchPayload)
-          });
-          if (res && res.ok) {
-            isSavedBackend = true;
-            backendData = await res.json().catch(() => null);
-            break;
+      const endpointsToTry = [
+        `${API_BASE_URL}/super-admin/appointments/`,
+        `${API_BASE_URL}/appointments/`
+      ];
+
+      for (const baseEp of endpointsToTry) {
+        for (const tid of uniqueCandidateIds) {
+          try {
+            const res = await fetch(`${baseEp}${tid}/`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(patchPayload)
+            });
+            if (res && res.ok) {
+              isSavedBackend = true;
+              backendData = await res.json().catch(() => null);
+              break;
+            }
+          } catch (e) {
+            console.error('Error saving billing patch:', e);
           }
-        } catch (e) {}
+        }
+        if (isSavedBackend) break;
       }
 
       if (!isSavedBackend) {
@@ -548,18 +685,46 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
             });
 
             if (matched && matched.id) {
-              const res = await fetch(`${API_BASE_URL}/super-admin/appointments/${matched.id}/`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(patchPayload)
-              });
-              if (res && res.ok) {
-                isSavedBackend = true;
-                backendData = await res.json().catch(() => null);
+              for (const baseEp of endpointsToTry) {
+                const res = await fetch(`${baseEp}${matched.id}/`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(patchPayload)
+                });
+                if (res && res.ok) {
+                  isSavedBackend = true;
+                  backendData = await res.json().catch(() => null);
+                  break;
+                }
               }
             }
           }
-        } catch (e) {}
+        } catch (e) { }
+      }
+
+      if (!isSavedBackend) {
+        try {
+          const postPayload = {
+            id: exactDbId || numericId,
+            Appoment_id: String(selectedBillingPatient.Appoment_id || targetId || ''),
+            appointment_id: String(selectedBillingPatient.Appoment_id || targetId || ''),
+            ...patchPayload
+          };
+          for (const baseEp of endpointsToTry) {
+            const res = await fetch(baseEp, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(postPayload)
+            });
+            if (res && res.ok) {
+              isSavedBackend = true;
+              backendData = await res.json().catch(() => null);
+              break;
+            }
+          }
+        } catch (e) {
+          console.error('Error posting billing update:', e);
+        }
       }
 
       const updatedPat = {
@@ -572,7 +737,7 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
         hospital_charges: numHospCharges,
         amount_paid: amountPaid,
         Amount_Paid: amountPaid,
-        payment_method: paymentForm.payment_method || 'Cash',
+        payment_method: validPaymentMethod,
         payment_status: finalStatus,
         Payment_Status: finalStatus,
         Discharge_DateTime: dischargeIso,
@@ -582,7 +747,33 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
         settled_at: new Date().toISOString()
       };
 
-      setPatients(prev => prev.map(p => (p.id === selectedBillingPatient.id || (p.Appoment_id && p.Appoment_id === selectedBillingPatient.Appoment_id)) ? updatedPat : p));
+      const apptKey = String(targetId || numericId);
+      localStorage.setItem(`receptionist_billed_${apptKey}`, 'true');
+      if (numericId) localStorage.setItem(`receptionist_billed_${numericId}`, 'true');
+      if (targetId) localStorage.setItem(`receptionist_billed_${targetId}`, 'true');
+
+      localStorage.setItem(`receptionist_hosp_charges_${apptKey}`, String(numHospCharges));
+      if (numericId) localStorage.setItem(`receptionist_hosp_charges_${numericId}`, String(numHospCharges));
+      if (targetId) localStorage.setItem(`receptionist_hosp_charges_${targetId}`, String(numHospCharges));
+
+      localStorage.setItem(`receptionist_doc_fee_${apptKey}`, String(numDocFee));
+      if (numericId) localStorage.setItem(`receptionist_doc_fee_${numericId}`, String(numDocFee));
+      if (targetId) localStorage.setItem(`receptionist_doc_fee_${targetId}`, String(numDocFee));
+
+      localStorage.setItem(`receptionist_payment_status_${apptKey}`, finalStatus);
+      if (numericId) localStorage.setItem(`receptionist_payment_status_${numericId}`, finalStatus);
+      if (targetId) localStorage.setItem(`receptionist_payment_status_${targetId}`, finalStatus);
+
+      localStorage.setItem(`receptionist_amount_paid_${apptKey}`, String(amountPaid));
+      if (numericId) localStorage.setItem(`receptionist_amount_paid_${numericId}`, String(amountPaid));
+      if (targetId) localStorage.setItem(`receptionist_amount_paid_${targetId}`, String(amountPaid));
+
+      setPatients(prev => prev.map(p => (
+        p.id === selectedBillingPatient.id || 
+        (p.Appoment_id && p.Appoment_id === selectedBillingPatient.Appoment_id) ||
+        (numericId && p.id === numericId)
+      ) ? updatedPat : p));
+
       setSelectedBillingPatient(null);
 
       const displayName = updatedPat.patient_Name || updatedPat.patient_name || updatedPat.name || selectedBillingPatient?.patient_Name || selectedBillingPatient?.name || `Patient #${numericId}`;
@@ -596,7 +787,7 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
       setTimeout(() => setSuccessBanner(''), 6000);
 
       // Re-fetch live data from backend to ensure all tables and state are fresh
-      loadBillingData();
+      loadBillingData(true);
 
       // Open printable invoice immediately for printing if marked Paid
       if (finalStatus === 'Paid') {
@@ -720,33 +911,40 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
           </div>
         </div>
 
-        {/* TAB FILTER BUTTONS */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        {/* TAB FILTER BUTTONS (WITHOUT SCROLLING) */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setBillingFilter('ALL')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${billingFilter === 'ALL' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+            onClick={() => setBillingFilter('TODAY')}
+            className={`py-2 px-3.5 rounded-xl font-bold text-xs transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              billingFilter === 'TODAY'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+            }`}
           >
-            All Discharged ({patients.length})
+            <span>📅 Today ({todayDischargedCount})</span>
           </button>
           <button
             type="button"
             onClick={() => setBillingFilter('PENDING')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${billingFilter === 'PENDING' ? 'bg-amber-600 text-white shadow-xs' : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
-              }`}
+            className={`py-2 px-3.5 rounded-xl font-bold text-xs transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              billingFilter === 'PENDING'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+            }`}
           >
-            <span>⏳ Payment Due / Unpaid</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-white/30 text-[10px]">{pendingPaymentPatients.length}</span>
+            <span>⏳ Payment Due / Unpaid ({pendingPaymentPatients.length})</span>
           </button>
           <button
             type="button"
             onClick={() => setBillingFilter('PAID')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${billingFilter === 'PAID' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
-              }`}
+            className={`py-2 px-3.5 rounded-xl font-bold text-xs transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              billingFilter === 'PAID'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+            }`}
           >
-            <span>✓ Settled & Cleared (Gate Pass)</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-white/30 text-[10px]">{paidSettledPatients.length}</span>
+            <span>✓ Settled & Cleared (Gate Pass) ({paidSettledPatients.length})</span>
           </button>
         </div>
 
@@ -762,14 +960,14 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
             {
               key: 'billingFilter',
               name: 'Billing Status',
-              value: billingFilter,
-              displayValue: billingFilter === 'PENDING' ? 'Payment Due / Unpaid' : billingFilter === 'PAID' ? 'Settled & Cleared (Gate Pass)' : billingFilter,
-              onRemove: () => setBillingFilter('ALL')
+              value: (billingFilter === 'PAID' || billingFilter === 'ALL') ? '' : billingFilter,
+              displayValue: billingFilter === 'PENDING' ? 'Payment Due / Unpaid' : billingFilter === 'TODAY' ? 'Today' : billingFilter,
+              onRemove: () => setBillingFilter('PAID')
             }
           ]}
           onClearAll={() => {
             setSearchTerm('');
-            setBillingFilter('ALL');
+            setBillingFilter('PAID');
           }}
         />
 
@@ -818,9 +1016,13 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
                           <span className="font-mono text-[10px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block">
                             APT-{apptId}
                           </span>
-                          {pat.bed_number && (
+                          {pat.bed_number ? (
                             <span className="text-[9px] font-mono font-bold bg-purple-100 text-purple-900 px-1.5 py-0.5 rounded border border-purple-300 inline-block">
                               Bed #{pat.bed_number}
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 inline-block">
+                              No Bed (OPD)
                             </span>
                           )}
                         </div>
@@ -850,7 +1052,11 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
                         ₹{bill.total.toFixed(2)}
                       </td>
 
-                      <td className="py-3 px-3 text-center"><span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${(pat.payment_status || (bill.isPaid ? 'Paid' : bill.paid > 0 ? 'Partial' : 'Pending')) === 'Paid' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : (pat.payment_status || (bill.paid > 0 ? 'Partial' : 'Pending')) === 'Partial' ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-amber-100 text-amber-800 border-amber-300'}`}>{pat.payment_status || (bill.isPaid ? 'Paid' : bill.paid > 0 ? 'Partial' : 'Pending')}</span></td>
+                      <td className="py-3 px-3 text-center">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${bill.status === 'Paid' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : bill.status === 'Partial' ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-amber-100 text-amber-800 border-amber-300'}`}>
+                          {bill.status}
+                        </span>
+                      </td>
 
                       <td className="py-3 px-3 text-center font-mono font-black text-rose-600">
                         {bill.due > 0 ? `₹${bill.due.toFixed(2)}` : '₹0.00'}
@@ -891,7 +1097,7 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
                         )}
                       </td>
 
-                      
+
                     </tr>
                   );
                 })
@@ -1026,7 +1232,27 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
                     <label className="block text-[10px] font-bold text-teal-900 uppercase mb-1">Billing Status *</label>
                     <select
                       value={paymentForm.payment_status}
-                      onChange={(e) => setPaymentForm(prev => ({ ...prev, payment_status: e.target.value }))}
+                      onChange={(e) => {
+                        const newStatus = e.target.value;
+                        setPaymentForm(prev => {
+                          const total = (Number(prev.consultation_fee) || 0) + (Number(prev.hospital_charges) || 0);
+                          let newPaid = prev.amount_paid;
+                          if (newStatus === 'Paid') {
+                            newPaid = total > 0 ? total : prev.amount_paid;
+                          } else if (newStatus === 'Pending') {
+                            newPaid = 0;
+                          } else if (newStatus === 'Partial') {
+                            if (newPaid >= total || newPaid <= 0) {
+                              newPaid = total > 0 ? Math.round(total / 2) : 0;
+                            }
+                          }
+                          return {
+                            ...prev,
+                            payment_status: newStatus,
+                            amount_paid: newPaid
+                          };
+                        });
+                      }}
                       className="w-full px-3 py-1.5 rounded-lg border border-teal-300 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
                     >
                       <option value="Paid">Paid (Full Cleared)</option>
@@ -1043,12 +1269,30 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
                         min="0"
                         step="any"
                         value={paymentForm.amount_paid}
-                        onChange={(e) => setPaymentForm(prev => ({ ...prev, amount_paid: Number(e.target.value) || 0 }))}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0;
+                          setPaymentForm(prev => {
+                            const total = (Number(prev.consultation_fee) || 0) + (Number(prev.hospital_charges) || 0);
+                            let autoStatus = prev.payment_status;
+                            if (val >= total && total > 0) {
+                              autoStatus = 'Paid';
+                            } else if (val > 0 && val < total) {
+                              autoStatus = 'Partial';
+                            } else if (val === 0 && prev.payment_status === 'Paid') {
+                              autoStatus = 'Pending';
+                            }
+                            return { ...prev, amount_paid: val, payment_status: autoStatus };
+                          });
+                        }}
                         className="w-full px-3 py-1.5 rounded-lg border border-teal-300 bg-white font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
                       />
                       <button
                         type="button"
-                        onClick={() => setPaymentForm(prev => ({ ...prev, amount_paid: currentModalTotalBill }))}
+                        onClick={() => setPaymentForm(prev => ({ 
+                          ...prev, 
+                          amount_paid: currentModalTotalBill,
+                          payment_status: 'Paid'
+                        }))}
                         className="px-2.5 py-1 rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-[10px] font-bold shrink-0 cursor-pointer"
                         title="Quick Fill Full Balance"
                       >
@@ -1100,8 +1344,79 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
 
       {/* MODAL 2: PRINTABLE OFFICIAL DISCHARGE INVOICE & GATE PASS */}
       {invoiceModalPatient && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 sm:p-8 space-y-5 my-auto animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
+        <div id="invoice-modal-overlay" className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          {/* PRINT-ONLY ISOLATION & VERTICAL CENTERING CSS RULES */}
+          <style>{`
+            @media print {
+              @page {
+                size: A4 portrait;
+                margin: 0mm;
+              }
+              html, body {
+                background: #ffffff !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                min-height: 100vh !important;
+                max-height: 100vh !important;
+                overflow: hidden !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              body * {
+                visibility: hidden !important;
+              }
+              #printable-invoice,
+              #printable-invoice * {
+                visibility: visible !important;
+              }
+              #printable-invoice {
+                position: fixed !important;
+                left: 50% !important;
+                top: 50% !important;
+                transform: translate(-50%, -50%) !important;
+                width: 90% !important;
+                max-width: 680px !important;
+                margin: 0 !important;
+                padding: 24px 28px !important;
+                border: 2px solid #0f172a !important;
+                border-radius: 16px !important;
+                background: #ffffff !important;
+                box-shadow: none !important;
+                z-index: 99999999 !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+              }
+              #invoice-modal-card,
+              #invoice-modal-overlay {
+                background: transparent !important;
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+              }
+              button,
+              button *,
+              nav,
+              header,
+              footer,
+              aside,
+              .print\\:hidden,
+              .print\\:hidden *,
+              .no-print,
+              #invoice-modal-actions,
+              #invoice-modal-actions * {
+                display: none !important;
+                visibility: hidden !important;
+                height: 0 !important;
+                width: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+              }
+            }
+          `}</style>
+          <div id="invoice-modal-card" className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 sm:p-8 space-y-5 my-auto animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
             {/* PRINTABLE AREA */}
             <div id="printable-invoice" className="p-4 sm:p-6 border-2 border-slate-200 rounded-2xl bg-white text-slate-800 space-y-4">
               {/* INVOICE HEADER */}
@@ -1223,7 +1538,7 @@ const ReceptionistBilling = ({ currentUser, setCurrentPage, setSelectedPatient }
             </div>
 
             {/* MODAL ACTIONS */}
-            <div className="flex items-center justify-between pt-2">
+            <div id="invoice-modal-actions" className="flex items-center justify-between pt-2 print:hidden">
               <div className="flex items-center gap-2">
                 <button
                   type="button"

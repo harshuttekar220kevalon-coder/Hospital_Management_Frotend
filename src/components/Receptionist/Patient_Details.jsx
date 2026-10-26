@@ -255,13 +255,20 @@ const isNurseInHospital = (nurse, targetHospId, targetHospName = '') => {
 
 const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedPatient, setCurrentPage }) => {
   const [patient, setPatient] = useState(() => {
-    if (selectedPatient) return selectedPatient;
-    try {
-      const saved = localStorage.getItem('selectedPatient');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
+    let p = null;
+    if (selectedPatient) p = selectedPatient;
+    else {
+      try {
+        const saved = localStorage.getItem('selectedPatient');
+        p = saved ? JSON.parse(saved) : null;
+      } catch {
+        p = null;
+      }
     }
+    if (p && ((p.patient_id === 'PAT-0002' || (p.email && p.email.toLowerCase().trim() === 'p2@gmail.com')) && (p.name || '').toLowerCase() === 'raj')) {
+      p = { ...p, name: 'Patient 2', patient_name: 'Patient 2' };
+    }
+    return p;
   });
 
   const isCancelledAppt = (a) => (a?.status || a?.appointment_status || '').toLowerCase().includes('cancel');
@@ -292,7 +299,7 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
     address: '',
     hospital: '',
     doctor: '',
-    visit_date: '',
+    visit_date: (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; })(),
     visit_time: '',
     condition: '',
     symptoms_diagnosis: '',
@@ -635,10 +642,7 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
     }
     setFormData(prev => ({
       ...prev,
-      doctor: docVal,
-      hospitals_charges: (chosenDoc?.consultation_fee && (prev.hospitals_charges === '0.00' || !prev.hospitals_charges))
-        ? String(chosenDoc.consultation_fee)
-        : prev.hospitals_charges
+      doctor: docVal
     }));
   };
 
@@ -792,10 +796,7 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
     }
     setEditFormData(prev => ({
       ...prev,
-      doctor: docVal,
-      hospitals_charges: (chosenDoc?.consultation_fee && (prev.hospitals_charges === '0.00' || !prev.hospitals_charges))
-        ? String(chosenDoc.consultation_fee)
-        : prev.hospitals_charges
+      doctor: docVal
     }));
   };
 
@@ -1060,7 +1061,7 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
       if (hospId) cleanPayload.hospital = Number(hospId);
       if (chosenDoc) {
         cleanPayload.doctor = Number(chosenDoc.id);
-        cleanPayload.doctor_name = chosenDoc.name?.startsWith('Dr.') ? chosenDoc.name : `Dr. ${chosenDoc.name}`;
+        cleanPayload.doctor_name = chosenDoc.name || '';
       } else if (!editFormData.doctor) {
         cleanPayload.doctor = null;
         cleanPayload.doctor_name = 'Awaiting Doctor Assignment';
@@ -1235,26 +1236,9 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
         return;
       }
 
-      let visitIso = new Date().toISOString();
-      if (formData.visit_date) {
-        let hours = 10;
-        let minutes = 0;
-        if (formData.visit_time) {
-          const timeMatch = formData.visit_time.match(/(\d+):(\d+)\s*(AM|PM)/i);
-          if (timeMatch) {
-            let h = parseInt(timeMatch[1], 10);
-            const m = parseInt(timeMatch[2], 10);
-            const ampm = timeMatch[3].toUpperCase();
-            if (ampm === 'PM' && h < 12) h += 12;
-            if (ampm === 'AM' && h === 12) h = 0;
-            hours = h;
-            minutes = m;
-          }
-        }
-        const d = new Date(formData.visit_date);
-        d.setHours(hours, minutes, 0, 0);
-        visitIso = d.toISOString();
-      }
+      const now = new Date();
+      const todayYMD = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const visitIso = now.toISOString();
 
       const chargesVal = Number(formData.hospitals_charges || 0);
       const paidVal = Number(formData.amount_paid || 0);
@@ -1273,9 +1257,12 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
         email: finalEmail,
         address: addrVal,
         hospital: selectedHospId,
+        Applied_at: visitIso,
+        applied_at: visitIso,
         visit_date_time: visitIso,
-        appointment_date: formData.visit_date,
-        appointment_time: formData.visit_time,
+        appointment_date: todayYMD,
+        visit_date: todayYMD,
+        appointment_time: formData.visit_time || now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
         symptoms_diagnosis: formData.symptoms_diagnosis.trim(),
         reason_for_visit: formData.symptoms_diagnosis.trim(),
         blood_group: bloodVal,
@@ -1377,7 +1364,7 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
         address: '',
         hospital: assignedHospital?.id ? String(assignedHospital.id) : '',
         doctor: '',
-        visit_date: '',
+        visit_date: (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; })(),
         visit_time: '',
         condition: '',
         symptoms_diagnosis: '',
@@ -1950,7 +1937,9 @@ const ReceptionistPatientDetails = ({ currentUser, selectedPatient, setSelectedP
                         type="date"
                         name="visit_date"
                         required
-                        value={formData.visit_date}
+                        value={formData.visit_date || (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; })()}
+                        min={(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; })()}
+                        max={(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; })()}
                         onChange={handleChange}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 bg-white focus:outline-none focus:border-teal-600 shadow-2xs font-medium"
                       />

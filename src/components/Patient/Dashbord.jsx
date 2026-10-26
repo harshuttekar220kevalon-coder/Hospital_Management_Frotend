@@ -24,41 +24,67 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
   const [loading, setLoading] = useState(true);
   const [showDischargeAlert, setShowDischargeAlert] = useState(true);
 
+  const isBillingPaid = (item) => {
+    if (!item) return false;
+    const s = (item.status || item.Status || '').toString().toLowerCase().trim();
+    if (s.includes('cancel') || s.includes('reject')) return false;
+
+    const b = (item.payment_status || item.Payment_status || item.Payment_Status || item.billing_status || '').toString().toLowerCase().trim();
+    if (b === 'paid') return true;
+
+    const id = item.id || item.appointment_id || item.Appoment_id || item.appoment_id;
+    if (id && (localStorage.getItem(`receptionist_billed_${id}`) === 'true' || (item.Appoment_id && localStorage.getItem(`receptionist_billed_${item.Appoment_id}`) === 'true'))) {
+      return true;
+    }
+
+    const docFee = Number(item.consultation_fee ?? item.Consultation_Fee ?? item.consultancy_fee ?? 0);
+    const hospCharges = Number(item.hospitals_charges ?? item.Hospitals_Chargies ?? item.hospital_charges ?? 0);
+    const total = docFee + hospCharges;
+    const paid = Number(item.amount_paid ?? item.Amount_Paid ?? 0);
+    if (total > 0 && paid >= total) return true;
+
+    return false;
+  };
+
   const isDischarged = (itemOrStatus, checkupStatus, paymentStatus) => {
     let s = '';
+    let ds = '';
     let c = '';
     let b = '';
     if (typeof itemOrStatus === 'object' && itemOrStatus !== null) {
+      if (isBillingPaid(itemOrStatus)) return true;
       s = (itemOrStatus.status || itemOrStatus.discharge_status || '').toString().toLowerCase().trim();
+      ds = (itemOrStatus.discharge_status || '').toString().toLowerCase().trim();
       c = (itemOrStatus.checkup_status || itemOrStatus.Checkup_status || '').toString().toLowerCase().trim();
       b = (itemOrStatus.payment_status || itemOrStatus.Payment_status || itemOrStatus.billing_status || '').toString().toLowerCase().trim();
     } else {
       s = (itemOrStatus || '').toString().toLowerCase().trim();
       c = (checkupStatus || '').toString().toLowerCase().trim();
       b = (paymentStatus || '').toString().toLowerCase().trim();
+      if (b === 'paid') return true;
+    }
+
+    // Never classify cancelled as discharged
+    if (s.includes('cancel') || s.includes('reject')) {
+      return false;
+    }
+
+    // If billing is paid, visit is completed
+    if (b === 'paid') {
+      return true;
     }
 
     // If status is Pending or contains pending / unassign / admit / in progress -> NOT discharged
-    if (s.includes('pending') || s.includes('unassign') || s.includes('admit') || s.includes('progress') || s.includes('cancel') || s === '') {
+    if (s.includes('pending') || s.includes('unassign') || s.includes('admit') || s.includes('progress') || s === '') {
       return false;
     }
 
     // Must explicitly contain discharged or completed
-    if (!s.includes('discharg') && s !== 'completed') {
-      return false;
+    if (s.includes('discharg') || ds.includes('discharg') || s === 'completed') {
+      return true;
     }
 
-    // Checkup status must NOT be pending
-    if (c && (c.includes('pending') || c.includes('wait') || c === 'under checkup')) {
-      return false;
-    }
-
-    // Billing / Payment status must NOT be pending / unpaid
-    if (b && (b === 'pending' || b.includes('pending') || b === 'unpaid' || b === 'due')) {
-      return false;
-    }
-
-    return true;
+    return false;
   };
 
   const isCancelled = (itemOrStatus) => {
@@ -136,6 +162,7 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
         const patientUhid = (foundPatientRecord?.patient_id || foundPatientRecord?.uhid || userUhid || '').toLowerCase().trim();
         const patientEmail = (foundPatientRecord?.email || email || '').toLowerCase().trim();
         const patientPhone = (foundPatientRecord?.contact || foundPatientRecord?.phone || patPhone || '').replace(/\D/g, '');
+        const patientFullName = (foundPatientRecord?.name || foundPatientRecord?.patient_name || currentUser?.name || currentUser?.patient_name || '').toLowerCase().trim();
 
         // Filter backend appointments for this patient
         const specificAppts = rawAppointments.filter(a => {
@@ -144,12 +171,14 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
           const aContact = (a.contact || a.phone || (typeof a.patient === 'object' ? a.patient?.contact : '') || '').replace(/\D/g, '');
           const aUhid = (a.patient_id || a.uhid || (typeof a.patient === 'object' ? a.patient?.patient_id : '') || '').toLowerCase().trim();
           const aApptId = String(a.Appoment_id || a.appoment_id || a.id || '').toLowerCase().trim();
+          const aName = (a.patient_name || a.patient_Name || a.name || '').toLowerCase().trim();
 
           if (patientEmail && aEmail && aEmail === patientEmail) return true;
           if (patientUhid && aUhid && aUhid === patientUhid) return true;
           if (patientUhid && aApptId && (patientUhid === aApptId || patientUhid === `apt-${aApptId}` || patientUhid === `apt${aApptId}`)) return true;
           if (patientPk && aPatId && Number(aPatId) === Number(patientPk)) return true;
-          if (patientPhone && patientPhone.length >= 10 && aContact && aContact === patientPhone) return true;
+          if (patientPhone && patientPhone.length >= 10 && aContact && (patientPhone.slice(-10) === aContact.slice(-10))) return true;
+          if (patientFullName && aName && patientFullName === aName && patientPhone && aContact && (patientPhone.slice(-10) === aContact.slice(-10))) return true;
 
           return false;
         });
@@ -167,19 +196,25 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
           } catch (e) {}
         }
 
-        // When backend data is fetched, backend is source of truth. Purge deleted records from cache.
+        // Merge backend and local appointments safely so appointments booked from account are fully included
         const backendIds = new Set(rawAppointments.map(a => String(a.id || a.Appoment_id || a.appoment_id || '')));
-        if (storedKey && localAppts.length > 0) {
-          const activeLocal = localAppts.filter(loc => {
-            const locId = String(loc?.id || loc?.Appoment_id || loc?.appoment_id || '');
-            return locId && backendIds.has(locId);
-          });
-          try {
-            localStorage.setItem(storedKey, JSON.stringify(activeLocal));
-          } catch (e) {}
-        }
+        const combinedApptsMap = new Map();
+        specificAppts.forEach(a => {
+          const key = String(a.id || a.Appoment_id || a.appoment_id || a.appointment_id);
+          combinedApptsMap.set(key, a);
+        });
 
-        fetchedAppointments = specificAppts;
+        localAppts.forEach(la => {
+          const key = String(la.id || la.Appoment_id || la.appoment_id || la.appointment_id);
+          if (combinedApptsMap.has(key)) {
+            const existing = combinedApptsMap.get(key);
+            combinedApptsMap.set(key, { ...la, ...existing });
+          } else {
+            combinedApptsMap.set(key, la);
+          }
+        });
+
+        fetchedAppointments = Array.from(combinedApptsMap.values());
       } catch (e) {
         console.warn('Appointments fetch notice:', e);
       }
@@ -192,7 +227,13 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
       const activeList = fetchedAppointments.filter(a => !isDischarged(a) && !isCancelled(a));
 
       let targetAppt = null;
-      if (selectedApptIdRef.current) {
+      const newestActiveId = activeList.length > 0 ? Number(activeList[0].id || activeList[0].Appoment_id || 0) : 0;
+      const currentSelectedId = Number(selectedApptIdRef.current || 0);
+
+      // If a brand new appointment was booked, auto-select it
+      if (newestActiveId > currentSelectedId && activeList.length > 0) {
+        targetAppt = activeList[0];
+      } else if (selectedApptIdRef.current) {
         targetAppt = activeList.find(a => String(a.id || a.Appoment_id || a.appoment_id || a.appointment_id) === String(selectedApptIdRef.current));
       }
 
@@ -364,12 +405,27 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
   const floorName = bedNum ? `Floor ${Math.floor((Number(bedNum) - 1) / 100) + 1}` : 'Outpatient (OPD)';
 
   const rawStatus = (activeAppt?.status || '').trim();
+  const isNotNeedAdmit = rawStatus.toLowerCase().includes('not need');
   const statusStr = rawStatus || (hasDoctor ? 'Assigned' : 'Pending');
-  const appointmentDate = activeAppt?.appointment_date || (activeAppt?.visit_date_time ? new Date(activeAppt.visit_date_time).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Scheduled');
-  const appointmentTime = activeAppt?.appointment_time || (activeAppt?.visit_date_time ? new Date(activeAppt.visit_date_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : (hasDoctor ? 'Slot Assigned' : 'Awaiting Slot'));
+
+  // Exact Applied At when patient booked appointment from their account
+  const rawAppliedAt = activeAppt?.Applied_at || activeAppt?.applied_at || activeAppt?.created_at || null;
+  const appliedAtFormatted = rawAppliedAt ? new Date(rawAppliedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : null;
+
+  // Visit date time set exclusively by receptionist upon doctor assignment
+  const rawVisitDateTime = activeAppt?.visit_date_time || null;
+  const visitDateTimeFormatted = rawVisitDateTime ? new Date(rawVisitDateTime).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : null;
+
+  const appointmentDate = rawVisitDateTime
+    ? new Date(rawVisitDateTime).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    : (activeAppt?.appointment_date ? new Date(activeAppt.appointment_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : null);
+
+  const appointmentTime = rawVisitDateTime
+    ? new Date(rawVisitDateTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+    : (activeAppt?.appointment_time || null);
 
   const isPendingTriage = hasActiveAppointment && (!hasDoctor || statusStr.toLowerCase().includes('pending') || statusStr.toLowerCase().includes('unassign'));
-  const isCheckupDone = statusStr.toLowerCase().includes('checkup') || statusStr.toLowerCase().includes('admit') || statusStr.toLowerCase().includes('done');
+  const isCheckupDone = isNotNeedAdmit || statusStr.toLowerCase().includes('checkup') || statusStr.toLowerCase().includes('admit') || statusStr.toLowerCase().includes('done') || statusStr.toLowerCase().includes('discharg');
   const isPaid = activeAppt?.payment_status === 'Paid';
 
   // Real billing from active backend record
@@ -385,7 +441,7 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
   // Stat cards: Show Live Appointment Tracking by APT ID
   const patientStats = hasActiveAppointment ? [
     { title: 'APPOINTMENT ID', value: trackingId, sub: `Active Booking #${activeApptId}`, tag: 'Live Tracking', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { title: 'INPATIENT BED & WARD', value: bedNum ? `Bed #${bedNum}` : 'Outpatient / OPD', sub: floorName, tag: 'Care Location', color: 'bg-teal-50 text-teal-700 border-teal-200' },
+    { title: 'INPATIENT BED & WARD', value: bedNum ? `Bed #${bedNum}` : isNotNeedAdmit ? 'No Need' : 'Outpatient / OPD', sub: isNotNeedAdmit ? 'Admission Not Required' : floorName, tag: isNotNeedAdmit ? 'OPD Care' : 'Care Location', color: 'bg-teal-50 text-teal-700 border-teal-200' },
     { title: 'ATTENDING DOCTOR', value: hasDoctor ? docName : 'Pending Assignment', sub: docSpecialty, tag: 'Consultant', color: hasDoctor ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-amber-50 text-amber-700 border-amber-200' },
     { title: 'TOTAL BILL AMOUNT', value: `₹${totalBill.toFixed(2)}`, sub: `Payment: ${activeAppt?.payment_status || 'Pending'} • Paid: ₹${amtPaid.toFixed(2)}`, tag: 'Live Billing', color: totalBill > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-700 border-slate-200' },
   ] : [
@@ -397,6 +453,7 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
 
   const getStatusBadgeStyle = (status) => {
     const s = (status || '').toString().toLowerCase().trim();
+    if (s.includes('not need')) return 'bg-teal-50 text-teal-800 border-teal-300';
     if (s.includes('pending') || s.includes('unassign')) return 'bg-amber-50 text-amber-800 border-amber-300';
     if (s.includes('admit') || s.includes('ipd') || s.includes('ward')) return 'bg-purple-50 text-purple-800 border-purple-300';
     if (s.includes('checkup') || s.includes('progress') || s.includes('consult')) return 'bg-indigo-50 text-indigo-800 border-indigo-300';
@@ -537,6 +594,9 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                   <span className="text-[10px] font-bold text-emerald-800 uppercase">Step 1</span>
                 </div>
                 <p className="font-bold text-slate-900 text-xs mt-1">Booking Recorded</p>
+                {appliedAtFormatted && (
+                  <p className="text-[10px] text-emerald-800 font-semibold mt-0.5">Applied: {appliedAtFormatted}</p>
+                )}
                 <p className="text-[11px] text-slate-500 mt-0.5">ID: <strong className="font-mono text-teal-700">{trackingId}</strong></p>
               </div>
 
@@ -554,13 +614,16 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                   </span>
                   <span className="text-[10px] font-bold uppercase text-slate-500">Step 2</span>
                 </div>
-                <p className="font-bold text-slate-900 text-xs mt-1">Doctor & Slot</p>
+                <p className="font-bold text-slate-900 text-xs mt-1">Doctor & Visit Timing</p>
                 <p className="text-[11px] text-slate-600 truncate mt-0.5">{hasDoctor ? docName : 'Awaiting Assignment'}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                  {visitDateTimeFormatted ? `Visit: ${visitDateTimeFormatted}` : (appointmentDate ? `Visit: ${appointmentDate} ${appointmentTime || ''}` : 'Timing: Pending Receptionist')}
+                </p>
               </div>
 
               {/* Stage 3: Inpatient / OPD Allocation */}
               <div className={`p-3 rounded-xl border flex flex-col justify-between ${
-                bedNum
+                bedNum || isNotNeedAdmit
                   ? 'bg-emerald-50 border-emerald-200'
                   : hasDoctor
                     ? 'bg-slate-50 border-slate-200'
@@ -568,14 +631,14 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
               }`}>
                 <div className="flex items-center justify-between mb-1">
                   <span className={`w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center ${
-                    bedNum ? 'bg-emerald-600 text-white' : hasDoctor ? 'bg-teal-600 text-white' : 'bg-slate-300 text-slate-600'
+                    bedNum || isNotNeedAdmit ? 'bg-emerald-600 text-white' : hasDoctor ? 'bg-teal-600 text-white' : 'bg-slate-300 text-slate-600'
                   }`}>
-                    {bedNum ? '✓' : '3'}
+                    {bedNum || isNotNeedAdmit ? '✓' : '3'}
                   </span>
                   <span className="text-[10px] font-bold uppercase text-slate-500">Step 3</span>
                 </div>
                 <p className="font-bold text-slate-900 text-xs mt-1">Ward / Location</p>
-                <p className="text-[11px] text-slate-600 mt-0.5">{bedNum ? `Bed #${bedNum}` : 'Outpatient (OPD)'}</p>
+                <p className="text-[11px] text-slate-600 mt-0.5">{bedNum ? `Bed #${bedNum}` : isNotNeedAdmit ? 'No Need (OPD)' : 'Outpatient (OPD)'}</p>
               </div>
 
               {/* Stage 4: Doctor Checkup & Diagnosis */}
@@ -631,15 +694,15 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                 </div>
                 <div>
                   <h3 className="text-xs sm:text-sm font-bold text-amber-950">
-                    Appointment {trackingId} Recorded • Awaiting Receptionist Assignment
+                    Appointment {trackingId} Recorded {appliedAtFormatted ? `• Applied on ${appliedAtFormatted}` : ''}
                   </h3>
                   <p className="text-xs text-amber-800 mt-0.5">
-                    Your appointment booking data is successfully saved in the database under <strong>{trackingId}</strong>. The duty receptionist will assign your consulting Doctor & time slot shortly.
+                    Your appointment booking data is successfully saved in the database under <strong>{trackingId}</strong>. The duty receptionist will review your case, assign a consulting Doctor, and set your visit date & time shortly.
                   </p>
                 </div>
               </div>
               <span className="px-3 py-1 rounded-full bg-amber-200 text-amber-900 text-xs font-bold border border-amber-300 uppercase shrink-0">
-                Pending Triage
+                Pending Receptionist Assignment
               </span>
             </div>
           ) : (
@@ -653,7 +716,7 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                     Appointment {trackingId} • Doctor Assigned: {docName} ({docSpecialty})
                   </h3>
                   <p className="text-xs text-emerald-800 mt-0.5">
-                    Scheduled: <strong>{appointmentDate}</strong> at <strong>{appointmentTime}</strong> {hospName ? `• ${hospName}` : ''}
+                    Visit Scheduled: <strong>{visitDateTimeFormatted || (appointmentDate ? `${appointmentDate} at ${appointmentTime}` : 'Scheduled')}</strong> {hospName ? `• ${hospName}` : ''}
                   </p>
                 </div>
               </div>
@@ -787,14 +850,19 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Attending Specialist & Timing</span>
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Attending Specialist & Hospital Visit Time</span>
                     <p className="font-bold text-slate-900 text-sm">{docName}</p>
-                    <p className="text-slate-500 text-[11px]">
-                      🕒 {appointmentDate} {appointmentTime ? `• Slot: ${appointmentTime}` : ''}
+                    <p className="text-teal-700 font-semibold text-[11px]">
+                      🕒 {visitDateTimeFormatted ? `Visit: ${visitDateTimeFormatted}` : (appointmentDate ? `Visit: ${appointmentDate} ${appointmentTime ? `• ${appointmentTime}` : ''}` : 'Visit Timing: Awaiting Receptionist')}
                     </p>
+                    {appliedAtFormatted && (
+                      <p className="text-slate-400 text-[10px]">
+                        Applied At: <strong className="text-slate-600 font-semibold">{appliedAtFormatted}</strong>
+                      </p>
+                    )}
                   </div>
 
-                  {bedNum && (
+                  {bedNum ? (
                     <div className="p-3.5 rounded-xl bg-teal-50 border border-teal-200 sm:col-span-2 flex items-center justify-between">
                       <div>
                         <p className="text-[10px] uppercase font-bold text-teal-700">Assigned Inpatient Location</p>
@@ -804,7 +872,17 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                         Floor {Math.floor((Number(bedNum) - 1) / 100) + 1}
                       </span>
                     </div>
-                  )}
+                  ) : isNotNeedAdmit ? (
+                    <div className="p-3.5 rounded-xl bg-teal-50/70 border border-teal-200 sm:col-span-2 flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-teal-700">Hospital Admission Status</p>
+                        <p className="text-sm font-extrabold text-teal-900 mt-0.5">No Need For Admission • Direct Outpatient Consultation</p>
+                      </div>
+                      <span className="px-3 py-1 rounded-full bg-teal-100 text-teal-800 text-xs font-bold border border-teal-300">
+                        No Bed Required
+                      </span>
+                    </div>
+                  ) : null}
 
                   <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 sm:col-span-2 space-y-1">
                     <p className="text-[10px] uppercase font-bold text-slate-400">Chief Symptoms / Diagnosis:</p>
@@ -881,18 +959,24 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
                     <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
                       <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Nurse Health Care</p>
                       <div className="pt-0.5">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                          (activeAppt?.Health_Care || activeAppt?.health_care) === 'Fully Recovered' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
-                          (activeAppt?.Health_Care || activeAppt?.health_care) === 'Recovering' ? 'bg-sky-100 text-sky-800 border-sky-300' :
-                          (activeAppt?.Health_Care || activeAppt?.health_care) === 'Done' ? 'bg-teal-100 text-teal-800 border-teal-300' :
-                          (activeAppt?.Health_Care || activeAppt?.health_care) === 'No Significant Change' ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                          'bg-slate-100 text-slate-700 border-slate-200'
-                        }`}>
-                          {activeAppt?.Health_Care || activeAppt?.health_care || 'Not Done'}
-                        </span>
+                        {isNotNeedAdmit && !activeAppt?.nurse && !bedNum ? (
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border bg-teal-50 text-teal-800 border-teal-300">
+                            No Need
+                          </span>
+                        ) : (
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            (activeAppt?.Health_Care || activeAppt?.health_care) === 'Fully Recovered' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                            (activeAppt?.Health_Care || activeAppt?.health_care) === 'Recovering' ? 'bg-sky-100 text-sky-800 border-sky-300' :
+                            (activeAppt?.Health_Care || activeAppt?.health_care) === 'Done' ? 'bg-teal-100 text-teal-800 border-teal-300' :
+                            (activeAppt?.Health_Care || activeAppt?.health_care) === 'No Significant Change' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                            'bg-slate-100 text-slate-700 border-slate-200'
+                          }`}>
+                            {activeAppt?.Health_Care || activeAppt?.health_care || (isNotNeedAdmit ? 'No Need' : 'Not Done')}
+                          </span>
+                        )}
                       </div>
                       <p className="text-slate-400 text-[10px]">
-                        Nurse Care Status
+                        {isNotNeedAdmit && !activeAppt?.nurse ? 'Admission Not Required' : 'Nurse Care Status'}
                       </p>
                     </div>
                   </div>
@@ -1006,7 +1090,68 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
           </div>
 
           {/* BILLING & RECEIPTS SIDEBAR CARD */}
-          <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-2xs flex flex-col justify-between">
+          <div id="printable-health-slip" className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-2xs flex flex-col justify-between">
+            {/* PRINT ISOLATION RULES FOR DASHBOARD HEALTH SLIP */}
+            <style>{`
+              @media print {
+                @page {
+                  size: A4 portrait;
+                  margin: 0mm;
+                }
+                html, body {
+                  background: #ffffff !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  width: 100vw !important;
+                  height: 100vh !important;
+                  min-height: 100vh !important;
+                  max-height: 100vh !important;
+                  overflow: hidden !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                body * {
+                  visibility: hidden !important;
+                }
+                #printable-health-slip,
+                #printable-health-slip * {
+                  visibility: visible !important;
+                }
+                #printable-health-slip {
+                  position: fixed !important;
+                  left: 50% !important;
+                  top: 50% !important;
+                  transform: translate(-50%, -50%) !important;
+                  width: 90% !important;
+                  max-width: 580px !important;
+                  margin: 0 !important;
+                  padding: 24px 28px !important;
+                  border: 2px solid #0f172a !important;
+                  border-radius: 16px !important;
+                  box-shadow: none !important;
+                  background: #ffffff !important;
+                  z-index: 99999999 !important;
+                  page-break-inside: avoid !important;
+                  break-inside: avoid !important;
+                }
+                button,
+                button *,
+                nav,
+                header,
+                footer,
+                aside,
+                .print\\:hidden,
+                .print\\:hidden *,
+                .no-print {
+                  display: none !important;
+                  visibility: hidden !important;
+                  height: 0 !important;
+                  width: 0 !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
+              }
+            `}</style>
             <div>
               <div className="flex items-center justify-between mb-1">
                 <h2 className="text-sm sm:text-base font-bold text-slate-800">Billing & Receipts</h2>
@@ -1090,7 +1235,7 @@ const PatientDashboard = ({ currentUser, setCurrentPage, isLoggedIn = true, onLo
               )}
             </div>
 
-            <div className="pt-4 mt-4 border-t border-slate-100 flex flex-col gap-2">
+            <div className="pt-4 mt-4 border-t border-slate-100 flex flex-col gap-2 print:hidden">
               <button
                 type="button"
                 onClick={() => window.print()}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { API_BASE_URL } from '../Api/Api';
 
 const extractArray = (resData) => {
@@ -411,13 +411,13 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
     const c = (p.checkup_status || p.Checkup_status || '').toString().toLowerCase().trim();
     const b = (p.payment_status || p.Payment_status || p.billing_status || '').toString().toLowerCase().trim();
 
-    // If status is Pending or contains pending / unassign / admit / in progress -> NOT discharged
-    if (s.includes('pending') || s.includes('unassign') || s.includes('admit') || s.includes('progress') || s.includes('cancel') || s === '') {
+    // If status is Pending or contains pending / unassign / admit (excluding not need) / in progress -> NOT discharged
+    if (s.includes('pending') || s.includes('unassign') || (s.includes('admit') && !s.includes('not need')) || s.includes('progress') || s.includes('cancel') || s === '') {
       return false;
     }
 
-    // Must explicitly contain discharged or completed
-    if (!s.includes('discharg') && s !== 'completed') {
+    // Must explicitly contain discharged or completed or not need
+    if (!s.includes('discharg') && s !== 'completed' && !s.includes('not need')) {
       return false;
     }
 
@@ -487,12 +487,27 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
   const handlePatientClick = (patient) => {
     if (setSelectedPatient) {
       setSelectedPatient(patient);
+    }
+    try {
       localStorage.setItem('selectedPatient', JSON.stringify(patient));
+    } catch (e) {
+      console.error('Error saving patient to storage:', e);
     }
     if (setCurrentPage) {
       setCurrentPage('receptionist_patient_details');
     }
   };
+
+  const pendingRegistrations = useMemo(() => {
+    return patients.filter(p => {
+      const s = (p.status || '').toString().toLowerCase().trim();
+      // Exclude discharged, completed, or cancelled
+      if (s.includes('discharg') || s === 'completed' || s.includes('cancel')) {
+        return false;
+      }
+      return true;
+    });
+  }, [patients]);
 
   return (
     <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6">
@@ -618,20 +633,38 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
         </button>
       </div>
 
-      {/* RECENT PATIENTS TABLE */}
+      {/* RECENT PATIENTS TABLE - STRICTLY FILTERED TO PENDING STATUS */}
       <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-6 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <div>
-            <h2 className="text-sm sm:text-base font-bold text-slate-800">Recent Patient Registrations ({patients.length})</h2>
-            <p className="text-xs text-slate-500">Live reception desk entries for {hospitalName}</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-bold text-slate-800">
+                Recent Pending Registrations ({pendingRegistrations.length})
+              </h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                Pending Status Only
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">Live reception desk entries awaiting consultation / triage. Discharged appointments are managed in Discharge Billing & History.</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setCurrentPage && setCurrentPage('receptionist_patients')}
-            className="text-xs font-bold text-amber-700 hover:text-amber-800 hover:underline cursor-pointer"
-          >
-            View All Patient Records ➔
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setCurrentPage && setCurrentPage('receptionist_billing')}
+              className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer flex items-center gap-1"
+            >
+              <span>Discharged & Billing ({dischargedCount})</span>
+              <span>➔</span>
+            </button>
+            <span className="text-slate-300">•</span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage && setCurrentPage('receptionist_patients')}
+              className="text-xs font-bold text-amber-700 hover:text-amber-800 hover:underline cursor-pointer"
+            >
+              View All Patients ➔
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto w-full">
@@ -652,12 +685,12 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-400">Loading registrations...</td>
                 </tr>
-              ) : patients.length === 0 ? (
+              ) : pendingRegistrations.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400">No patient registrations yet today.</td>
+                  <td colSpan={7} className="py-8 text-center text-slate-400">No pending patient registrations awaiting assignment or triage.</td>
                 </tr>
               ) : (
-                patients.slice(0, visibleCount).map((p, i) => (
+                pendingRegistrations.slice(0, visibleCount).map((p, i) => (
                   <tr key={p.id || i} className="hover:bg-slate-50/70 transition">
                     <td className="py-3 px-3 font-semibold text-slate-800">
                       <div>{p.name}</div>
@@ -679,7 +712,7 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
                       <div className="font-semibold text-slate-800">{p.contact || p.phone || '-'}</div>
                       {p.email && <div className="text-[10px] text-slate-400 truncate max-w-[130px]">{p.email}</div>}
                     </td>
-                    <td className="py-3 px-3 text-slate-700 font-medium">{p.doctor_name || 'Assigned Specialist'}</td>
+                    <td className="py-3 px-3 text-slate-700 font-medium">{p.doctor_name || '-'}</td>
                     <td className="py-3 px-3">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
                         p.payment_status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
@@ -690,8 +723,8 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
                     </td>
                     <td className="py-3 px-3">
                       <div className="flex flex-col gap-1">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
-                          {p.status || 'Confirmed'}
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-amber-50 text-amber-800 border-amber-200">
+                          {p.status || 'Pending'}
                         </span>
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
                           p.checkup_status === 'Checkup Done' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-50 text-slate-500 border-slate-200'
@@ -716,7 +749,7 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
           </table>
         </div>
 
-        {visibleCount < patients.length && (
+        {visibleCount < pendingRegistrations.length && (
           <div className="p-3 text-center border-t border-slate-100 bg-slate-50/50 mt-4">
             <button
               type="button"

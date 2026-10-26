@@ -13,8 +13,8 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
   const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
-  const [dayFilter, setDayFilter] = useState('Today');
-  
+  const [dayFilter, setDayFilter] = useState('ALL');
+
   // Selected patient for Checkup & Admission
   const [selectedPatientModal, setSelectedPatientModal] = useState(null);
   const [clinicalNotes, setClinicalNotes] = useState('');
@@ -123,43 +123,43 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
 
     if (!rawDateStr) {
       return {
-        dateObj: new Date(),
-        isToday: true,
+        dateObj: null,
+        isToday: false,
         isYesterday: false,
         isTomorrow: false,
         isPast: false,
         isUpcoming: false,
         diffDays: 0,
-        dayLabel: 'Today',
-        timeFormatted: patient.appointment_time || '10:00 AM',
-        dateFormatted: new Date().toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }),
-        fullScheduleDisplay: 'Today',
-        badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold'
+        dayLabel: '--',
+        timeFormatted: patient.appointment_time || '--',
+        dateFormatted: '--',
+        fullScheduleDisplay: '--',
+        badgeClass: 'bg-slate-100 text-slate-700 border-slate-300 font-medium'
       };
     }
 
     const d = new Date(rawDateStr);
     if (isNaN(d.getTime())) {
       return {
-        dateObj: new Date(),
-        isToday: true,
+        dateObj: null,
+        isToday: false,
         isYesterday: false,
         isTomorrow: false,
         isPast: false,
         isUpcoming: false,
         diffDays: 0,
-        dayLabel: 'Today',
+        dayLabel: '--',
         timeFormatted: patient.appointment_time || '--',
-        dateFormatted: patient.appointment_date || String(rawDateStr),
+        dateFormatted: String(rawDateStr),
         fullScheduleDisplay: String(rawDateStr),
-        badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold'
+        badgeClass: 'bg-slate-100 text-slate-700 border-slate-300 font-medium'
       };
     }
 
     const now = new Date();
     const isToday = d.getFullYear() === now.getFullYear() &&
-                    d.getMonth() === now.getMonth() &&
-                    d.getDate() === now.getDate();
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate();
 
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const targetMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -240,7 +240,7 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
         if (docRes && docRes.ok) {
           const docs = await docRes.json();
           if (Array.isArray(docs)) {
-            currentDoc = docs.find(d => 
+            currentDoc = docs.find(d =>
               (d.email && d.email.toLowerCase().trim() === email) ||
               (docId && Number(d.id) === Number(docId)) ||
               (currentDocIdTag && d.doctor_id === currentDocIdTag) ||
@@ -283,7 +283,7 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
             const resData = await patRes.json().catch(() => []);
             combinedRecords = extractArray(resData);
           }
-        } catch (e) {}
+        } catch (e) { }
 
         const targetDocId = resolvedDoctor?.id || currentUser?.id;
         const targetDocTag = resolvedDoctor?.doctor_id || currentUser?.doctor_id;
@@ -464,7 +464,7 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
             isSuccess = true;
             break;
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       if (!isSuccess) {
@@ -501,7 +501,7 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
               }).catch(() => null);
             }
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const updatedPat = {
@@ -532,6 +532,12 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
     return cond.includes('critical') || cond.includes('emergency') || cond.includes('emerg') || cond.includes('urgent') || cond.includes('urg') || cond.includes('serious');
   };
 
+  const isDischargedOrNotNeed = (pat) => {
+    if (!pat) return false;
+    const s = (pat.status || pat.Status || pat.appointment_status || pat.discharge_status || '').toString().toLowerCase().trim();
+    return s.includes('discharg') || s.includes('not need') || s === 'completed';
+  };
+
   // Filter patients by hospital filter first
   const hospitalScopedPatients = patients.filter(p => {
     if (hospitalFilter === 'ALL') return true;
@@ -541,26 +547,31 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
     const filterName = filterHosp?.Name?.toLowerCase().trim() || '';
 
     return patHospId === Number(hospitalFilter) ||
-           (filterName && patHospName === filterName) ||
-           patHospName === String(hospitalFilter).toLowerCase().trim();
+      (filterName && patHospName === filterName) ||
+      patHospName === String(hospitalFilter).toLowerCase().trim();
   });
 
+  const todayCount = hospitalScopedPatients.filter(p => getAppointmentDateInfo(p).isToday && !isDischargedOrNotNeed(p)).length;
+
   const criticalCount = hospitalScopedPatients.filter(p => {
+    if (isDischargedOrNotNeed(p)) return false;
     const s = getPatientCondition(p).toLowerCase();
     return s.includes('critical');
   }).length;
 
   const emergencyCount = hospitalScopedPatients.filter(p => {
+    if (isDischargedOrNotNeed(p)) return false;
     const s = getPatientCondition(p).toLowerCase();
     return s.includes('emergency') || s.includes('emerg');
   }).length;
 
   const urgentCount = hospitalScopedPatients.filter(p => {
+    if (isDischargedOrNotNeed(p)) return false;
     const s = getPatientCondition(p).toLowerCase();
     return s.includes('urgent') || s.includes('urg') || s.includes('serious');
   }).length;
 
-  const routineCount = hospitalScopedPatients.filter(p => !isEmergencyCase(p)).length;
+  const routineCount = hospitalScopedPatients.filter(p => !isDischargedOrNotNeed(p) && !isEmergencyCase(p)).length;
 
   const filteredList = hospitalScopedPatients.filter(p => {
     const term = searchTerm.toLowerCase().trim();
@@ -573,24 +584,30 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
 
     if (!matchesSearch) return false;
 
+    const dateInfo = getAppointmentDateInfo(p);
     const cond = getPatientCondition(p).toLowerCase();
+    const isDischarged = isDischargedOrNotNeed(p);
     let matchesFilter = true;
 
-    if (filterType === 'Critical') {
-      matchesFilter = cond.includes('critical');
+    if (filterType === 'Today') {
+      matchesFilter = dateInfo.isToday && !isDischarged;
+    } else if (filterType === 'ALL') {
+      // ALL APPOINTMENTS: Shows all appointments of the table, whether completed or not, discharged or not
+      matchesFilter = true;
+    } else if (filterType === 'Critical') {
+      matchesFilter = !isDischarged && cond.includes('critical');
     } else if (filterType === 'Emergency') {
-      matchesFilter = cond.includes('emergency') || cond.includes('emerg');
+      matchesFilter = !isDischarged && (cond.includes('emergency') || cond.includes('emerg'));
     } else if (filterType === 'Urgent') {
-      matchesFilter = cond.includes('urgent') || cond.includes('urg') || cond.includes('serious');
+      matchesFilter = !isDischarged && (cond.includes('urgent') || cond.includes('urg') || cond.includes('serious'));
     } else if (filterType === 'Normal' || filterType === 'Routine') {
-      matchesFilter = !isEmergencyCase(p) || cond.includes('normal') || cond.includes('stable');
+      matchesFilter = !isDischarged && (!isEmergencyCase(p) || cond.includes('normal') || cond.includes('stable'));
     }
 
     if (!matchesFilter) return false;
 
-    const dateInfo = getAppointmentDateInfo(p);
     if (dayFilter === 'Today') {
-      return dateInfo.isToday;
+      return dateInfo.isToday && (filterType === 'ALL' || !isDischarged);
     } else if (dayFilter === 'Yesterday') {
       return dateInfo.isYesterday;
     } else if (dayFilter === 'Upcoming') {
@@ -652,11 +669,10 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
                   <span
                     key={h.id}
                     onClick={() => setHospitalFilter(String(h.id))}
-                    className={`px-2.5 py-0.5 rounded-md text-xs font-bold border transition cursor-pointer flex items-center gap-1 ${
-                      hospitalFilter === String(h.id)
+                    className={`px-2.5 py-0.5 rounded-md text-xs font-bold border transition cursor-pointer flex items-center gap-1 ${hospitalFilter === String(h.id)
                         ? 'bg-rose-500 text-white border-rose-300 font-black shadow-xs'
                         : 'bg-rose-500/20 text-rose-300 border-rose-400/30 hover:bg-rose-500/30'
-                    }`}
+                      }`}
                   >
                     <span>{h.Name}</span>
                     <span className="text-[10px] opacity-80">({h.Branch_Code || `HOSP-${h.id}`})</span>
@@ -666,11 +682,10 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
                   <button
                     type="button"
                     onClick={() => setHospitalFilter('ALL')}
-                    className={`px-2 py-0.5 rounded-md text-xs font-bold border transition cursor-pointer ${
-                      hospitalFilter === 'ALL'
+                    className={`px-2 py-0.5 rounded-md text-xs font-bold border transition cursor-pointer ${hospitalFilter === 'ALL'
                         ? 'bg-slate-100 text-slate-900 border-white'
                         : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:text-white'
-                    }`}
+                      }`}
                   >
                     All Branches
                   </button>
@@ -723,20 +738,30 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
 
         {/* TABS */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          {['ALL', 'Critical', 'Emergency', 'Urgent', 'Normal'].map(f => (
+          {['Today', 'ALL', 'Critical', 'Emergency', 'Urgent', 'Normal'].map(f => (
             <button
               key={f}
               type="button"
-              onClick={() => setFilterType(f)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                filterType === f ? 'bg-rose-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              onClick={() => {
+                setFilterType(f);
+                if (f === 'Today') {
+                  setDayFilter('Today');
+                } else if (f === 'ALL') {
+                  setDayFilter('ALL');
+                }
+              }}
+              className={`py-2 px-3.5 rounded-xl font-bold text-xs transition whitespace-nowrap cursor-pointer ${
+                filterType === f
+                  ? f === 'ALL' ? 'bg-amber-600 text-white shadow-xs' : 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
               }`}
             >
-              {f === 'ALL' ? `All Appointments (${hospitalScopedPatients.length})` : 
-               f === 'Normal' ? `Routine OPD (${routineCount})` : 
-               f === 'Critical' ? `Critical (${criticalCount})` : 
-               f === 'Emergency' ? `Emergency (${emergencyCount})` : 
-               f === 'Urgent' ? `Urgent (${urgentCount})` : f}
+              {f === 'Today' ? `Today (${todayCount})` :
+                f === 'ALL' ? `All Appointments (${hospitalScopedPatients.length})` :
+                f === 'Normal' ? `Routine OPD (${routineCount})` :
+                  f === 'Critical' ? `Critical (${criticalCount})` :
+                    f === 'Emergency' ? `Emergency (${emergencyCount})` :
+                      f === 'Urgent' ? `Urgent (${urgentCount})` : f}
             </button>
           ))}
         </div>
@@ -754,7 +779,11 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
               key: 'filterType',
               name: 'Condition',
               value: filterType,
-              onRemove: () => setFilterType('ALL')
+              displayValue: filterType === 'Today' ? 'Today' : filterType === 'Normal' ? 'Routine OPD' : filterType,
+              onRemove: () => {
+                setFilterType('ALL');
+                setDayFilter('ALL');
+              }
             },
             {
               key: 'hospitalFilter',
@@ -766,7 +795,7 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
             {
               key: 'dayFilter',
               name: 'Schedule',
-              value: dayFilter,
+              value: dayFilter !== filterType ? dayFilter : 'ALL',
               onRemove: () => setDayFilter('ALL')
             }
           ]}
@@ -812,7 +841,7 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
                   return (
                     <tr key={pat.id || idx} className="hover:bg-slate-50/70 transition">
                       <td className="py-3 px-3 text-left">
-                        <div className="font-bold text-slate-900 text-sm">{pat.patient_Name || pat.patient_name || pat.name || 'Patient'}</div>
+                        <div className="font-bold text-slate-900 text-sm">{pat.patient_Name || pat.patient_name || pat.name || '-'}</div>
                         <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                           <span className="font-mono text-[10px] text-sky-700 font-bold bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 inline-block">
                             {apptIdDisplay}
@@ -837,11 +866,10 @@ const DoctorAppointments = ({ currentUser, setCurrentPage }) => {
                       </td>
 
                       <td className="py-3 px-3 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          isAdmit ? 'bg-purple-100 text-purple-800 border-purple-200' :
-                          isDone ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
-                        }`}>
-                          {isAdmit ? 'Admitted' : (isDone ? 'Done' : 'Emergency')}
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${isDischargedOrNotNeed(pat) ? 'bg-teal-50 text-teal-700 border-teal-200' : isAdmit ? 'bg-purple-100 text-purple-800 border-purple-200' :
+                            isDone ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}>
+                          {isDischargedOrNotNeed(pat) ? (pat.status || 'Discharged') : isAdmit ? 'Admitted' : (isDone ? 'Done' : 'Emergency')}
                         </span>
                       </td>
 

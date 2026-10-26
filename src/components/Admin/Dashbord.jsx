@@ -955,9 +955,9 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
                 return (
                   <tr key={doc.id} className="hover:bg-slate-50/70 transition">
                     <td className="py-3 px-3 text-center">
-                      <span className="font-bold text-slate-800 block">{doc.name || 'Doctor'}</span>
+                      <span className="font-bold text-slate-800 block">{doc.name || '-'}</span>
                       <span className="font-mono text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block mt-0.5">
-                        {doc.doctor_id || `DOC-${doc.id}`}
+                        {doc.doctor_id || (doc.id ? `DOC-${doc.id}` : '-')}
                       </span>
                     </td>
                     <td className="py-3 px-3 text-center">
@@ -970,7 +970,7 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
                       </div>
                     </td>
                     <td className="py-3 px-3 text-center font-medium text-slate-700">
-                      {doc.opd_timings || 'Mon - Fri (10:00 AM - 02:00 PM)'}
+                      {doc.Shifts || doc.shift || doc.opd_timings || '-'}
                     </td>
                     <td className="py-3 px-3 text-center">
                       <span className="font-bold text-slate-800 block">{doc.phone || doc.contact || '-'}</span>
@@ -1065,17 +1065,17 @@ const AdminDashboard = ({ currentUser, setCurrentPage, setSelectedHospital, setS
               {nursesList.slice(0, nurseVisibleCount).map((nurse) => (
                 <tr key={nurse.id} className="hover:bg-slate-50/70 transition">
                   <td className="py-3 px-3 text-center">
-                    <span className="font-bold text-slate-800 block">{nurse.name || 'Nurse'}</span>
+                    <span className="font-bold text-slate-800 block">{nurse.name || '-'}</span>
                     <span className="font-mono text-[10px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200 inline-block mt-0.5">
-                      {nurse.nurse_id || `NUR-${nurse.id}`}
+                      {nurse.nurse_id || (nurse.id ? `NUR-${nurse.id}` : '-')}
                     </span>
                   </td>
                   <td className="py-3 px-3 text-center">
-                    <span className="font-semibold text-slate-800 block">{nurse.role || nurse.nurse_role || 'Staff Nurse'}</span>
-                    <span className="text-[11px] text-slate-500">{nurse.ward || 'General Ward'}</span>
+                    <span className="font-semibold text-slate-800 block">{nurse.role || nurse.nurse_role || '-'}</span>
+                    <span className="text-[11px] text-slate-500">{nurse.ward || '-'}</span>
                   </td>
                   <td className="py-3 px-3 text-center font-medium text-slate-700">
-                    {nurse.shift || 'Morning Shift'}
+                    {nurse.shift || '-'}
                   </td>
                   <td className="py-3 px-3 text-center">
                     <span className="font-bold text-slate-800 block">{nurse.contact || nurse.phone || '-'}</span>
