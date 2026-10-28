@@ -392,7 +392,7 @@ const PatientAppointment = ({ setCurrentPage, isLoggedIn, currentUser, onLogout 
             }
           } catch { }
         }
-        throw new Error(serverErrDetail || 'Unable to connect to Django backend server. Please verify backend is running on http://127.0.0.1:8000.');
+        throw new Error(serverErrDetail || `Unable to connect to Django backend server (${API_BASE_URL}). If deployed on Render free tier, please allow 30-50 seconds for the service to wake up.`);
       }
 
       let resJson = {};

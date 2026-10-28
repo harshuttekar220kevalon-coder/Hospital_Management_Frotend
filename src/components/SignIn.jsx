@@ -190,7 +190,7 @@ const SignIn = ({ setCurrentPage, setIsLoggedIn }) => {
       });
 
       if (!response) {
-        const networkErr = 'Unable to connect to backend server. Please verify Django server is running on http://127.0.0.1:8000.';
+        const networkErr = `Unable to connect to backend server (${API_BASE_URL}). If deployed on Render free tier, please allow 30-50 seconds for the service to wake up.`;
         setErrorMessage(networkErr);
         alert(networkErr);
         setLoading(false);
