@@ -148,11 +148,25 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
             const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
             if (docRes && docRes.ok) {
               const docList = await docRes.json().catch(() => []);
-              const matchedDoc = docList.find(d => 
-                (d.email && d.email.toLowerCase().trim() === inputLower) ||
-                (d.name && d.name.toLowerCase().trim() === (userObj.name || '').toLowerCase().trim())
+              const targetDocId = userObj.id || data.id;
+              const targetDoctorId = userObj.doctor_id;
+              const targetEmail = (userObj.email || inputLower).toLowerCase().trim();
+              const targetName = (userObj.name || '').toLowerCase().trim();
+              const cleanInput = inputLower.replace(/^dr\.?\s*/i, '').trim();
+
+              const matchedDoc = (Array.isArray(docList) ? docList : []).find(d => 
+                (targetDocId && Number(d.id) === Number(targetDocId)) ||
+                (targetDoctorId && String(d.doctor_id).toLowerCase().trim() === String(targetDoctorId).toLowerCase().trim()) ||
+                (d.email && d.email.toLowerCase().trim() === targetEmail) ||
+                (d.doctor_id && String(d.doctor_id).toLowerCase().trim() === inputLower) ||
+                (targetName && d.name && d.name.toLowerCase().trim() === targetName) ||
+                (cleanInput && d.name && d.name.toLowerCase().replace(/^dr\.?\s*/i, '').trim() === cleanInput)
               );
               if (matchedDoc) {
+                userObj.id = matchedDoc.id;
+                userObj.doctor_id = matchedDoc.doctor_id;
+                userObj.name = matchedDoc.name;
+                userObj.email = matchedDoc.email;
                 userObj.is_approved = matchedDoc.is_approved === true;
                 const docHosp = matchedDoc.hospital || (Array.isArray(matchedDoc.hospitals) ? matchedDoc.hospitals[0] : null);
                 if (docHosp) userHospId = Number(typeof docHosp === 'object' ? docHosp.id : docHosp);
@@ -165,15 +179,22 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
             const nurseRes = await fetch(`${API_BASE_URL}/super-admin/Nurses/`).catch(() => null);
             if (nurseRes && nurseRes.ok) {
               const nurseList = await nurseRes.json().catch(() => []);
-              const matchedNurse = nurseList.find(n => 
-                (n.email && n.email.toLowerCase().trim() === inputLower) ||
+              const targetNurseId = userObj.id || data.id;
+              const targetNurseEmail = (userObj.email || inputLower).toLowerCase().trim();
+              const matchedNurse = (Array.isArray(nurseList) ? nurseList : []).find(n => 
+                (targetNurseId && Number(n.id) === Number(targetNurseId)) ||
+                (n.email && n.email.toLowerCase().trim() === targetNurseEmail) ||
+                (n.nurse_id && String(n.nurse_id).toLowerCase().trim() === inputLower) ||
                 (n.name && n.name.toLowerCase().trim() === (userObj.name || '').toLowerCase().trim())
               );
-              if (matchedNurse && matchedNurse.hospital) {
+              if (matchedNurse) {
+                userObj.id = matchedNurse.id;
+                userObj.nurse_id = matchedNurse.nurse_id;
                 userObj.is_approved = matchedNurse.is_approved === true;
-                userHospId = Number(typeof matchedNurse.hospital === 'object' ? matchedNurse.hospital.id : matchedNurse.hospital);
-              } else if (matchedNurse) {
-                userObj.is_approved = matchedNurse.is_approved === true;
+                const rawHosp = matchedNurse.hospital;
+                if (rawHosp) userHospId = Number(typeof rawHosp === 'object' ? rawHosp.id : rawHosp);
+              } else {
+                userObj.is_approved = userObj.is_approved === true;
               }
             }
           } else if (mappedRole === 'Receptionist') {
@@ -269,8 +290,8 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
           email: userObj.email || (inputClean.includes('@') ? inputClean : `${inputClean}@hospital.com`),
           contact: userContact,
           phone: userContact,
-          nurse_id: userObj.nurse_id || (mappedRole === 'Nurse' ? inputClean : undefined),
-          doctor_id: userObj.doctor_id || (mappedRole === 'Doctor' ? inputClean : undefined),
+          nurse_id: userObj.nurse_id || (mappedRole === 'Nurse' ? (userObj.id ? `NUR-${userObj.id}` : inputClean) : undefined),
+          doctor_id: userObj.doctor_id || (mappedRole === 'Doctor' ? (userObj.id ? `DOC-${userObj.id}` : inputClean) : undefined),
           receptionist_id: userObj.receptionist_id || (mappedRole === 'Receptionist' ? inputClean : undefined),
           patient_id: userObj.patient_id || userObj.uhid || data.patient_id || (mappedRole === 'Patient' ? (userObj.id ? `PAT-${userObj.id}` : inputClean) : undefined),
           uhid: userObj.patient_id || userObj.uhid || data.patient_id || (mappedRole === 'Patient' ? (userObj.id ? `PAT-${userObj.id}` : inputClean) : undefined),
@@ -280,7 +301,7 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
           hospitals: userHospitals.length > 0 ? userHospitals : (userHospId ? [Number(userHospId)] : []),
           hospital_name: hospitalName,
           is_superuser: mappedRole === 'Super Admin' ? true : isSuperUserFlag,
-          is_approved: mappedRole === 'Super Admin' || mappedRole === 'Patient' ? true : userObj.is_approved === true,
+          is_approved: mappedRole === 'Super Admin' || mappedRole === 'Patient' ? true : Boolean(userObj.is_approved),
           notification_token: userObj.notification_token || data.notification_token || '',
           is_active: true
         };
@@ -462,13 +483,16 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
         const dEmail = String(d.email || '').toLowerCase().trim();
         const dContact = String(d.contact || d.phone || '').replace(/\D/g, '');
         const dName = String(d.name || '').toLowerCase().trim();
+        const cleanDocName = dName.replace(/^dr\.?\s*/i, '').trim();
+        const cleanInput = inputLower.replace(/^dr\.?\s*/i, '').trim();
         return (
+          (dEmail && dEmail === inputLower) ||
           (dIdStr && dIdStr === inputLower) ||
           (dIdStr && dIdStr.replace(/[^a-z0-9]/gi, '') === inputLower.replace(/[^a-z0-9]/gi, '')) ||
           idStr === inputClean ||
-          (dEmail && dEmail === inputLower) ||
           (cleanDigits.length >= 7 && dContact === cleanDigits) ||
-          (dName && dName === inputLower)
+          (dName && dName === inputLower) ||
+          (cleanDocName && cleanDocName === cleanInput)
         );
       }) : null;
 

@@ -187,6 +187,12 @@ const isAppointmentInHospital = (item, targetHospId, targetHospName = '', hospLi
 
 const NursePatients = ({ currentUser, setCurrentPage }) => {
   const [loading, setLoading] = useState(true);
+  const [isApproved, setIsApproved] = useState(() => {
+    if (currentUser?.is_approved !== undefined && currentUser?.is_approved !== null) {
+      return Boolean(currentUser.is_approved);
+    }
+    return false;
+  });
   const [nurseInfo, setNurseInfo] = useState(null);
   const [hospitalInfo, setHospitalInfo] = useState(null);
   const [nursesList, setNursesList] = useState([]);
@@ -242,6 +248,11 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
               (n.name && n.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim())
             );
           }
+        }
+
+        if (currentNurse) {
+          const approvedStatus = currentNurse.is_approved !== undefined ? Boolean(currentNurse.is_approved) : false;
+          if (isMounted) setIsApproved(approvedStatus);
         }
 
         if (isMounted) {
@@ -668,6 +679,59 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
   const dischargedCount = displayedPatients.filter(p => {
     return isPatientCheckupDone(p);
   }).length;
+
+  if (!loading && !isApproved) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl border border-amber-200 shadow-xl p-6 sm:p-8 text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-amber-600">
+            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div>
+            <span className="inline-block px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full mb-2 uppercase tracking-wide">
+              Approval Pending
+            </span>
+            <h2 className="text-xl font-bold text-slate-800">Nurse Access Restricted</h2>
+            <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+              Your nurse registration is currently in a <strong>pending state</strong>. Inpatient charts and patient care access must be approved manually by your Hospital Administrator.
+            </p>
+          </div>
+          <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200/60 text-[11px] text-amber-900 text-left space-y-1">
+            <p className="font-semibold">Nurse: <span className="font-normal text-slate-700">{nurseName}</span></p>
+            <p className="font-semibold">Nurse ID: <span className="font-normal text-slate-700">{nurseIdTag}</span></p>
+            <p className="font-semibold">Status: <span className="font-bold text-amber-700">Awaiting Hospital Admin Approval</span></p>
+          </div>
+          <div className="pt-2 flex flex-col sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+                window.location.reload();
+              }}
+              className="flex-1 py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+            >
+              Refresh Approval Status
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.removeItem('isLoggedIn');
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('currentPage');
+                if (setCurrentPage) setCurrentPage('login');
+                else window.location.reload();
+              }}
+              className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6 overflow-x-hidden">

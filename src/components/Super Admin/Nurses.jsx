@@ -158,7 +158,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
         experience: (formData.experience || '').trim() || null,
         status: formData.status || 'On_Duty',
         is_active: formData.is_active !== false,
-        is_approved: true
+        is_approved: false
       };
 
       const response = await fetch(`${API_BASE_URL}/super-admin/Nurses/`, {
@@ -170,7 +170,7 @@ const Nurses = ({ currentUser, setCurrentPage, setSelectedNurse }) => {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
-        alert(`Nurse "${trimmedName}" registered successfully!`);
+        alert(`Nurse "${trimmedName}" registered successfully! Dashboard access will remain restricted until manually approved by the Branch Hospital Admin.`);
         setIsAddModalOpen(false);
         setFormData(initialFormState);
         fetchData();

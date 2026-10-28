@@ -360,10 +360,10 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
           const docs = await docRes.json();
           if (Array.isArray(docs)) {
             currentDoc = docs.find(d => 
-              (d.email && d.email.toLowerCase().trim() === email) ||
               (docId && Number(d.id) === Number(docId)) ||
-              (currentDocIdTag && d.doctor_id === currentDocIdTag) ||
-              (d.name && d.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim())
+              (email && d.email && d.email.toLowerCase().trim() === email) ||
+              (currentDocIdTag && d.doctor_id && String(d.doctor_id).toLowerCase().trim() === String(currentDocIdTag).toLowerCase().trim()) ||
+              (currentUser?.name && d.name && d.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim())
             );
           }
         }

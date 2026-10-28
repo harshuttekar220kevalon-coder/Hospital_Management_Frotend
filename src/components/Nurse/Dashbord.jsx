@@ -462,6 +462,31 @@ const NurseDashboard = ({ currentUser, setCurrentPage }) => {
     },
   ];
 
+  const isApproved = (nurseInfo?.is_approved === true) || (currentUser?.is_approved === true);
+  if (!loading && !isApproved) {
+    return (
+      <div className="w-full min-h-[70vh] flex items-center justify-center p-4">
+        <div className="max-w-lg w-full bg-white rounded-3xl border border-amber-200 shadow-xl p-6 sm:p-8 text-center space-y-4">
+          <div className="w-16 h-16 mx-auto rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
+            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-extrabold text-slate-800">Nurse Dashboard Access Pending</h2>
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            Your nurse account is currently pending manual approval from your Branch Hospital Admin. Your dashboard and patient records will remain locked until your administrator approves your account.
+          </p>
+          <div className="pt-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+              Status: Pending Hospital Admin Approval
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full px-4 sm:px-8 lg:px-12 py-5 sm:py-8 space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* WELCOME BANNER */}

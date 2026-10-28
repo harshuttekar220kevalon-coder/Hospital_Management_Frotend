@@ -290,6 +290,17 @@ const AppRoutes = () => {
     setIsLoggedIn(true);
     localStorage.setItem('isLoggedIn', 'true');
 
+    // Clear stale session caches from previously logged-in staff/doctors
+    localStorage.removeItem('selectedDoctor');
+    localStorage.removeItem('selectedHospital');
+    localStorage.removeItem('selectedNurse');
+    localStorage.removeItem('selectedReceptionist');
+    localStorage.removeItem('selectedPatient');
+    setSelectedDoctor(null);
+    setSelectedNurse(null);
+    setSelectedReceptionist(null);
+    setSelectedPatient(null);
+
     if (userData) {
       setCurrentUser(userData);
       localStorage.setItem('currentUser', JSON.stringify(userData));

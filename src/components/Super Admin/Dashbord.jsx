@@ -765,16 +765,16 @@ const SuperAdminDashboard = ({
                   </button>
                 </div>
 
-                <div className="overflow-x-auto w-full">
-                  <table className="w-full text-center text-xs text-slate-600 min-w-[580px]">
+                <div className="overflow-x-auto w-full rounded-xl border border-slate-100">
+                  <table className="w-full text-center text-xs text-slate-600 min-w-[760px] border-collapse">
                     <thead className="bg-slate-50/90 text-slate-700 uppercase font-bold text-[11px] tracking-wider border-b border-slate-200">
                       <tr>
-                        <th className="py-3 px-3 text-left">Branch Name & Code</th>
-                        <th className="py-3 px-3 text-center">City</th>
-                        <th className="py-3 px-3 text-center">Branch Administrator</th>
-                        <th className="py-3 px-3 text-center">Doctors</th>
-                        <th className="py-3 px-3 text-center">Patients / Occupancy</th>
-                        <th className="py-3 px-3 text-center">Status</th>
+                        <th className="py-3.5 px-4 text-left whitespace-nowrap min-w-[200px]">Branch Name & Code</th>
+                        <th className="py-3.5 px-3 text-center whitespace-nowrap min-w-[100px]">City</th>
+                        <th className="py-3.5 px-3 text-center whitespace-nowrap min-w-[150px]">Branch Administrator</th>
+                        <th className="py-3.5 px-3 text-center whitespace-nowrap min-w-[90px]">Doctors</th>
+                        <th className="py-3.5 px-3 text-center whitespace-nowrap min-w-[130px]">Patients / Occupancy</th>
+                        <th className="py-3.5 px-4 text-center whitespace-nowrap min-w-[130px]">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -791,7 +791,7 @@ const SuperAdminDashboard = ({
                             onClick={() => handleBranchClick(b.raw)}
                             className="hover:bg-slate-50/80 transition cursor-pointer group"
                           >
-                            <td className="py-3 px-3 text-left">
+                            <td className="py-3.5 px-4 text-left">
                               <p className="font-bold text-slate-800 group-hover:text-sky-700">{b.name}</p>
                               {b.raw?.Branch_Code && (
                                 <span className="font-mono text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 inline-block mt-0.5">
@@ -799,23 +799,24 @@ const SuperAdminDashboard = ({
                                 </span>
                               )}
                             </td>
-                            <td className="py-3 px-3 text-center">{b.city}</td>
-                            <td className="py-3 px-3 text-center font-medium text-slate-700">{b.head}</td>
-                            <td className="py-3 px-3 text-center">
-                              <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200 inline-block">
+                            <td className="py-3.5 px-3 text-center whitespace-nowrap">{b.city}</td>
+                            <td className="py-3.5 px-3 text-center font-medium text-slate-700 whitespace-nowrap">{b.head}</td>
+                            <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                              <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200 inline-block">
                                 {b.doctorsCount}
                               </span>
                             </td>
-                            <td className="py-3 px-3 text-center text-slate-600 font-medium">{b.occupancy}</td>
-                            <td className="py-3 px-3 text-center">
+                            <td className="py-3.5 px-3 text-center text-slate-600 font-medium whitespace-nowrap">{b.occupancy}</td>
+                            <td className="py-3.5 px-4 text-center whitespace-nowrap min-w-[130px]">
                               <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                className={`inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold whitespace-nowrap leading-none shrink-0 ${
                                   b.status === 'Operational'
                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                     : 'bg-rose-50 text-rose-700 border border-rose-200'
                                 }`}
                               >
-                                {b.status}
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${b.status === 'Operational' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                <span>{b.status}</span>
                               </span>
                             </td>
                           </tr>
