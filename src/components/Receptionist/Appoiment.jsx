@@ -443,10 +443,11 @@ const ReceptionistAppoiment = ({
           const rRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`).catch(() => null);
           if (rRes && rRes.ok) {
             const allRecs = extractArray(await rRes.json().catch(() => []));
+            const recCode = currentUser?.receptionist_id || '';
             currentRec = allRecs.find(r =>
-              (r.email && r.email.toLowerCase().trim() === email) ||
+              (email && r.email && r.email.toLowerCase().trim() === email) ||
               (recId && Number(r.id) === Number(recId)) ||
-              (r.name && r.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim())
+              (recCode && r.receptionist_id && String(r.receptionist_id).toLowerCase().trim() === String(recCode).toLowerCase().trim())
             );
           }
         } catch (e) {}

@@ -76,8 +76,11 @@ const isPatientAssignedToNurse = (p, nurseObj, userObj) => {
 
   // Strict matching
   if (targetNurseId && pNurseId && targetNurseId === pNurseId) return true;
-  if (targetNurseName && pNurseName && targetNurseName === pNurseName) return true;
   if (targetNurseEmail && pNurseEmail && targetNurseEmail === pNurseEmail) return true;
+  if (targetNurseName && pNurseName && targetNurseName === pNurseName && !['nurse', 'staff nurse'].includes(targetNurseName)) {
+    if (targetNurseId && pNurseId && targetNurseId !== pNurseId) return false;
+    return true;
+  }
 
   return false;
 };
@@ -242,10 +245,11 @@ const NursePatients = ({ currentUser, setCurrentPage }) => {
           allNurses = await nurseRes.json();
           if (Array.isArray(allNurses)) {
             setNursesList(allNurses);
+            const nurseTag = currentUser?.nurse_id || '';
             currentNurse = allNurses.find(n => 
-              (n.email && n.email.toLowerCase().trim() === email) ||
+              (email && n.email && n.email.toLowerCase().trim() === email) ||
               (nurseId && Number(n.id) === Number(nurseId)) ||
-              (n.name && n.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim())
+              (nurseTag && n.nurse_id && String(n.nurse_id).toLowerCase().trim() === String(nurseTag).toLowerCase().trim())
             );
           }
         }

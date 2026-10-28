@@ -126,8 +126,7 @@ const DoctorSettings = ({
             matchedDoctor = allDocs.find(d =>
               (d.email && d.email.toLowerCase().trim() === email) ||
               (docId && Number(d.id) === Number(docId)) ||
-              (docCode && d.doctor_id === docCode) ||
-              (d.name && d.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim())
+              (docCode && d.doctor_id === docCode)
             );
           }
         }

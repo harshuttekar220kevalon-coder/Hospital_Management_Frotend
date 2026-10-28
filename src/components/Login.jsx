@@ -151,22 +151,17 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
               const targetDocId = userObj.id || data.id;
               const targetDoctorId = userObj.doctor_id;
               const targetEmail = (userObj.email || inputLower).toLowerCase().trim();
-              const targetName = (userObj.name || '').toLowerCase().trim();
-              const cleanInput = inputLower.replace(/^dr\.?\s*/i, '').trim();
 
               const matchedDoc = (Array.isArray(docList) ? docList : []).find(d => 
                 (targetDocId && Number(d.id) === Number(targetDocId)) ||
-                (targetDoctorId && String(d.doctor_id).toLowerCase().trim() === String(targetDoctorId).toLowerCase().trim()) ||
-                (d.email && d.email.toLowerCase().trim() === targetEmail) ||
-                (d.doctor_id && String(d.doctor_id).toLowerCase().trim() === inputLower) ||
-                (targetName && d.name && d.name.toLowerCase().trim() === targetName) ||
-                (cleanInput && d.name && d.name.toLowerCase().replace(/^dr\.?\s*/i, '').trim() === cleanInput)
+                (targetEmail && d.email && d.email.toLowerCase().trim() === targetEmail) ||
+                (targetDoctorId && String(d.doctor_id).toLowerCase().trim() === String(targetDoctorId).toLowerCase().trim())
               );
               if (matchedDoc) {
                 userObj.id = matchedDoc.id;
                 userObj.doctor_id = matchedDoc.doctor_id;
-                userObj.name = matchedDoc.name;
-                userObj.email = matchedDoc.email;
+                userObj.name = matchedDoc.name || userObj.name;
+                userObj.email = matchedDoc.email || userObj.email;
                 userObj.is_approved = matchedDoc.is_approved === true;
                 const docHosp = matchedDoc.hospital || (Array.isArray(matchedDoc.hospitals) ? matchedDoc.hospitals[0] : null);
                 if (docHosp) userHospId = Number(typeof docHosp === 'object' ? docHosp.id : docHosp);
@@ -183,13 +178,14 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
               const targetNurseEmail = (userObj.email || inputLower).toLowerCase().trim();
               const matchedNurse = (Array.isArray(nurseList) ? nurseList : []).find(n => 
                 (targetNurseId && Number(n.id) === Number(targetNurseId)) ||
-                (n.email && n.email.toLowerCase().trim() === targetNurseEmail) ||
-                (n.nurse_id && String(n.nurse_id).toLowerCase().trim() === inputLower) ||
-                (n.name && n.name.toLowerCase().trim() === (userObj.name || '').toLowerCase().trim())
+                (targetNurseEmail && n.email && n.email.toLowerCase().trim() === targetNurseEmail) ||
+                (userObj.nurse_id && String(n.nurse_id).toLowerCase().trim() === String(userObj.nurse_id).toLowerCase().trim())
               );
               if (matchedNurse) {
                 userObj.id = matchedNurse.id;
                 userObj.nurse_id = matchedNurse.nurse_id;
+                userObj.name = matchedNurse.name || userObj.name;
+                userObj.email = matchedNurse.email || userObj.email;
                 userObj.is_approved = matchedNurse.is_approved === true;
                 const rawHosp = matchedNurse.hospital;
                 if (rawHosp) userHospId = Number(typeof rawHosp === 'object' ? rawHosp.id : rawHosp);
@@ -201,14 +197,25 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
             const recRes = await fetch(`${API_BASE_URL}/super-admin/Receptionists/`).catch(() => null);
             if (recRes && recRes.ok) {
               const recList = await recRes.json().catch(() => []);
+              const targetRecId = userObj.id || data.id;
+              const targetRecEmail = (userObj.email || inputLower).toLowerCase().trim();
               const matchedRec = recList.find(r => 
-                (r.email && r.email.toLowerCase().trim() === inputLower) ||
-                (r.name && r.name.toLowerCase().trim() === (userObj.name || '').toLowerCase().trim())
+                (targetRecId && Number(r.id) === Number(targetRecId)) ||
+                (targetRecEmail && r.email && r.email.toLowerCase().trim() === targetRecEmail) ||
+                (userObj.receptionist_id && String(r.receptionist_id).toLowerCase().trim() === String(userObj.receptionist_id).toLowerCase().trim())
               );
               if (matchedRec && matchedRec.hospital) {
+                userObj.id = matchedRec.id;
+                userObj.receptionist_id = matchedRec.receptionist_id;
+                userObj.name = matchedRec.name || userObj.name;
+                userObj.email = matchedRec.email || userObj.email;
                 userObj.is_approved = matchedRec.is_approved === true;
                 userHospId = Number(typeof matchedRec.hospital === 'object' ? matchedRec.hospital.id : matchedRec.hospital);
               } else if (matchedRec) {
+                userObj.id = matchedRec.id;
+                userObj.receptionist_id = matchedRec.receptionist_id;
+                userObj.name = matchedRec.name || userObj.name;
+                userObj.email = matchedRec.email || userObj.email;
                 userObj.is_approved = matchedRec.is_approved === true;
               }
             }
@@ -216,8 +223,16 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
             const adminRes = await fetch(`${API_BASE_URL}/super-admin/Admins/`).catch(() => null);
             if (adminRes?.ok) {
               const adminList = await adminRes.json().catch(() => []);
-              const matchedAdmin = (Array.isArray(adminList) ? adminList : []).find((admin) => admin.email?.toLowerCase().trim() === inputLower);
+              const targetAdminId = userObj.id || data.id;
+              const targetAdminEmail = (userObj.email || inputLower).toLowerCase().trim();
+              const matchedAdmin = (Array.isArray(adminList) ? adminList : []).find((admin) => 
+                (targetAdminId && Number(admin.id) === Number(targetAdminId)) ||
+                (targetAdminEmail && admin.email?.toLowerCase().trim() === targetAdminEmail)
+              );
               if (matchedAdmin) {
+                userObj.id = matchedAdmin.id;
+                userObj.name = matchedAdmin.name || userObj.name;
+                userObj.email = matchedAdmin.email || userObj.email;
                 userObj.is_approved = matchedAdmin.is_approved === true;
                 userHospId = typeof matchedAdmin.hospital === 'object' ? matchedAdmin.hospital?.id : matchedAdmin.hospital;
               }
@@ -232,21 +247,18 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
             if (patRes.status === 'fulfilled' && patRes.value?.ok) patList = await patRes.value.json().catch(() => []);
             if (apptRes.status === 'fulfilled' && apptRes.value?.ok) apptList = await apptRes.value.json().catch(() => []);
 
-            const cleanDigitsInput = inputClean.replace(/\D/g, '');
+            const targetPatId = userObj.id || data.id;
+            const targetPatEmail = (userObj.email || inputLower).toLowerCase().trim();
 
             const matchedPat = Array.isArray(patList) ? patList.find(p => 
-              (p.email && p.email.toLowerCase().trim() === inputLower) ||
+              (targetPatId && Number(p.id) === Number(targetPatId)) ||
+              (targetPatEmail && p.email && p.email.toLowerCase().trim() === targetPatEmail) ||
               (p.patient_id && p.patient_id.toLowerCase().trim() === inputLower) ||
-              (p.uhid && p.uhid.toLowerCase().trim() === inputLower) ||
-              (p.name && p.name.toLowerCase().trim() === (userObj.name || '').toLowerCase().trim()) ||
-              (p.id && Number(p.id) === Number(userObj.id)) ||
-              (cleanDigitsInput.length >= 7 && (p.contact || p.phone) && String(p.contact || p.phone).replace(/\D/g, '') === cleanDigitsInput)
+              (p.uhid && p.uhid.toLowerCase().trim() === inputLower)
             ) : null;
 
             const matchedAppt = Array.isArray(apptList) ? apptList.find(a => 
-              (a.email && a.email.toLowerCase().trim() === inputLower) ||
-              (a.patient_name && a.patient_name.toLowerCase().trim() === (userObj.name || '').toLowerCase().trim()) ||
-              (cleanDigitsInput.length >= 7 && (a.contact || a.phone) && String(a.contact || a.phone).replace(/\D/g, '') === cleanDigitsInput) ||
+              (targetPatEmail && a.email && a.email.toLowerCase().trim() === targetPatEmail) ||
               (a.Appoment_id && (String(a.Appoment_id).toLowerCase().trim() === inputLower || `apt-${String(a.Appoment_id).toLowerCase().trim()}` === inputLower))
             ) : null;
 
@@ -288,6 +300,8 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
           id: userObj.id || data.id || 'usr-01',
           name: userObj.name || (userObj.first_name ? `${userObj.first_name} ${userObj.last_name || ''}`.trim() : '') || (mappedRole === 'Super Admin' ? 'Super Administrator' : inputClean.split('@')[0]),
           email: userObj.email || (inputClean.includes('@') ? inputClean : `${inputClean}@hospital.com`),
+          token: userObj.token || data.token || userObj.session_token || data.session_token || '',
+          session_token: userObj.token || data.token || userObj.session_token || data.session_token || '',
           contact: userContact,
           phone: userContact,
           nurse_id: userObj.nurse_id || (mappedRole === 'Nurse' ? (userObj.id ? `NUR-${userObj.id}` : inputClean) : undefined),
@@ -335,6 +349,7 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
       const apptList = apptsRes.status === 'fulfilled' && apptsRes.value?.ok ? await apptsRes.value.json().catch(() => []) : [];
 
       const cleanDigits = inputClean.replace(/\D/g, '');
+      const isEmailInput = inputLower.includes('@');
 
       // Check Super Admin match (first priority)
       const isSuperAdminId =
@@ -345,20 +360,15 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
         inputLower === 'superadmin@gmail.com' ||
         inputLower === 'admin@admin.com' ||
         inputLower === 'admin@apexcare.org' ||
-        inputLower === 'superadmin' ||
-        inputLower === 'admin' ||
-        inputLower.includes('superadmin') ||
-        inputLower.includes('super_admin');
+        inputClean === 'superadmin';
 
       const matchedSuperAdminRecord = Array.isArray(adminList) ? adminList.find(a => {
         const idStr = String(a.id || '').trim();
         const aEmail = String(a.email || '').toLowerCase().trim();
-        const aName = String(a.name || '').toLowerCase().trim();
         const aDesig = String(a.designation || '').toLowerCase().trim();
         const isSuperDesig = aDesig.includes('super');
         return (
-          (isSuperDesig || aEmail.includes('superadmin')) &&
-          (idStr === inputClean || aEmail === inputLower || aName === inputLower)
+          isSuperDesig && (aEmail === inputLower || idStr === inputClean)
         );
       }) : null;
 
@@ -411,88 +421,17 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
         return;
       }
 
-      // Check Nurse match
-      const matchNurse = Array.isArray(nurseList) ? nurseList.find(n => {
-        const nIdStr = String(n.nurse_id || '').toLowerCase().trim();
-        const idStr = String(n.id || '').trim();
-        const nEmail = String(n.email || '').toLowerCase().trim();
-        const nContact = String(n.contact || '').replace(/\D/g, '');
-        const nName = String(n.name || '').toLowerCase().trim();
-        return (
-          (nIdStr && nIdStr === inputLower) ||
-          (nIdStr && nIdStr.replace(/[^a-z0-9]/gi, '') === inputLower.replace(/[^a-z0-9]/gi, '')) ||
-          idStr === inputClean ||
-          (nEmail && nEmail === inputLower) ||
-          (cleanDigits.length >= 7 && nContact === cleanDigits) ||
-          (nName && nName === inputLower)
-        );
-      }) : null;
-
-      if (matchNurse) {
-        if (matchNurse.is_active === false || matchNurse.status === 'Deactivated' || matchNurse.status === 'Inactive') {
-          const msg = 'Your nurse account is currently deactivated. Please contact hospital administrator.';
-          setInactivityMessage(msg);
-          alert(msg);
-          return;
-        }
-
-        const nursePass = matchNurse.password;
-        if (nursePass && String(nursePass).trim() !== String(passwordInput).trim()) {
-          const msg = 'Invalid password for Nurse account. Please check your password.';
-          setErrorMessage(msg);
-          alert(msg);
-          return;
-        }
-
-        const rawNurseHosp = typeof matchNurse.hospital === 'object' ? matchNurse.hospital?.id : matchNurse.hospital;
-        const nurseHospId = rawNurseHosp ? Number(rawNurseHosp) : (Number(localStorage.getItem(`user_hospital_${inputLower}`)) || null);
-        const foundNurseHosp = nurseHospId && Array.isArray(hospitalList) ? hospitalList.find(h => Number(h.id) === Number(nurseHospId)) : null;
-
-        const nurseContact = matchNurse.contact || matchNurse.phone || localStorage.getItem(`user_contact_${inputLower}`) || '';
-
-        const finalUser = {
-          id: matchNurse.id,
-          nurse_id: matchNurse.nurse_id || `NUR-${matchNurse.id}`,
-          name: matchNurse.name || 'Staff Nurse',
-          email: matchNurse.email || `${matchNurse.nurse_id || 'nurse'}@hospital.com`,
-          contact: nurseContact,
-          phone: nurseContact,
-          role: 'Nurse',
-          is_approved: matchNurse.is_approved === true,
-          rawRole: matchNurse.role || matchNurse.nurse_role || 'Staff Nurse',
-          hospital: nurseHospId,
-          hospitals: nurseHospId ? [nurseHospId] : [],
-          hospital_name: foundNurseHosp?.Name || foundNurseHosp?.name || matchNurse.hospital_name || null,
-          ward: matchNurse.ward || 'General Ward',
-          shift: matchNurse.shift || 'Morning',
-          status: matchNurse.status || 'On_Duty',
-          is_active: true
-        };
-
-        alert(`Welcome, ${finalUser.name}!`);
-        if (setIsLoggedIn) {
-          setIsLoggedIn(finalUser);
-        }
-        return;
-      }
-
-      // Check Doctor match
+      // Check Doctor match - STRICT IDENTITY (email or doctor_id)
       const matchDoc = Array.isArray(docList) ? docList.find(d => {
+        const dEmail = String(d.email || '').toLowerCase().trim();
         const dIdStr = String(d.doctor_id || '').toLowerCase().trim();
         const idStr = String(d.id || '').trim();
-        const dEmail = String(d.email || '').toLowerCase().trim();
-        const dContact = String(d.contact || d.phone || '').replace(/\D/g, '');
-        const dName = String(d.name || '').toLowerCase().trim();
-        const cleanDocName = dName.replace(/^dr\.?\s*/i, '').trim();
-        const cleanInput = inputLower.replace(/^dr\.?\s*/i, '').trim();
+        if (isEmailInput) {
+          return dEmail === inputLower;
+        }
         return (
-          (dEmail && dEmail === inputLower) ||
           (dIdStr && dIdStr === inputLower) ||
-          (dIdStr && dIdStr.replace(/[^a-z0-9]/gi, '') === inputLower.replace(/[^a-z0-9]/gi, '')) ||
-          idStr === inputClean ||
-          (cleanDigits.length >= 7 && dContact === cleanDigits) ||
-          (dName && dName === inputLower) ||
-          (cleanDocName && cleanDocName === cleanInput)
+          idStr === inputClean
         );
       }) : null;
 
@@ -547,20 +486,79 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
         return;
       }
 
-      // Check Receptionist match
+      // Check Nurse match - STRICT IDENTITY (email or nurse_id)
+      const matchNurse = Array.isArray(nurseList) ? nurseList.find(n => {
+        const nEmail = String(n.email || '').toLowerCase().trim();
+        const nIdStr = String(n.nurse_id || '').toLowerCase().trim();
+        const idStr = String(n.id || '').trim();
+        if (isEmailInput) {
+          return nEmail === inputLower;
+        }
+        return (
+          (nIdStr && nIdStr === inputLower) ||
+          idStr === inputClean
+        );
+      }) : null;
+
+      if (matchNurse) {
+        if (matchNurse.is_active === false || matchNurse.status === 'Deactivated' || matchNurse.status === 'Inactive') {
+          const msg = 'Your nurse account is currently deactivated. Please contact hospital administrator.';
+          setInactivityMessage(msg);
+          alert(msg);
+          return;
+        }
+
+        const nursePass = matchNurse.password;
+        if (nursePass && String(nursePass).trim() !== String(passwordInput).trim()) {
+          const msg = 'Invalid password for Nurse account. Please check your password.';
+          setErrorMessage(msg);
+          alert(msg);
+          return;
+        }
+
+        const rawNurseHosp = typeof matchNurse.hospital === 'object' ? matchNurse.hospital?.id : matchNurse.hospital;
+        const nurseHospId = rawNurseHosp ? Number(rawNurseHosp) : (Number(localStorage.getItem(`user_hospital_${inputLower}`)) || null);
+        const foundNurseHosp = nurseHospId && Array.isArray(hospitalList) ? hospitalList.find(h => Number(h.id) === Number(nurseHospId)) : null;
+
+        const nurseContact = matchNurse.contact || matchNurse.phone || localStorage.getItem(`user_contact_${inputLower}`) || '';
+
+        const finalUser = {
+          id: matchNurse.id,
+          nurse_id: matchNurse.nurse_id || `NUR-${matchNurse.id}`,
+          name: matchNurse.name || 'Staff Nurse',
+          email: matchNurse.email || `${matchNurse.nurse_id || 'nurse'}@hospital.com`,
+          contact: nurseContact,
+          phone: nurseContact,
+          role: 'Nurse',
+          is_approved: matchNurse.is_approved === true,
+          rawRole: matchNurse.role || matchNurse.nurse_role || 'Staff Nurse',
+          hospital: nurseHospId,
+          hospitals: nurseHospId ? [nurseHospId] : [],
+          hospital_name: foundNurseHosp?.Name || foundNurseHosp?.name || matchNurse.hospital_name || null,
+          ward: matchNurse.ward || 'General Ward',
+          shift: matchNurse.shift || 'Morning',
+          status: matchNurse.status || 'On_Duty',
+          is_active: true
+        };
+
+        alert(`Welcome, ${finalUser.name}!`);
+        if (setIsLoggedIn) {
+          setIsLoggedIn(finalUser);
+        }
+        return;
+      }
+
+      // Check Receptionist match - STRICT IDENTITY (email or receptionist_id)
       const matchRec = Array.isArray(recList) ? recList.find(r => {
+        const rEmail = String(r.email || '').toLowerCase().trim();
         const rIdStr = String(r.receptionist_id || '').toLowerCase().trim();
         const idStr = String(r.id || '').trim();
-        const rEmail = String(r.email || '').toLowerCase().trim();
-        const rContact = String(r.contact || '').replace(/\D/g, '');
-        const rName = String(r.name || '').toLowerCase().trim();
+        if (isEmailInput) {
+          return rEmail === inputLower;
+        }
         return (
           (rIdStr && rIdStr === inputLower) ||
-          (rIdStr && rIdStr.replace(/[^a-z0-9]/gi, '') === inputLower.replace(/[^a-z0-9]/gi, '')) ||
-          idStr === inputClean ||
-          (rEmail && rEmail === inputLower) ||
-          (cleanDigits.length >= 7 && rContact === cleanDigits) ||
-          (rName && rName === inputLower)
+          idStr === inputClean
         );
       }) : null;
 
@@ -606,17 +604,17 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
         return;
       }
 
-      // Check Admin match
+      // Check Admin match - STRICT IDENTITY (email or employee_id)
       const matchAdmin = Array.isArray(adminList) ? adminList.find(a => {
-        const idStr = String(a.id || '').trim();
         const aEmail = String(a.email || '').toLowerCase().trim();
-        const aContact = String(a.contact || '').replace(/\D/g, '');
-        const aName = String(a.name || '').toLowerCase().trim();
+        const aIdStr = String(a.employee_id || '').toLowerCase().trim();
+        const idStr = String(a.id || '').trim();
+        if (isEmailInput) {
+          return aEmail === inputLower;
+        }
         return (
           idStr === inputClean ||
-          (aEmail && aEmail === inputLower) ||
-          (cleanDigits.length >= 7 && aContact === cleanDigits) ||
-          (aName && aName === inputLower)
+          (aIdStr && aIdStr === inputLower)
         );
       }) : null;
 
@@ -666,20 +664,17 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
         return;
       }
 
-      // Check Patient match
+      // Check Patient match - STRICT IDENTITY (email, patient_id or uhid)
       const matchPat = Array.isArray(patList) ? patList.find(p => {
+        const pEmail = String(p.email || '').toLowerCase().trim();
         const pIdStr = String(p.patient_id || p.uhid || '').toLowerCase().trim();
         const idStr = String(p.id || '').trim();
-        const pEmail = String(p.email || '').toLowerCase().trim();
-        const pContact = String(p.contact || p.phone || '').replace(/\D/g, '');
-        const pName = String(p.name || '').toLowerCase().trim();
+        if (isEmailInput) {
+          return pEmail === inputLower;
+        }
         return (
           (pIdStr && pIdStr === inputLower) ||
-          (pIdStr && pIdStr.replace(/[^a-z0-9]/gi, '') === inputLower.replace(/[^a-z0-9]/gi, '')) ||
-          idStr === inputClean ||
-          (pEmail && pEmail === inputLower) ||
-          (cleanDigits.length >= 7 && pContact === cleanDigits) ||
-          (pName && pName === inputLower)
+          idStr === inputClean
         );
       }) : null;
 
@@ -726,14 +721,10 @@ const Login = ({ setCurrentPage, setIsLoggedIn }) => {
       const matchAppt = Array.isArray(apptList) ? apptList.find(a => {
         const aApptId = String(a.Appoment_id || a.appoment_id || a.id || '').toLowerCase().trim();
         const aEmail = String(a.email || '').toLowerCase().trim();
-        const aContact = String(a.contact || a.phone || '').replace(/\D/g, '');
-        const aName = String(a.patient_name || a.patient_Name || a.name || '').toLowerCase().trim();
-        return (
-          (aApptId && (aApptId === inputLower || `apt-${aApptId}` === inputLower)) ||
-          (aEmail && aEmail === inputLower) ||
-          (cleanDigits.length >= 7 && aContact === cleanDigits) ||
-          (aName && aName === inputLower)
-        );
+        if (isEmailInput) {
+          return aEmail === inputLower;
+        }
+        return aApptId && (aApptId === inputLower || `apt-${aApptId}` === inputLower);
       }) : null;
 
       if (matchAppt) {
