@@ -290,17 +290,12 @@ const AppRoutes = () => {
     setIsLoggedIn(true);
     localStorage.setItem('isLoggedIn', 'true');
 
-    // Clear all stale session caches from previously logged-in staff/doctors/users
+    // Clear stale session caches from previously logged-in staff/doctors
     localStorage.removeItem('selectedDoctor');
     localStorage.removeItem('selectedHospital');
-    localStorage.removeItem('selectedAdmin');
     localStorage.removeItem('selectedNurse');
     localStorage.removeItem('selectedReceptionist');
     localStorage.removeItem('selectedPatient');
-    localStorage.removeItem('selectedAppointment');
-    localStorage.removeItem('selectedDoctorForPatient');
-    setSelectedHospital(null);
-    setSelectedAdmin(null);
     setSelectedDoctor(null);
     setSelectedNurse(null);
     setSelectedReceptionist(null);
@@ -309,10 +304,6 @@ const AppRoutes = () => {
     if (userData) {
       setCurrentUser(userData);
       localStorage.setItem('currentUser', JSON.stringify(userData));
-      if (userData.token) {
-        localStorage.setItem('authToken', userData.token);
-        localStorage.setItem('token', userData.token);
-      }
     }
 
     const isPatientRole = (userData?.role || '').toString().toUpperCase().includes('PATIENT');
@@ -343,18 +334,12 @@ const AppRoutes = () => {
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('currentUser');
     localStorage.removeItem('currentPage');
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('token');
-    localStorage.removeItem('notification_token');
     localStorage.removeItem('selectedHospital');
     localStorage.removeItem('selectedAdmin');
     localStorage.removeItem('selectedDoctor');
     localStorage.removeItem('selectedNurse');
     localStorage.removeItem('selectedReceptionist');
     localStorage.removeItem('selectedPatient');
-    localStorage.removeItem('selectedAppointment');
-    localStorage.removeItem('selectedDoctorForPatient');
-    localStorage.removeItem('login_return_page');
     setCurrentPage('login');
   };
 

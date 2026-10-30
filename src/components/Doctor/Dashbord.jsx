@@ -352,7 +352,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
         console.error('Error fetching hospitals:', e);
       }
 
-      // 2. Fetch doctor profile strictly
+      // 2. Fetch doctor profile
       let currentDoc = null;
       try {
         const docRes = await fetch(`${API_BASE_URL}/super-admin/Doctors/`).catch(() => null);
@@ -362,7 +362,8 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
             currentDoc = docs.find(d => 
               (docId && Number(d.id) === Number(docId)) ||
               (email && d.email && d.email.toLowerCase().trim() === email) ||
-              (currentDocIdTag && d.doctor_id && String(d.doctor_id).toLowerCase().trim() === String(currentDocIdTag).toLowerCase().trim())
+              (currentDocIdTag && d.doctor_id && String(d.doctor_id).toLowerCase().trim() === String(currentDocIdTag).toLowerCase().trim()) ||
+              (currentUser?.name && d.name && d.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim())
             );
           }
         }
@@ -396,16 +397,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
       try {
         let allPats = [];
         try {
-          const queryParams = new URLSearchParams();
-          const effectiveDocId = resolvedDoctor?.id || currentUser?.id;
-          const effectiveDocTag = resolvedDoctor?.doctor_id || currentUser?.doctor_id;
-          const effectiveDocEmail = resolvedDoctor?.email || currentUser?.email;
-          if (effectiveDocId) queryParams.set('doctor_id', effectiveDocId);
-          if (effectiveDocTag) queryParams.set('doctor', effectiveDocTag);
-          if (effectiveDocEmail) queryParams.set('doctor_email', effectiveDocEmail);
-          const queryStr = queryParams.toString() ? `?${queryParams.toString()}` : '';
-
-          const patRes = await fetch(`${API_BASE_URL}/super-admin/appointments/${queryStr}`).catch(() => null);
+          const patRes = await fetch(`${API_BASE_URL}/super-admin/appointments/`).catch(() => null);
           if (patRes && patRes.ok) {
             const resData = await patRes.json().catch(() => []);
             allPats = extractArray(resData);
@@ -430,7 +422,7 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
 
               // 1. Direct ID match
               if (targetDocId && pDocId && !isNaN(Number(pDocId)) && !isNaN(Number(targetDocId))) {
-                return Number(pDocId) === Number(targetDocId);
+                if (Number(pDocId) === Number(targetDocId)) return true;
               }
 
               // 2. Doctor ID tag match (e.g. DOC-001)
@@ -443,8 +435,8 @@ const DoctorDashboard = ({ currentUser, setCurrentPage }) => {
                 return true;
               }
 
-              // 4. Clean Name match only when no ID mismatch exists and name is specific
-              if (targetDocName && pDocName && pDocName === targetDocName && !['doctor', 'dr', 'doc', 'admin'].includes(targetDocName)) {
+              // 4. Clean Name match
+              if (targetDocName && pDocName && (pDocName === targetDocName || pDocName.includes(targetDocName) || targetDocName.includes(pDocName))) {
                 if (pDocId && targetDocId && !isNaN(Number(pDocId)) && !isNaN(Number(targetDocId)) && Number(pDocId) !== Number(targetDocId)) {
                   return false;
                 }

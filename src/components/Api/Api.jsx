@@ -1,41 +1,4 @@
-// Local and Live (Render) API Endpoints
-export const LOCAL_API_URL = "http://127.0.0.1:8000/api";
-export const LIVE_API_URL = "https://hospital-management-backend-fo01.onrender.com/api";
-
-// Check whether browser is currently running in an offline local environment
-export const isLocalEnvironment = () => {
-  if (typeof window === "undefined") return true;
-  const host = (window.location.hostname || "").toLowerCase();
-  return host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host === "::1";
-};
-
-// Switch between Live Render API and Local API for local development:
-// Set to true to test the Render Live backend while running locally, or false for Local Django server
-export const USE_LIVE_API = false;
-
-// Active API Base URL with environment variable support and automatic production/online fallback
-export const resolveApiBaseUrl = () => {
-  // 1. Explicit Vite environment variable (Render dashboard or .env)
-  const envUrl = import.meta.env?.VITE_API_URL;
-  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
-    return envUrl.trim().replace(/\/+$/, '');
-  }
-
-  // 2. If opened from an online deployed host (Render, Vercel, Netlify, custom domain)
-  if (typeof window !== "undefined" && !isLocalEnvironment()) {
-    return LIVE_API_URL;
-  }
-
-  // 3. If production build
-  if (import.meta.env?.PROD) {
-    return LIVE_API_URL;
-  }
-
-  // 4. Offline local development
-  return USE_LIVE_API ? LIVE_API_URL : LOCAL_API_URL;
-};
-
-export const API_BASE_URL = resolveApiBaseUrl();
+export const API_BASE_URL = "http://127.0.0.1:8000/api";
 
 export const extractArray = (resData) => {
   if (!resData) return [];

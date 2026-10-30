@@ -80,7 +80,8 @@ const DoctorRegularSchedule = ({ currentUser, setCurrentPage }) => {
             currentDoc = docs.find(d => 
               (docId && Number(d.id) === Number(docId)) ||
               (email && d.email && d.email.toLowerCase().trim() === email) ||
-              (currentDocIdTag && d.doctor_id && String(d.doctor_id).toLowerCase().trim() === String(currentDocIdTag).toLowerCase().trim())
+              (currentDocIdTag && d.doctor_id && String(d.doctor_id).toLowerCase().trim() === String(currentDocIdTag).toLowerCase().trim()) ||
+              (currentUser?.name && d.name && d.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim())
             );
           }
         }

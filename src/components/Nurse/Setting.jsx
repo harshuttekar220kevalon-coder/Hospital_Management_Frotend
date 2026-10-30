@@ -101,11 +101,10 @@ const NurseSettings = ({ currentUser, setCurrentUser, setCurrentPage, selectedHo
         if (nRes && nRes.ok) {
           const nurses = await nRes.json().catch(() => []);
           if (Array.isArray(nurses)) {
-            const nurseTag = currentUser?.nurse_id || '';
             matchedNurse = nurses.find(n =>
-              (email && n.email && n.email.toLowerCase().trim() === email) ||
+              (n.email && n.email.toLowerCase().trim() === email) ||
               (nurseId && Number(n.id) === Number(nurseId)) ||
-              (nurseTag && n.nurse_id && String(n.nurse_id).toLowerCase().trim() === String(nurseTag).toLowerCase().trim())
+              (n.name && n.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim())
             );
           }
         }

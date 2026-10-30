@@ -189,11 +189,10 @@ const ReceptionistDashboard = ({ currentUser, setCurrentPage, setSelectedPatient
           const recsData = await recRes.value.json().catch(() => []);
           const recs = extractArray(recsData);
           if (Array.isArray(recs)) {
-            const recCode = currentUser?.receptionist_id || '';
             currentRec = recs.find(r => 
-              (email && r.email && r.email.toLowerCase().trim() === email) ||
+              (r.email && r.email.toLowerCase().trim() === email) ||
               (recId && Number(r.id) === Number(recId)) ||
-              (recCode && r.receptionist_id && String(r.receptionist_id).toLowerCase().trim() === String(recCode).toLowerCase().trim())
+              (r.name && r.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim())
             );
           }
         }
