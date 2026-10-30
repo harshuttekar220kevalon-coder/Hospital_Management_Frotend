@@ -1,4 +1,24 @@
-export const API_BASE_URL = "http://127.0.0.1:8000/api";
+// Backend Endpoints
+export const LOCAL_API_URL = "http://127.0.0.1:8000/api";
+export const LIVE_API_URL = "https://hospital-management-backend-fo01.onrender.com/api";
+
+// Local par agar aapko Live Render PostgreSQL database test karna ho, to ise true karein:
+export const USE_LIVE_API_ON_LOCAL = false;
+
+// Check if frontend is running locally (localhost / 127.0.0.1)
+const isLocalhost =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "");
+
+// Active API Base URL:
+// 1. Agar .env me VITE_API_URL set hai to wahi use hoga
+// 2. Agar frontend Live par chal raha hai -> LIVE_API_URL use hoga (jisse data Render ke PostgreSQL me save hoga)
+// 3. Agar frontend Local (localhost) par chal raha hai -> LOCAL_API_URL use hoga (jisse data Local db.sqlite3 me save hoga)
+export const API_BASE_URL =
+  import.meta.env?.VITE_API_URL ||
+  (!isLocalhost || USE_LIVE_API_ON_LOCAL ? LIVE_API_URL : LOCAL_API_URL);
 
 export const extractArray = (resData) => {
   if (!resData) return [];
